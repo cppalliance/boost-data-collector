@@ -1,4 +1,4 @@
-# Boost Data Collector — Schema
+# Boost Data Collector - Schema
 
 ## Overview
 
@@ -651,13 +651,23 @@ erDiagram
 erDiagram
     PineconeFailList {
         int id PK
-        string failed_id UK "IX"
+        string failed_id "IX"
         string type "IX"
         datetime created_at
     }
+
+    PineconeSyncStatus {
+        int id PK
+        string type UK "IX"
+        datetime final_sync_at
+        datetime created_at
+        datetime updated_at
+    }
 ```
 
-**Note:** **PineconeFailList** records failed sync operations by `failed_id` and `type` for retry or audit.
+**Note:** **PineconeFailList** - Records failed sync operations by `failed_id` and `type` for retry or audit.
+
+**Note:** **PineconeSyncStatus** - Tracks the last successful sync per source type. One row per `type` (e.g. slack, mailing list, wg21). `final_sync_at` is when the last sync for that type completed; `created_at` and `updated_at` are for the row.
 
 ---
 
@@ -717,6 +727,7 @@ erDiagram
 | **WebsiteVisitCount**                | Per-date, per-country visit count.                                                                       | 8       |
 | **WebsiteWordCount**                 | Per-date, per-word count.                                                                                | 8       |
 | **PineconeFailList**                 | Failed sync records (failed_id, type) for retry/audit.                                                   | 9       |
+| **PineconeSyncStatus**               | Last sync per type (type, final_sync_at, created_at, updated_at); type = slack, mailing list, wg21, etc. | 9       |
 
 ### Appendix B: Relationship summary
 
