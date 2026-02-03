@@ -1,0 +1,5 @@
+Django>=4.2,<5
+psycopg[binary]>=3.1
+django-environ>=0.11
+requests>=2.31
+urllib3>=2.0
