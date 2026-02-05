@@ -1,7 +1,7 @@
 """
 Management command: run_cppa_user_tracker
 Syncs identity and profile data; stages profile-to-identity relations (TmpIdentity,
-TempProfilieIdentityRelation) before merging. Implements restart logic per Development_guideline.
+TempProfileIdentityRelation) before merging. Implements restart logic per Development_guideline.
 """
 import logging
 

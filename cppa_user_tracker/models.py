@@ -70,7 +70,7 @@ class BaseProfile(models.Model):
         db_table = "cppa_user_tracker_baseprofile"
 
 
-class TempProfilieIdentityRelation(models.Model):
+class TempProfileIdentityRelation(models.Model):
     """Staging table: base_profile_id -> target_identity_id (CPPA User Tracker)."""
 
     base_profile = models.ForeignKey(
@@ -89,7 +89,7 @@ class TempProfilieIdentityRelation(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "cppa_user_tracker_tempprofilieidentityrelation"
+        db_table = "cppa_user_tracker_tempprofileidentityrelation"
         ordering = ["id"]
         verbose_name = "Temporary profile-identity relation"
         verbose_name_plural = "Temporary profile-identity relations"

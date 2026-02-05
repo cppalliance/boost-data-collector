@@ -6,7 +6,7 @@ Index of all app service modules. All writes to app models must go through the s
 
 | Service module | App | Short description |
 |----------------|-----|-------------------|
-| [cppa_user_tracker.services](cppa_user_tracker.md) | cppa_user_tracker | Identity, profiles, emails, and staging (TmpIdentity, TempProfilieIdentityRelation). |
+| [cppa_user_tracker.services](cppa_user_tracker.md) | cppa_user_tracker | Identity, profiles, emails, and staging (TmpIdentity, TempProfileIdentityRelation). |
 | [github_activity_tracker.services](github_activity_tracker.md) | github_activity_tracker | Repos, languages, licenses, issues, pull requests, assignees, labels. |
 | [boost_library_tracker.services](boost_library_tracker.md)       | boost_library_tracker   | Boost libraries, versions, dependencies, categories, maintainers/authors. |
 

@@ -17,7 +17,7 @@ from .models import (
     BaseProfile,
     Email,
     Identity,
-    TempProfilieIdentityRelation,
+    TempProfileIdentityRelation,
     TmpIdentity,
 )
 
@@ -61,13 +61,13 @@ def create_tmp_identity(
     )
 
 
-# --- TempProfilieIdentityRelation ---
+# --- TempProfileIdentityRelation (staging) ---
 def add_temp_profile_identity_relation(
     base_profile: BaseProfile,
     target_identity: TmpIdentity,
-) -> tuple[TempProfilieIdentityRelation, bool]:
+) -> tuple[TempProfileIdentityRelation, bool]:
     """Link a BaseProfile to a TmpIdentity (staging). Returns (relation, created)."""
-    return TempProfilieIdentityRelation.objects.get_or_create(
+    return TempProfileIdentityRelation.objects.get_or_create(
         base_profile=base_profile,
         target_identity=target_identity,
     )
@@ -78,7 +78,7 @@ def remove_temp_profile_identity_relation(
     target_identity: TmpIdentity,
 ) -> None:
     """Remove the staging relation between base_profile and target_identity."""
-    TempProfilieIdentityRelation.objects.filter(
+    TempProfileIdentityRelation.objects.filter(
         base_profile=base_profile,
         target_identity=target_identity,
     ).delete()

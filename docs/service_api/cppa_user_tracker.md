@@ -1,7 +1,7 @@
 # cppa_user_tracker.services
 
 **Module path:** `cppa_user_tracker.services`  
-**Description:** Identity, profiles, emails, and staging (TmpIdentity, TempProfilieIdentityRelation). Single place for all writes to cppa_user_tracker models.
+**Description:** Identity, profiles, emails, and staging (TmpIdentity, TempProfileIdentityRelation). Single place for all writes to cppa_user_tracker models.
 
 **Type notation:** Model types refer to `cppa_user_tracker.models` (e.g. `Identity`, `BaseProfile`, `Email`).
 
@@ -24,11 +24,11 @@
 
 ---
 
-## TempProfilieIdentityRelation
+## TempProfileIdentityRelation
 
 | Function                                | Parameter types                        | Return type                                   | Description                                    |
 | --------------------------------------- | -------------------------------------- | --------------------------------------------- | ---------------------------------------------- |
-| `add_temp_profile_identity_relation`    | `base_profile: BaseProfile`, `target_identity: TmpIdentity` | `tuple[TempProfilieIdentityRelation, bool]` | Link a BaseProfile to a TmpIdentity (staging). |
+| `add_temp_profile_identity_relation`    | `base_profile: BaseProfile`, `target_identity: TmpIdentity` | `tuple[TempProfileIdentityRelation, bool]` | Link a BaseProfile to a TmpIdentity (staging). |
 | `remove_temp_profile_identity_relation` | `base_profile: BaseProfile`, `target_identity: TmpIdentity` | `None`                                        | Remove the staging relation.                   |
 
 ---

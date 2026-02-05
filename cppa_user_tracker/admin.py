@@ -8,7 +8,7 @@ from .models import (
     Identity,
     MailingListProfile,
     SlackUser,
-    TempProfilieIdentityRelation,
+    TempProfileIdentityRelation,
     TmpIdentity,
     WG21PaperAuthorProfile,
 )
@@ -35,8 +35,8 @@ class BaseProfileAdmin(ModelAdmin):
     raw_id_fields = ("identity",)
 
 
-@admin.register(TempProfilieIdentityRelation)
-class TempProfilieIdentityRelationAdmin(ModelAdmin):
+@admin.register(TempProfileIdentityRelation)
+class TempProfileIdentityRelationAdmin(ModelAdmin):
     list_display = ("id", "base_profile", "target_identity", "created_at", "updated_at")
     list_filter = ("created_at",)
     raw_id_fields = ("base_profile", "target_identity")

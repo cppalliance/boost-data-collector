@@ -54,8 +54,6 @@ If you see `relation "cppa_user_tracker_githubaccount" does not exist` (or simil
 6. Run a single app command or the full workflow to confirm the project works:
 
 ```bash
-python manage.py run_github_activity_tracker
-# or run all collectors
 python manage.py run_all_collectors
 ```
 
@@ -84,14 +82,14 @@ boost-data-collector/
 │   ├── boost_library_tracker/
 │   ├── ...
 │   └── shared/
-└── [Django apps]/
-    ├── cppa_user_tracker/
-    ├── github_activity_tracker/
-    ├── workflow/
-    └── ...
+|   (Django Apps)
+├── cppa_user_tracker/
+├── github_activity_tracker/
+├── workflow/
+└──     ...
 ```
 
-Each Django app can expose management commands in `management/commands/` (e.g. `run_github_activity_tracker.py`). All apps are in `INSTALLED_APPS` and use the shared database.
+Each Django app can expose management commands in `management/commands/`. All apps are in `INSTALLED_APPS` and use the shared database.
 
 ## How it works
 

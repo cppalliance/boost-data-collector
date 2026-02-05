@@ -2,16 +2,16 @@
 
 ## Overview
 
-The **Boost Data Collector** is a Django project with multiple Django apps. The main workflow is driven by Django's `manage.py` and management commands (or by a Celery task that runs the same workflow). It can run on a set day (e.g. via Celery Beat). Each data-collection or processing step is a Django management command (e.g. `python manage.py run_github_activity_tracker`). The project uses one virtual environment and one database; all apps share the same Django settings and `INSTALLED_APPS`. All sub-apps run one after another - no parallel execution. This document covers: main application workflow and processes, project setup and initialization, and branching strategy for the repository.
+The **Boost Data Collector** is a Django project with multiple Django apps. The main workflow is driven by Django's `manage.py` and management commands (or by a Celery task that runs the same workflow). It can run on a set day (e.g. via Celery Beat). Each data-collection or processing step is a Django management command (e.g. `python manage.py run_boost_library_tracker`). The project uses one virtual environment and one database; all apps share the same Django settings and `INSTALLED_APPS`. All sub-apps run one after another - no parallel execution. This document covers: main application workflow and processes, project setup and initialization, and branching strategy for the repository.
 
 ## 1. Main application workflow and processes
 
 ### How the workflow runs
 
-The main task runs once per day at a set time (e.g. Celery Beat, cron, or manually: `python manage.py run_all_collectors`). Each Django app exposes one or more tasks or management commands (e.g. `run_cppa_user_tracker`, `run_github_activity_tracker`). The main task runs them in a fixed order, one after another - only one app task runs at a time. That avoids write conflicts and keeps data dependencies between apps in order.
+The main task runs once per day at a set time (e.g. Celery Beat, cron, or manually: `python manage.py run_all_collectors`). Each Django app exposes one or more tasks or management commands (e.g. `run_boost_library_tracker`). The main task runs them in a fixed order, one after another - only one app task runs at a time. That avoids write conflicts and keeps data dependencies between apps in order.
 
 1. Start - Trigger the main task at the scheduled time.
-2. Run app tasks in order - For each app task in the list: run it (e.g. `run_github_activity_tracker`), wait for it to finish, check exit code (0 = success, non-zero = failure), record the result; then run the next. You can optionally stop on first failure.
+2. Run app tasks in order - For each app task in the list: run it (e.g. `run_boost_library_tracker`), wait for it to finish, check exit code (0 = success, non-zero = failure), record the result; then run the next. You can optionally stop on first failure.
 3. Finalize - Log how many app tasks ran and how many succeeded or failed; report the summary to maintainers (e.g. by email, Slack, or log); exit with an overall success or failure code.
 
 ## 2. Project details

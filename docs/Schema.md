@@ -21,8 +21,8 @@ erDiagram
     BaseProfile ||--o| MailingListProfile : "extends"
     BaseProfile ||--o| WG21PaperAuthorProfile : "extends"
     Identity }o--|| BaseProfile  : "has"
-    TempProfilieIdentityRelation ||--o{ BaseProfile  : "has"
-    TmpIdentity ||--o{ TempProfilieIdentityRelation : "has"
+    TempProfileIdentityRelation ||--o{ BaseProfile  : "has"
+    TmpIdentity ||--o{ TempProfileIdentityRelation : "has"
 
 
     BaseProfile {
@@ -88,7 +88,7 @@ erDiagram
         datetime updated_at
     }
 
-    TempProfilieIdentityRelation {
+    TempProfileIdentityRelation {
         int id PK
         int base_profile_id FK
         int target_identity_id FK
@@ -105,7 +105,7 @@ erDiagram
 
 **Note:** In **GitHubAccount**, the `type` field is an enum with values: `user`, `organization`, `enterprise` (identifies whether the GitHub account is a user, organization, or enterprise).
 
-**Note:** **BaseProfile** references **Identity** via `identity_id` (FK to Identity.id). One identity can have multiple BaseProfiles (e.g. one person with GitHub and Slack). **Identity**, **TmpIdentity**, and **TempProfilieIdentityRelation** are used by the CPPA User Tracker: Identity holds the canonical user/account; TmpIdentity and TempProfilieIdentityRelation stage temporary profile-to-identity relations (e.g. `base_profile_id`, `target_identity_id`) before merging.
+**Note:** **BaseProfile** references **Identity** via `identity_id` (FK to Identity.id). One identity can have multiple BaseProfiles (e.g. one person with GitHub and Slack). **Identity**, **TmpIdentity**, and **TempProfileIdentityRelation** are used by the CPPA User Tracker: Identity holds the canonical user/account; TmpIdentity and TempProfileIdentityRelation stage temporary profile-to-identity relations (e.g. `base_profile_id`, `target_identity_id`) before merging.
 
 ### 2. GitHub Activity Tracker
 
@@ -685,7 +685,7 @@ erDiagram
 | **MailingListProfile**               | Profile for mailing list; extends BaseProfile.                                                           | 1       |
 | **WG21PaperAuthorProfile**           | Profile for WG21 paper authors; extends BaseProfile.                                                     | 1       |
 | **TmpIdentity**                      | Temporary identity for staging (CPPA User Tracker).                                                      | 1       |
-| **TempProfilieIdentityRelation**     | Staging table: base_profile_id -> target_identity_id (CPPA User Tracker).                                | 1       |
+| **TempProfileIdentityRelation**     | Staging table: base_profile_id -> target_identity_id (CPPA User Tracker).                                | 1       |
 | **GitHubRepository**                 | Repository metadata (owner, repo_name, stars, forks, etc.). Base table for repo subtypes.                | 2       |
 | **GitHubFile**                       | File in a repo (filename, repo_id, is_deleted). Base for file subtypes.                                  | 2       |
 | **Language**                         | Reference: language name.                                                                                | 2       |
@@ -736,8 +736,8 @@ erDiagram
 | Identity                     | BaseProfile                                                                                                            | One identity has many profiles             |
 | BaseProfile                  | Email                                                                                                                  | One profile has many emails                |
 | BaseProfile                  | GitHubAccount, SlackUser, MailingListProfile, WG21PaperAuthorProfile                                                   | Extends (1:1 subtype)                      |
-| TmpIdentity                  | TempProfilieIdentityRelation                                                                                           | Has many (target)                          |
-| TempProfilieIdentityRelation | BaseProfile                                                                                                            | Has many (base_profile_id)                 |
+| TmpIdentity                  | TempProfileIdentityRelation                                                                                           | Has many (target)                          |
+| TempProfileIdentityRelation | BaseProfile                                                                                                            | Has many (base_profile_id)                 |
 | GitHubAccount                | GitHubRepository                                                                                                       | Owns many                                  |
 | GitHubRepository             | RepoLanguage, RepoLicense                                                                                              | Has many                                   |
 | GitHubRepository             | BoostLibraryRepository, BoostExternalRepository                                                                        | Extends (1:1 subtype)                      |
