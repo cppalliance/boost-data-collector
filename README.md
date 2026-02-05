@@ -2,7 +2,7 @@
 
 ## Overview
 
-Boost Data Collector is a Django project that collects and manages data from various Boost-related sources. The project has multiple Django apps in one repository. All apps share one virtual environment, one database (PostgreSQL), and the same Django settings. Each app exposes one or more management commands (e.g. `run_github_activity_tracker`). The main workflow runs these commands in a fixed order (e.g. via `python manage.py run_all_collectors` or a Celery task). See [docs/Workflow.md](docs/Workflow.md) for workflow details.
+Boost Data Collector is a Django project that collects and manages data from various Boost-related sources. The project has multiple Django apps in one repository. All apps share one virtual environment, one database (PostgreSQL), and the same Django settings. Each app exposes one or more management commands (e.g. `run_boost_library_tracker`). The main workflow runs these commands in a fixed order (e.g. via `python manage.py run_all_collectors` or a Celery task). See [docs/Workflow.md](docs/Workflow.md) for workflow details.
 
 ## Quick start
 

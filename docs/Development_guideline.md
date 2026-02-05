@@ -5,7 +5,7 @@ This document outlines the development requirements and guidelines for Django ap
 ## Overview
 
 - Django project: One Django project with multiple Django apps; all apps share the same virtual environment, settings, and database.
-- Workflow: The project runs app tasks sequentially via management commands (e.g. `python manage.py run_github_activity_tracker`) or a single command that runs all collectors (e.g. `python manage.py run_all_collectors`). Scheduling is done with Celery Beat or by running commands by hand.
+- Workflow: The project runs app tasks sequentially via management commands (e.g. `python manage.py run_boost_library_tracker`) or a single command that runs all collectors (e.g. `python manage.py run_all_collectors`). Scheduling is done with Celery Beat or by running commands by hand.
 - Configuration: Django settings (e.g. `settings.py`), environment variables for database URL and API keys (e.g. via `django-environ` or `python-decouple`).
 
 ## Django app requirements
@@ -17,7 +17,7 @@ This document outlines the development requirements and guidelines for Django ap
 
 ### 2. Entry point and dependencies
 
-- Must expose one or more Django management commands in the app's `management/commands/` folder (e.g. `run_github_activity_tracker.py`). The main workflow invokes these commands in a fixed order.
+- Must expose one or more Django management commands in the app's `management/commands/` folder (e.g. `run_boost_library_tracker.py`). The main workflow invokes these commands in a fixed order.
 - Project dependencies (including app-specific ones) are listed in the project root `requirements.txt`; all apps use the same virtual environment.
 
 ### 3. Configuration and logging
@@ -61,14 +61,14 @@ Use these steps to get the Django project running on your machine.
 3. Install dependencies (e.g. `pip install -r requirements.txt`).
 4. Copy the sample env file (e.g. `.env.example`) to `.env` and fill in values for database URL, credentials, and any API keys (e.g. via `django-environ` or `python-decouple`).
 5. Ensure the database is reachable. Run migrations: `python manage.py migrate`.
-6. Run a single app command (e.g. `python manage.py run_github_activity_tracker`) or the full workflow (e.g. `python manage.py run_all_collectors`) to confirm the project works.
+6. Run a single app command (e.g. `python manage.py run_boost_library_tracker`) or the full workflow (e.g. `python manage.py run_all_collectors`) to confirm the project works.
 
 ## Testing workflow
 
 Run tests often so you catch problems early.
 
 - Before each commit: run the test suite for the code you changed (e.g. `python manage.py test` or `pytest` in the project root).
-- For app commands: ensure the command runs successfully (e.g. `python manage.py run_github_activity_tracker` exits with 0 and does the expected work).
+- For app commands: ensure the command runs successfully (e.g. `python manage.py run_boost_library_tracker` exits with 0 and does the expected work).
 - Run the full workflow or integration tests if the project defines them (e.g. `python manage.py run_all_collectors`).
 - In CI: the project may run tests on every push or pull request; fix any failures before merging.
 
