@@ -1,10 +1,12 @@
 """Tests for boost_library_tracker models."""
+
 import pytest
-from boost_library_tracker.models import BoostLibraryRepository, BoostLibrary
 
 
 @pytest.mark.django_db
-def test_boost_library_repository_extends_github_repo(boost_library_repository, github_repository):
+def test_boost_library_repository_extends_github_repo(
+    boost_library_repository, github_repository
+):
     """BoostLibraryRepository uses same PK as parent GitHubRepository."""
     assert boost_library_repository.pk == github_repository.pk
     assert boost_library_repository.repo_name == github_repository.repo_name

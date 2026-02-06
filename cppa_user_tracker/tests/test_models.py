@@ -1,6 +1,9 @@
 """Tests for cppa_user_tracker models."""
+
 import pytest
-from cppa_user_tracker.models import Identity, GitHubAccount, GitHubAccountType, ProfileType
+from cppa_user_tracker.models import (
+    ProfileType,
+)
 
 
 @pytest.mark.django_db

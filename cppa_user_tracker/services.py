@@ -7,6 +7,7 @@ outside this module (e.g. from management commands, views, or other apps).
 
 See docs/Contributing.md for the project-wide rule.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional, Protocol
@@ -43,7 +44,11 @@ def get_or_create_identity(
     lookup = {"display_name": display_name}
     defaults = defaults or {"description": description}
     identity, created = Identity.objects.get_or_create(defaults=defaults, **lookup)
-    if not created and "description" in defaults and identity.description != defaults["description"]:
+    if (
+        not created
+        and "description" in defaults
+        and identity.description != defaults["description"]
+    ):
         identity.description = defaults["description"]
         identity.save(update_fields=["description"])
     return identity, created
@@ -161,7 +166,9 @@ class GitHubClientProtocol(Protocol):
     def rest_request(self, path: str) -> dict[str, Any]: ...
 
 
-def get_or_create_owner_account(client: GitHubClientProtocol, owner: str) -> GitHubAccount:
+def get_or_create_owner_account(
+    client: GitHubClientProtocol, owner: str
+) -> GitHubAccount:
     """Get or create a GitHubAccount for an owner (org or user). For use by any app.
 
     Checks DB first by username to avoid unnecessary API calls. Uses GET /users/{owner}

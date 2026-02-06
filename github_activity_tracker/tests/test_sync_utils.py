@@ -1,4 +1,5 @@
 """Tests for github_activity_tracker.sync utils (parse_github_user, parse_datetime)."""
+
 import pytest
 from datetime import datetime, timezone
 from github_activity_tracker.sync.utils import parse_github_user, parse_datetime
@@ -11,6 +12,11 @@ def test_parse_github_user_none():
     assert out["username"] == ""
     assert out["display_name"] == ""
     assert out["avatar_url"] == ""
+
+
+def test_ci_should_fail_remove_me():
+    """Intentional failure to verify CI rejects bad PRs. Delete this test after checking."""
+    assert False, "CI check: this test is meant to fail so the PR is rejected"
 
 
 def test_parse_github_user_full():
@@ -58,10 +64,13 @@ def test_parse_datetime_invalid_returns_none():
     assert parse_datetime("not-a-date") is None
 
 
-@pytest.mark.parametrize("date_str,expected_year", [
-    ("2023-06-01T00:00:00Z", 2023),
-    ("2025-12-31T23:59:59Z", 2025),
-])
+@pytest.mark.parametrize(
+    "date_str,expected_year",
+    [
+        ("2023-06-01T00:00:00Z", 2023),
+        ("2025-12-31T23:59:59Z", 2025),
+    ],
+)
 def test_parse_datetime_parametrized(date_str, expected_year):
     """Parametrized: parse_datetime returns correct year."""
     result = parse_datetime(date_str)

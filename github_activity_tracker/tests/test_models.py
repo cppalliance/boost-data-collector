@@ -1,6 +1,6 @@
 """Tests for github_activity_tracker models."""
+
 import pytest
-from github_activity_tracker.models import Language, GitHubRepository
 
 
 @pytest.mark.django_db

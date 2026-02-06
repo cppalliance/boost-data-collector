@@ -1,4 +1,5 @@
 """Minimal view tests (admin is the only app-served URL). Uses django-test-plus tp fixture."""
+
 import pytest
 
 

@@ -2,6 +2,7 @@
 Fixtures for boost_library_tracker app.
 Depends on github_activity_tracker (GitHubRepository) and cppa_user_tracker (GitHubAccount).
 """
+
 from django.db import connection
 from django.utils import timezone
 
@@ -52,6 +53,7 @@ def make_boost_library():
             )
         if "name" not in kwargs:
             import uuid
+
             kwargs["name"] = "lib-" + uuid.uuid4().hex[:6]
         return baker.make("boost_library_tracker.BoostLibrary", **kwargs)
 

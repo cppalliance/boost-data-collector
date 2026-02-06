@@ -1,4 +1,5 @@
 """Tests for workflow management commands."""
+
 import pytest
 from django.core.management import call_command
 from io import StringIO
