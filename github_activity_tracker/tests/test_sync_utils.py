@@ -2,7 +2,10 @@
 
 import pytest
 from datetime import datetime, timezone
-from github_activity_tracker.sync.utils import parse_github_user, parse_datetime
+from github_activity_tracker.sync.utils import (
+    parse_github_user,
+    parse_datetime,
+)
 
 
 def test_parse_github_user_none():
@@ -12,11 +15,6 @@ def test_parse_github_user_none():
     assert out["username"] == ""
     assert out["display_name"] == ""
     assert out["avatar_url"] == ""
-
-
-def test_ci_should_fail_remove_me():
-    """Intentional failure to verify CI rejects bad PRs. Delete this test after checking."""
-    assert False, "CI check: this test is meant to fail so the PR is rejected"
 
 
 def test_parse_github_user_full():
