@@ -20,6 +20,10 @@ staticfiles/
 media/
 .test_artifacts/
 
+# Testing / coverage
+.coverage
+htmlcov/
+
 # Environment
 .env
 .env.local

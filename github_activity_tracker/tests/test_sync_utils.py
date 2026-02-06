@@ -1,6 +1,6 @@
 """Tests for github_activity_tracker.sync utils (parse_github_user, parse_datetime)."""
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from github_activity_tracker.sync.utils import parse_github_user, parse_datetime
 
 
@@ -48,11 +48,9 @@ def test_parse_datetime_empty():
 
 
 def test_parse_datetime_iso():
-    """parse_datetime parses ISO format with Z."""
+    """parse_datetime parses ISO format with Z and returns timezone-aware UTC."""
     result = parse_datetime("2024-01-15T10:30:00Z")
-    assert result == datetime(2024, 1, 15, 10, 30, 0)
-    # Should be naive or aware depending on impl; fromisoformat with +00:00 gives aware
-    assert result is not None
+    assert result == datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
 
 
 def test_parse_datetime_invalid_returns_none():

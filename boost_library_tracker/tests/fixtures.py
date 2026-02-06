@@ -2,19 +2,31 @@
 Fixtures for boost_library_tracker app.
 Depends on github_activity_tracker (GitHubRepository) and cppa_user_tracker (GitHubAccount).
 """
+from django.db import connection
+from django.utils import timezone
+
 import pytest
 from model_bakery import baker
+
+from boost_library_tracker.models import BoostLibraryRepository
 
 
 @pytest.fixture
 def boost_library_repository(db, github_repository):
     """BoostLibraryRepository (extends GitHubRepository) for tests."""
-    # BoostLibraryRepository is multi-table inheritance from GitHubRepository;
-    # we need to create from boost_library_tracker model (it creates the parent too).
-    return baker.make(
-        "boost_library_tracker.BoostLibraryRepository",
-        githubrepository_ptr=github_repository,
-    )
+    # Insert only the child table row so the parent row is never updated (MTI create() would
+    # UPDATE the parent with the child's empty attributes and violate owner_account_id NOT NULL).
+    now = timezone.now()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO boost_library_tracker_boostlibraryrepository
+                (githubrepository_ptr_id, created_at, updated_at)
+            VALUES (%s, %s, %s)
+            """,
+            [github_repository.pk, now, now],
+        )
+    return BoostLibraryRepository.objects.get(pk=github_repository.pk)
 
 
 @pytest.fixture

@@ -22,4 +22,5 @@ def test_github_account_sets_profile_type(github_account):
 def test_github_account_identity_relation(github_account, identity):
     """GitHubAccount is linked to Identity."""
     assert github_account.identity_id == identity.id
-    assert github_account in identity.profiles.all()
+    # identity.profiles returns BaseProfile instances; check by pk (GitHubAccount is subclass).
+    assert identity.profiles.filter(pk=github_account.pk).exists()
