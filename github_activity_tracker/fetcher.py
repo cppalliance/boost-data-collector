@@ -10,6 +10,8 @@ import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Iterator, Optional
 
+import requests
+
 if TYPE_CHECKING:
     from github_ops.client import GitHubAPIClient
 
@@ -99,10 +101,23 @@ def fetch_commits_from_github(
                         f"Failed to parse commit date '{commit_date_str}': {e}"
                     )
 
-            # Fetch full commit with stats
-            commit_with_stats = client.rest_request(
-                f"/repos/{owner}/{repo}/commits/{commit['sha']}"
-            )
+            # Fetch full commit with stats (skip on persistent server errors so sync continues)
+            try:
+                commit_with_stats = client.rest_request(
+                    f"/repos/{owner}/{repo}/commits/{commit['sha']}"
+                )
+            except requests.exceptions.HTTPError as e:
+                if e.response is not None and e.response.status_code in (502, 503, 504):
+                    logger.warning(
+                        "Skipping commit %s for %s/%s after HTTP %s: %s",
+                        commit["sha"][:7],
+                        owner,
+                        repo,
+                        e.response.status_code,
+                        e,
+                    )
+                    continue
+                raise
             yield commit_with_stats
 
         if len(commits) < per_page:

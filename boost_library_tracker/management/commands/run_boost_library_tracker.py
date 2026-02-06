@@ -13,7 +13,7 @@ import logging
 from datetime import datetime
 
 import requests
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from cppa_user_tracker.services import get_or_create_owner_account
 from github_activity_tracker.services import (
@@ -56,6 +56,7 @@ def task_fetch_github_activity(
     dry_run: bool = False,
     start_date: datetime = None,
     end_date: datetime = None,
+    from_library: str | None = None,
 ) -> None:
     """Fetch GitHub activity for boostorg/boost and all its submodules.
     
@@ -63,6 +64,8 @@ def task_fetch_github_activity(
         dry_run: If True, only show what would be done.
         start_date: Start date for sync (default: auto from DB).
         end_date: End date for sync (default: now).
+        from_library: If set, sync only from this submodule onward (skip main repo and
+            submodules before it). Library name = repo name (e.g. 'build', 'algorithm').
     """
     self.stdout.write("Task 1: Fetch GitHub activity (main repo + submodules)...")
     if start_date:
@@ -71,6 +74,8 @@ def task_fetch_github_activity(
         self.stdout.write(f"  To: {end_date.isoformat()}")
     else:
         self.stdout.write("  To: now")
+    if from_library:
+        self.stdout.write(f"  From library: {from_library} (and all after)")
     
     client = get_github_client(use="scraping")
 
@@ -106,6 +111,22 @@ def task_fetch_github_activity(
             raise
     except Exception as e:
         logger.warning("Could not fetch .gitmodules: %s; syncing main repo only", e)
+
+    # If --from-library is set, start only from that submodule onward
+    if from_library:
+        from_name = from_library.strip()
+        idx = None
+        for i, (_owner, repo_name) in enumerate(repos_to_sync):
+            if repo_name == from_name:
+                idx = i
+                break
+        if idx is None:
+            raise CommandError(
+                f"Library '{from_name}' not found in repo list (main + submodules). "
+                "Check the name (e.g. 'build', 'algorithm')."
+            )
+        repos_to_sync = repos_to_sync[idx:]
+        self.stdout.write(f"  Starting from {repos_to_sync[0][0]}/{repos_to_sync[0][1]} ({len(repos_to_sync)} repo(s))")
 
     if dry_run:
         self.stdout.write(
@@ -176,6 +197,14 @@ class Command(BaseCommand):
             default=None,
             help="End date for sync (ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). Default: now.",
         )
+        parser.add_argument(
+            "--from-library",
+            type=str,
+            default=None,
+            metavar="NAME",
+            help="Start from this submodule onward (repo name, e.g. 'build', 'algorithm'). "
+            "Skips main repo and submodules before this one. Default: sync all from scratch.",
+        )
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
@@ -197,18 +226,24 @@ class Command(BaseCommand):
                 self.stderr.write(self.style.ERROR(f"Invalid --to-date format: {e}"))
                 return
         
+        from_library = (options.get("from_library") or "").strip() or None
         logger.debug(
-            "run_boost_library_tracker: starting (dry_run=%s, task=%s, from=%s, to=%s)",
+            "run_boost_library_tracker: starting (dry_run=%s, task=%s, from=%s, to=%s, from_library=%s)",
             dry_run,
             task_filter or "all",
             start_date.isoformat() if start_date else "auto",
             end_date.isoformat() if end_date else "now",
+            from_library or "all",
         )
 
         try:
             if not task_filter or task_filter == "github_activity":
                 task_fetch_github_activity(
-                    self, dry_run=dry_run, start_date=start_date, end_date=end_date
+                    self,
+                    dry_run=dry_run,
+                    start_date=start_date,
+                    end_date=end_date,
+                    from_library=from_library,
                 )
             if not task_filter or task_filter == "library_tracker":
                 task_library_tracker(self, dry_run=dry_run)
