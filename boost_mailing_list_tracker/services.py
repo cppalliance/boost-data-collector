@@ -24,12 +24,12 @@ logger = logging.getLogger(__name__)
 def get_or_create_mailing_list_message(
     sender: MailingListProfile,
     msg_id: str,
+    sent_at: datetime,
     parent_id: str = "",
     thread_id: str = "",
     subject: str = "",
     content: str = "",
     list_name: str = "",
-    sent_at: Optional[datetime] = None,
 ) -> tuple[MailingListMessage, bool]:
     """Get or create a MailingListMessage by msg_id (unique).
 
@@ -41,10 +41,13 @@ def get_or_create_mailing_list_message(
     """
     if not (msg_id and msg_id.strip()):
         raise ValueError("msg_id must not be empty.")
+    
     list_value = (list_name or "").strip()
     valid_values = [m.value for m in MailingListName]
+    
     if list_value not in valid_values:
         raise ValueError(f"list_name must be one of {valid_values}, got {list_value!r}.")
+    
     return MailingListMessage.objects.get_or_create(
         msg_id=msg_id.strip(),
         defaults={
