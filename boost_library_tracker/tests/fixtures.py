@@ -1,58 +1,62 @@
 """
 Fixtures for boost_library_tracker app.
 Depends on github_activity_tracker (GitHubRepository) and cppa_user_tracker (GitHubAccount).
+All model creation goes through the service API (see boost_library_tracker.services).
 """
-from django.db import connection
-from django.utils import timezone
+
+import uuid
 
 import pytest
 from model_bakery import baker
 
-from boost_library_tracker.models import BoostLibraryRepository
+from boost_library_tracker import services
+
+
+def _make_boost_library_repository(*, owner_account=None, repo_name=None):
+    """Create BoostLibraryRepository via service API (parent first, then get_or_create_boost_library_repo)."""
+    if owner_account is None:
+        owner_account = baker.make("cppa_user_tracker.GitHubAccount")
+    if repo_name is None:
+        repo_name = "repo-" + uuid.uuid4().hex[:8]
+    parent = baker.make(
+        "github_activity_tracker.GitHubRepository",
+        owner_account=owner_account,
+        repo_name=repo_name,
+        stars=0,
+        forks=0,
+    )
+    repo, _ = services.get_or_create_boost_library_repo(parent)
+    return repo
 
 
 @pytest.fixture
 def boost_library_repository(db, github_repository):
-    """BoostLibraryRepository (extends GitHubRepository) for tests."""
-    # Insert only the child table row so the parent row is never updated (MTI create() would
-    # UPDATE the parent with the child's empty attributes and violate owner_account_id NOT NULL).
-    now = timezone.now()
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            INSERT INTO boost_library_tracker_boostlibraryrepository
-                (githubrepository_ptr_id, created_at, updated_at)
-            VALUES (%s, %s, %s)
-            """,
-            [github_repository.pk, now, now],
-        )
-    return BoostLibraryRepository.objects.get(pk=github_repository.pk)
+    """BoostLibraryRepository (extends GitHubRepository) for tests. Uses service API."""
+    repo, _ = services.get_or_create_boost_library_repo(github_repository)
+    return repo
 
 
 @pytest.fixture
 def boost_library(db, boost_library_repository):
-    """Single BoostLibrary in a BoostLibraryRepository."""
-    return baker.make(
-        "boost_library_tracker.BoostLibrary",
-        repo=boost_library_repository,
-        name="algorithm",
+    """Single BoostLibrary in a BoostLibraryRepository. Uses service API."""
+    lib, _ = services.get_or_create_boost_library(
+        boost_library_repository, "algorithm"
     )
+    return lib
 
 
 @pytest.fixture
 def make_boost_library():
-    """Factory: create BoostLibrary; repo created if not provided."""
+    """Factory: create BoostLibrary via service API; repo created via service if not provided."""
 
     def _make(**kwargs):
-        if "repo" not in kwargs:
-            kwargs["repo"] = baker.make(
-                "boost_library_tracker.BoostLibraryRepository",
-                owner_account=baker.make("cppa_user_tracker.GitHubAccount"),
-                repo_name="boost-algorithm",
-            )
-        if "name" not in kwargs:
-            import uuid
-            kwargs["name"] = "lib-" + uuid.uuid4().hex[:6]
-        return baker.make("boost_library_tracker.BoostLibrary", **kwargs)
+        repo = kwargs.pop("repo", None)
+        if repo is None:
+            repo = _make_boost_library_repository(repo_name="boost-algorithm")
+        name = kwargs.pop("name", None)
+        if name is None:
+            name = "lib-" + uuid.uuid4().hex[:6]
+        lib, _ = services.get_or_create_boost_library(repo, name)
+        return lib
 
     return _make
