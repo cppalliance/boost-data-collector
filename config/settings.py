@@ -22,7 +22,9 @@ if env_file.exists():
     environ.Env.read_env(str(env_file))
 
 # Security
-SECRET_KEY = env("SECRET_KEY") or "django-insecure-dev-only-change-in-production"
+SECRET_KEY = (
+    env("SECRET_KEY") or "django-insecure-dev-only-change-in-production"
+)
 DEBUG = env("DEBUG")
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
@@ -42,6 +44,7 @@ INSTALLED_APPS = [
     "operations",
     "github_activity_tracker",
     "boost_library_tracker",
+	"cppa_pinecone_sync",
     "cppa_slack_transcript_tracker",
     "discord_activity_tracker",
 ]
@@ -105,8 +108,12 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
     },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
-    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"
+    },
 ]
 
 # Internationalization
@@ -202,6 +209,26 @@ DISCORD_CONTEXT_REPO_PATH = Path(
     )
 ).resolve()
 
+# Pinecone (cppa_pinecone_sync) - vector search indexes
+PINECONE_API_KEY = (env("PINECONE_API_KEY", default="") or "").strip()
+PINECONE_INDEX_NAME = (env("PINECONE_INDEX_NAME", default="") or "").strip()
+PINECONE_ENVIRONMENT = (
+    env("PINECONE_ENVIRONMENT", default="us-east-1") or "us-east-1"
+).strip()
+PINECONE_CLOUD = (env("PINECONE_CLOUD", default="aws") or "aws").strip()
+PINECONE_BATCH_SIZE = int(env("PINECONE_BATCH_SIZE", default=96))
+PINECONE_CHUNK_SIZE = int(env("PINECONE_CHUNK_SIZE", default=1000))
+PINECONE_CHUNK_OVERLAP = int(env("PINECONE_CHUNK_OVERLAP", default=200))
+PINECONE_MIN_TEXT_LENGTH = int(env("PINECONE_MIN_TEXT_LENGTH", default=50))
+PINECONE_MIN_WORDS = int(env("PINECONE_MIN_WORDS", default=5))
+PINECONE_DENSE_MODEL = (
+    env("PINECONE_DENSE_MODEL", default="multilingual-e5-large")
+    or "multilingual-e5-large"
+).strip()
+PINECONE_SPARSE_MODEL = (
+    env("PINECONE_SPARSE_MODEL", default="pinecone-sparse-english-v0")
+    or "pinecone-sparse-english-v0"
+).strip()
 # Logging - project-wide configuration for app commands (console + rotating file)
 LOG_DIR = Path(env("LOG_DIR", default=str(BASE_DIR / "logs")))
 LOG_FILE = env("LOG_FILE", default="app.log")
