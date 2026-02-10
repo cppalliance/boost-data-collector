@@ -4,24 +4,24 @@ Documentation is organized **by topic**, not by app. Each doc covers one cross-c
 
 ## Topic index
 
-| Topic | Doc | Purpose |
-|-------|-----|---------|
-| **Workflow** | [Workflow.md](Workflow.md) | Main application workflow, execution order, and project details. |
-| **Operations** | [operations/](operations/README.md) | **Group:** shared I/O (GitHub, Discord, etc.) used by multiple apps. Index in [operations/README.md](operations/README.md). |
-| → GitHub | [operations/github.md](operations/github.md) | Clone, push, fetch file, create PR/issue/comment; token use. |
-| **Workspace** | [Workspace.md](Workspace.md) | Workspace layout and usage for file processing (`workspace/<app>/...`). |
-| **Schema** | [Schema.md](Schema.md) | Database schema and table relationships. |
-| **Development** | [Development_guideline.md](Development_guideline.md) | Development setup, app requirements, and step-by-step workflow. |
-| **Contributing** | [Contributing.md](Contributing.md) | Service layer (single place for writes) and contributor guidelines. |
-| **Service API** | [Service_API.md](Service_API.md) | API reference and index for all service layer functions. |
-| **Service API (per app)** | [service_api/](service_api/) | Per-app service API docs (name, description, parameters, return types, validation). |
+| Topic                     | Doc                                                  | Purpose                                                                                                                     |
+| ------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **Workflow**              | [Workflow.md](Workflow.md)                           | Main application workflow, execution order, and project details.                                                            |
+| **Operations**            | [operations/](operations/README.md)                  | **Group:** shared I/O (GitHub, Discord, etc.) used by multiple apps. Index in [operations/README.md](operations/README.md). |
+| → GitHub                  | [operations/github.md](operations/github.md)         | Clone, push, fetch file, create PR/issue/comment; token use.                                                                |
+| **Workspace**             | [Workspace.md](Workspace.md)                         | Workspace layout and usage for file processing (`workspace/<app>/...`).                                                     |
+| **Schema**                | [Schema.md](Schema.md)                               | Database schema and table relationships.                                                                                    |
+| **Development**           | [Development_guideline.md](Development_guideline.md) | Development setup, app requirements, and step-by-step workflow.                                                             |
+| **Contributing**          | [Contributing.md](Contributing.md)                   | Service layer (single place for writes) and contributor guidelines.                                                         |
+| **Service API**           | [Service_API.md](Service_API.md)                     | API reference and index for all service layer functions.                                                                    |
+| **Service API (per app)** | [service_api/](service_api/)                         | Per-app service API docs (name, description, parameters, return types, validation).                                         |
 
 ## Operations (shared I/O)
 
 **Operations** = external integrations used by many apps (not the same as **Service API**, which is for DB writes). See **[operations/README.md](operations/README.md)** for the full list and when to add one.
 
 - **GitHub:** [operations/github.md](operations/github.md) — `github_ops` app (clone, push, PR, issue, comment).
-- **Discord:** *(add operations/discord.md when you add Discord notifications.)*
+- **Discord:** _(add operations/discord.md when you add Discord notifications.)_
 
 ## Finding app-specific info
 

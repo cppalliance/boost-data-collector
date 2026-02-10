@@ -6,11 +6,12 @@ All writes to app models must go through the service layer. The API is documente
 
 ## Index (service name and description)
 
-| Service | Module path | Short description |
-|---------|-------------|--------------------|
-| **cppa_user_tracker** | `cppa_user_tracker.services` | Identity, profiles, emails, and staging (TmpIdentity, TempProfileIdentityRelation). |
-| **github_activity_tracker** | `github_activity_tracker.services` | Repos, languages, licenses, issues, pull requests, assignees, labels. |
-| **boost_library_tracker**   | `boost_library_tracker.services`   | Boost libraries, versions, dependencies, categories, maintainers/authors. |
+| Service                     | Module path                        | Short description                                                                   |
+| --------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------- |
+| **cppa_user_tracker**       | `cppa_user_tracker.services`       | Identity, profiles, emails, and staging (TmpIdentity, TempProfileIdentityRelation). |
+| **github_activity_tracker** | `github_activity_tracker.services` | Repos, languages, licenses, issues, pull requests, assignees, labels.               |
+| **boost_library_tracker**   | `boost_library_tracker.services`   | Boost libraries, versions, dependencies, categories, maintainers/authors.           |
+| **cppa_pinecone_sync**      | `cppa_pinecone_sync.services`      | Pinecone fail list and sync status (failure tracking, last-sync bookkeeping).       |
 
 ---
 
@@ -20,6 +21,7 @@ All writes to app models must go through the service layer. The API is documente
 - **[service_api/cppa_user_tracker.md](service_api/cppa_user_tracker.md)** – Full API for `cppa_user_tracker.services`.
 - **[service_api/github_activity_tracker.md](service_api/github_activity_tracker.md)** – Full API for `github_activity_tracker.services` (includes validation: empty `name` raises `ValueError` for Language/License).
 - **[service_api/boost_library_tracker.md](service_api/boost_library_tracker.md)** – API for `boost_library_tracker.services`.
+- **[service_api/cppa_pinecone_sync.md](service_api/cppa_pinecone_sync.md)** – API for `cppa_pinecone_sync.services`.
 
 ---
 
