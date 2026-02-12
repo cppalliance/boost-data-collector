@@ -22,6 +22,7 @@ from .models import (
     TmpIdentity,
     GitHubAccount,
     GitHubAccountType,
+    MailingListProfile,
 )
 
 
@@ -45,9 +46,7 @@ def get_or_create_identity(
     """Get or create an Identity by display_name. If exists, updates description from defaults."""
     lookup = {"display_name": display_name}
     defaults = defaults or {"description": description}
-    identity, created = Identity.objects.get_or_create(
-        defaults=defaults, **lookup
-    )
+    identity, created = Identity.objects.get_or_create(defaults=defaults, **lookup)
     if (
         not created
         and "description" in defaults
@@ -121,10 +120,6 @@ def update_email(email_obj: Email, **kwargs: Any) -> Email:
 def remove_email(email_obj: Email) -> None:
     """Remove an email from a profile."""
     email_obj.delete()
-
-
-# --- BaseProfile / subclasses ---
-from .models import GitHubAccount, GitHubAccountType, MailingListProfile
 
 
 def get_or_create_mailing_list_profile(
@@ -266,9 +261,7 @@ def get_or_create_unknown_github_account(
     ).first()
     if existing is not None:
         if email_str and not existing.emails.filter(email=email_str).exists():
-            add_email(
-                existing, email_str, is_primary=not existing.emails.exists()
-            )
+            add_email(existing, email_str, is_primary=not existing.emails.exists())
         return existing, False
     next_id = _get_next_negative_github_account_id()
     account = get_or_create_github_account(

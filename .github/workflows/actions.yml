@@ -36,8 +36,9 @@ jobs:
 
       - name: Lint / format with pre-commit
         run: |
-          uv pip install pre-commit --system
-          pre-commit run -a
+          uv venv
+          uv pip install pre-commit
+          uv run pre-commit run -a
 
   test:
     runs-on: ubuntu-latest
@@ -76,7 +77,9 @@ jobs:
             ${{ runner.os }}-uv-
 
       - name: Install dependencies
-        run: uv pip install -r requirements-dev.txt --system
+        run: |
+          uv venv
+          uv pip install -r requirements-dev.txt
 
       - name: Test with pytest
         env:
@@ -84,7 +87,7 @@ jobs:
           SECRET_KEY: for-testing-only
           DJANGO_SETTINGS_MODULE: config.test_settings
         run: |
-          python -m pytest --cov --cov-report=html --cov-report=xml --junitxml=junit.xml -v
+          uv run pytest --cov --cov-report=html --cov-report=xml --junitxml=junit.xml -v
 
       - name: Upload HTML coverage report
         if: always()
