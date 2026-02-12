@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "github_ops",
     "github_activity_tracker",
     "boost_library_tracker",
+    "boost_usage_tracker",
 ]
 
 MIDDLEWARE = [
@@ -123,7 +124,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Workspace: one folder for raw/processed files, subfolders per app (see docs/Workspace.md)
 WORKSPACE_DIR = Path(env("WORKSPACE_DIR", default=str(BASE_DIR / "workspace"))).resolve()
-_WORKSPACE_APP_SLUGS = ("github_activity_tracker", "boost_library_tracker", "shared")
+_WORKSPACE_APP_SLUGS = ("github_activity_tracker", "boost_library_tracker", "boost_usage_tracker", "shared")
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 for _slug in _WORKSPACE_APP_SLUGS:
     (WORKSPACE_DIR / _slug).mkdir(parents=True, exist_ok=True)

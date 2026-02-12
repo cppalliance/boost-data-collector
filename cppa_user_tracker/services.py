@@ -115,7 +115,60 @@ def remove_email(email_obj: Email) -> None:
 
 
 # --- BaseProfile / subclasses ---
-from .models import GitHubAccount, GitHubAccountType
+from .models import GitHubAccount, GitHubAccountType, MailingListProfile, ProfileType
+
+
+# --- MailingListProfile ---
+def get_or_create_mailing_list_profile(
+    display_name: str = "",
+    identity: Optional[Identity] = None,
+) -> tuple[MailingListProfile, bool]:
+    """Get or create a MailingListProfile by display_name. Returns (profile, created).
+
+    If the profile already exists, identity is not updated (set it separately if needed).
+    """
+    display_name_val = (display_name or "").strip() or "unknown"
+    profile, created = MailingListProfile.objects.get_or_create(
+        display_name=display_name_val,
+        defaults={"identity": identity},
+    )
+    return profile, created
+
+
+def get_or_create_mailing_list_profile_by_email(
+    email_address: str,
+    display_name: str = "",
+    identity: Optional[Identity] = None,
+) -> tuple[MailingListProfile, bool]:
+    """Get or create a MailingListProfile by email (person identifier). Returns (profile, created).
+
+    Looks up an Email with this address whose profile is a MailingListProfile. If found,
+    returns that profile. If not, creates a new MailingListProfile with display_name,
+    adds the email, and returns it. Use this when email is the canonical sender identifier.
+    """
+    email_str = (email_address or "").strip()
+    if not email_str:
+        return get_or_create_mailing_list_profile(
+            display_name=display_name or "unknown",
+            identity=identity,
+        )
+
+    existing = Email.objects.filter(
+        email=email_str,
+        base_profile__type=ProfileType.MAILING_LIST,
+    ).select_related("base_profile").first()
+
+    if existing is not None:
+        profile = MailingListProfile.objects.get(pk=existing.base_profile_id)
+        return profile, False
+
+    display_name_val = (display_name or "").strip() or email_str
+    profile = MailingListProfile.objects.create(
+        display_name=display_name_val,
+        identity=identity,
+    )
+    add_email(profile, email_str, is_primary=True)
+    return profile, True
 
 
 def get_or_create_github_account(
