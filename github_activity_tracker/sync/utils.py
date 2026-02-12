@@ -21,6 +21,11 @@ __all__ = [
 ]
 
 
+def test_lint_error_remove_me():
+    """Intentional lint error for CI test branch. Delete after verifying CI fails."""
+    x = 1
+
+
 def parse_github_user(user_dict: Optional[dict]) -> dict:
     """Parse GitHub user dict into fields for GitHubAccount. Returns dict with account_id, username, display_name, avatar_url."""
     if user_dict is None:

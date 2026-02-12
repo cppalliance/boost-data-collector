@@ -8,6 +8,16 @@ from github_activity_tracker.sync.utils import (
 )
 
 
+def test_lint_error_remove_me():
+    """Intentional lint error for CI test branch. Delete after verifying CI fails."""
+    x = 1
+
+
+def test_ci_should_fail_remove_me():
+    """Intentional failure to verify CI rejects bad PRs. Delete this test after checking."""
+    assert False, "CI check: this test is meant to fail so the PR is rejected"
+
+
 def test_parse_github_user_none():
     """parse_github_user(None) returns empty-style dict."""
     out = parse_github_user(None)
