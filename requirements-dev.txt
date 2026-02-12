@@ -1,3 +1,6 @@
+# Include production dependencies
+-r requirements.txt
+
 # Test stack (see docs/testing or project testing summary)
 pytest>=7.4
 pytest-django>=4.5
