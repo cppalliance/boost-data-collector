@@ -172,7 +172,7 @@ def format_email(item: dict[str, Any], source_url: str) -> dict[str, Any]:
 
 
 def _get_start_date_from_db() -> str:
-    """Return start_date as YYYY-MM-DD: the day after the latest sent_at in the DB. Empty if no messages."""
+    """Return start_date as ISO 8601 UTC (e.g. 2025-11-13T05:25:55Z): the latest sent_at in the DB. Empty if no messages."""
     from django.db.models import Max
     from django.utils import timezone
 
@@ -182,8 +182,9 @@ def _get_start_date_from_db() -> str:
     max_sent = result.get("sent_at__max")
     if max_sent is None:
         return ""
-    next_day = max_sent + timezone.timedelta(days=1)
-    return next_day.strftime("%Y-%m-%d")
+    if max_sent.tzinfo is not None:
+        max_sent = max_sent.astimezone(timezone.utc)
+    return max_sent.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _save_raw_email(list_name: str, raw_item: dict[str, Any], msg_id: str) -> None:
@@ -203,7 +204,7 @@ def fetch_all_emails(
     """Fetch and format emails from all configured Boost mailing lists.
 
     - If start_date is null or empty, uses the day after the latest sent_at in the database.
-    - Raw scraped data is saved to workspace/boost_mailing_list_tracker/<list_name>/raw/
+    - Raw scraped data is saved to workspace/raw/boost_mailing_list_app/<list_name>/
       before formatting; raw files are kept (not removed).
 
     Returns a list of formatted email dicts (may be empty on total failure).
@@ -215,7 +216,7 @@ def fetch_all_emails(
     if not (start_date and start_date.strip()):
         start_date = _get_start_date_from_db()
         if start_date:
-            logger.info("Using start_date from DB (day after latest sent_at): %s", start_date)
+            logger.info("Using start_date from DB (latest sent_at): %s", start_date)
         else:
             start_date = ""
 
@@ -238,7 +239,7 @@ def fetch_all_emails(
             if content_item:
                 msg_id = content_item.get("message_id_hash") or ""
                 raw_id = msg_id or url.rstrip("/").split("/")[-1] or "unknown"
-                # _save_raw_email(list_name, content_item, raw_id)
+                _save_raw_email(list_name, content_item, raw_id)
                 formatted = format_email(content_item, api_url)
                 if formatted.get("msg_id"):
                     all_emails.append(formatted)
@@ -248,10 +249,3 @@ def fetch_all_emails(
         logger.info("  Fetched %d emails total so far", len(all_emails))
 
     return all_emails
-
-def main():
-    emails = fetch_all_emails(start_date="2025-12-21", end_date="2026-01-17")
-    print(emails)
-
-if __name__ == "__main__":
-    main()

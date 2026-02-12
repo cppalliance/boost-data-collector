@@ -1,11 +1,13 @@
 """
 Workspace paths for boost_mailing_list_tracker: JSON cache for mailing list messages.
 
-Layout: workspace/boost_mailing_list_tracker/<list_name>/messages/<msg_id_safe>.json
+Layout:
+- Raw: workspace/raw/boost_mailing_list_app/<list_name>/<msg_id_safe>.json (kept, not removed)
+- Messages: workspace/boost_mailing_list_tracker/<list_name>/messages/<msg_id_safe>.json
 
 Flow (like github_activity_tracker):
 1. Process existing JSONs → load, persist to DB, remove file.
-2. Fetch from API → save each as messages/<msg_id>.json, persist to DB, remove file.
+2. Fetch from API → save raw to workspace/raw/boost_mailing_list_app/<list_name>/, save formatted to messages/, persist to DB, remove formatted file.
 """
 import re
 from pathlib import Path
@@ -13,6 +15,8 @@ from pathlib import Path
 from config.workspace import get_workspace_path
 
 _APP_SLUG = "boost_mailing_list_tracker"
+_RAW_APP_SLUG = "raw"
+_RAW_APP_NAME = "boost_mailing_list_app"
 
 
 def get_workspace_root() -> Path:
@@ -37,14 +41,16 @@ def get_list_dir(list_name: str) -> Path:
 
 
 def get_raw_dir(list_name: str) -> Path:
-    """Return .../<list_name>/raw/; creates if missing. Raw scraped data is kept (not removed)."""
-    path = get_list_dir(list_name) / "raw"
+    """Return workspace/raw/boost_mailing_list_app/<list_name>/; creates if missing. Raw scraped data is kept (not removed)."""
+    raw_root = get_workspace_path(_RAW_APP_SLUG) / _RAW_APP_NAME
+    safe_name = _safe_msg_id(list_name) or "unknown"
+    path = raw_root / safe_name
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def get_raw_json_path(list_name: str, msg_id: str) -> Path:
-    """Path for raw/<msg_id_safe>.json. Raw files are not removed after processing."""
+    """Path for workspace/raw/boost_mailing_list_app/<list_name>/<msg_id_safe>.json. Raw files are not removed after processing."""
     return get_raw_dir(list_name) / f"{_safe_msg_id(msg_id)}.json"
 
 

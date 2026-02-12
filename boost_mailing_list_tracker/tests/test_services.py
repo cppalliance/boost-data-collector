@@ -1,4 +1,8 @@
-"""Tests for boost_mailing_list_tracker.services."""
+"""Tests for boost_mailing_list_tracker.services.
+
+Covers edge cases and boundaries: empty/None inputs, max lengths,
+invalid list_name, get vs create behavior, and delete behavior.
+"""
 
 from datetime import datetime, timezone
 
@@ -197,3 +201,102 @@ def test_delete_mailing_list_message_leaves_others(
     services.delete_mailing_list_message(msg2)
     assert MailingListMessage.objects.filter(msg_id="<keep@example.com>").exists()
     assert not MailingListMessage.objects.filter(msg_id="<remove@example.com>").exists()
+
+
+# --- Edge cases: None / empty list_name ---
+
+
+@pytest.mark.django_db
+def test_get_or_create_mailing_list_message_none_list_name_raises(
+    mailing_list_profile,
+    sample_sent_at,
+):
+    """get_or_create_mailing_list_message raises ValueError for None list_name (invalid)."""
+    with pytest.raises(ValueError, match="list_name must be one of"):
+        services.get_or_create_mailing_list_message(
+            mailing_list_profile,
+            msg_id="<msg@example.com>",
+            sent_at=sample_sent_at,
+            list_name=None,  # type: ignore[arg-type]
+        )
+
+
+# --- Edge cases: max length and long content ---
+
+
+@pytest.mark.django_db
+def test_get_or_create_mailing_list_message_msg_id_at_max_length(
+    mailing_list_profile,
+    default_list_name,
+    sample_sent_at,
+):
+    """get_or_create_mailing_list_message accepts msg_id of 255 chars (max_length)."""
+    long_msg_id = "a" * 255
+    msg, created = services.get_or_create_mailing_list_message(
+        mailing_list_profile,
+        msg_id=long_msg_id,
+        sent_at=sample_sent_at,
+        list_name=default_list_name,
+    )
+    assert created is True
+    assert len(msg.msg_id) == 255
+
+
+@pytest.mark.django_db
+def test_get_or_create_mailing_list_message_large_subject_and_content(
+    mailing_list_profile,
+    default_list_name,
+    sample_sent_at,
+):
+    """get_or_create_mailing_list_message accepts subject 1024 and large content."""
+    subject_1024 = "s" * 1024
+    content_large = "c" * 10000
+    msg, created = services.get_or_create_mailing_list_message(
+        mailing_list_profile,
+        msg_id="<large@example.com>",
+        sent_at=sample_sent_at,
+        subject=subject_1024,
+        content=content_large,
+        list_name=default_list_name,
+    )
+    assert created is True
+    assert len(msg.subject) == 1024
+    assert len(msg.content) == 10000
+
+
+# --- Boundary: get_or_create does not update existing ---
+
+
+@pytest.mark.django_db
+def test_get_or_create_mailing_list_message_does_not_update_any_field(
+    mailing_list_profile,
+    default_list_name,
+    sample_sent_at,
+):
+    """get_or_create_mailing_list_message leaves all fields unchanged on existing msg."""
+    services.get_or_create_mailing_list_message(
+        mailing_list_profile,
+        msg_id="<no-update@example.com>",
+        sent_at=sample_sent_at,
+        parent_id="old_parent",
+        thread_id="old_thread",
+        subject="Old subject",
+        content="Old content",
+        list_name=default_list_name,
+    )
+    msg2, created = services.get_or_create_mailing_list_message(
+        mailing_list_profile,
+        msg_id="  <no-update@example.com>  ",  # stripped to same
+        sent_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        parent_id="new_parent",
+        thread_id="new_thread",
+        subject="New subject",
+        content="New content",
+        list_name=MailingListName.BOOST.value,
+    )
+    assert created is False
+    assert msg2.parent_id == "old_parent"
+    assert msg2.thread_id == "old_thread"
+    assert msg2.subject == "Old subject"
+    assert msg2.content == "Old content"
+    assert msg2.list_name == default_list_name

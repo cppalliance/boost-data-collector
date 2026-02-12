@@ -12,9 +12,11 @@ workspace/                                    # WORKSPACE_DIR (configurable via 
 │       ├── issues/<issue_number>.json
 │       └── prs/<pr_number>.json
 ├── boost_library_tracker/                    # PDFs, converted files, etc.
+├── raw/
+│   └── boost_mailing_list_app/               # Raw API responses (kept, not removed)
+│       └── <list_name>/<msg_id>.json
 ├── boost_mailing_list_tracker/               # Mailing list messages (see below)
 │   └── <list_name>/
-│       ├── raw/<msg_id>.json                 # Raw API responses (kept, not removed)
 │       └── messages/<msg_id>.json            # Formatted cache (processed then removed)
 └── shared/                                   # Temp files used by more than one app
 ```
@@ -30,7 +32,7 @@ So the workspace acts as a short-lived cache: files are deleted once they are in
 ### boost_mailing_list_tracker sync flow
 
 1. **Process existing JSONs** – For each list, load every `messages/*.json` in that list's workspace folder, write to the database, then **remove** the file.
-2. **Fetch from API** – Fetch emails from Boost mailing list archives. For each item: **save raw API response** to `workspace/boost_mailing_list_tracker/<list_name>/raw/<msg_id>.json` (these **raw** files are **not** removed). Then save formatted data to `messages/<msg_id>.json`, persist to DB, and remove the formatted file.
+2. **Fetch from API** – Fetch emails from Boost mailing list archives. For each item: **save raw API response** to `workspace/raw/boost_mailing_list_app/<list_name>/<msg_id>.json` (these **raw** files are **not** removed). Then save formatted data to `workspace/boost_mailing_list_tracker/<list_name>/messages/<msg_id>.json`, persist to DB, and remove the formatted file.
 3. **start_date** – If `start_date` is not provided, the fetcher uses the day after the latest `sent_at` in the database so only new emails are fetched.
 
 So: **raw/** = permanent archive of scraped API responses; **messages/** = short-lived cache (removed after DB persist).
@@ -92,7 +94,7 @@ list_dir = get_list_dir("boost@lists.boost.org")
 # Path for message JSON: .../messages/<msg_id_safe>.json
 path = get_message_json_path("boost@lists.boost.org", "abc123")
 
-# Raw API responses (kept, not removed): .../raw/<msg_id_safe>.json
+# Raw API responses (kept, not removed): workspace/raw/boost_mailing_list_app/<list_name>/<msg_id_safe>.json
 from boost_mailing_list_tracker.workspace import get_raw_json_path
 raw_path = get_raw_json_path("boost@lists.boost.org", "abc123")
 
