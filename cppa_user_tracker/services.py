@@ -7,6 +7,7 @@ outside this module (e.g. from management commands, views, or other apps).
 
 See docs/Contributing.md for the project-wide rule.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional, Protocol
@@ -19,6 +20,8 @@ from .models import (
     Identity,
     TempProfileIdentityRelation,
     TmpIdentity,
+    GitHubAccount,
+    GitHubAccountType,
 )
 
 
@@ -42,8 +45,14 @@ def get_or_create_identity(
     """Get or create an Identity by display_name. If exists, updates description from defaults."""
     lookup = {"display_name": display_name}
     defaults = defaults or {"description": description}
-    identity, created = Identity.objects.get_or_create(defaults=defaults, **lookup)
-    if not created and "description" in defaults and identity.description != defaults["description"]:
+    identity, created = Identity.objects.get_or_create(
+        defaults=defaults, **lookup
+    )
+    if (
+        not created
+        and "description" in defaults
+        and identity.description != defaults["description"]
+    ):
         identity.description = defaults["description"]
         identity.save(update_fields=["description"])
     return identity, created
@@ -198,7 +207,9 @@ class GitHubClientProtocol(Protocol):
     def rest_request(self, path: str) -> dict[str, Any]: ...
 
 
-def get_or_create_owner_account(client: GitHubClientProtocol, owner: str) -> GitHubAccount:
+def get_or_create_owner_account(
+    client: GitHubClientProtocol, owner: str
+) -> GitHubAccount:
     """Get or create a GitHubAccount for an owner (org or user). For use by any app.
 
     Checks DB first by username to avoid unnecessary API calls. Uses GET /users/{owner}
@@ -255,7 +266,9 @@ def get_or_create_unknown_github_account(
     ).first()
     if existing is not None:
         if email_str and not existing.emails.filter(email=email_str).exists():
-            add_email(existing, email_str, is_primary=not existing.emails.exists())
+            add_email(
+                existing, email_str, is_primary=not existing.emails.exists()
+            )
         return existing, False
     next_id = _get_next_negative_github_account_id()
     account = get_or_create_github_account(
