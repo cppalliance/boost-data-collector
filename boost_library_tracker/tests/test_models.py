@@ -40,7 +40,9 @@ def test_boost_library_repository_ordering(boost_library_repository):
 
 
 @pytest.mark.django_db
-def test_boost_library_belongs_to_repo(boost_library, boost_library_repository):
+def test_boost_library_belongs_to_repo(
+    boost_library, boost_library_repository
+):
     """BoostLibrary is linked to BoostLibraryRepository."""
     assert boost_library.repo_id == boost_library_repository.pk
     assert boost_library in boost_library_repository.libraries.all()
@@ -48,7 +50,9 @@ def test_boost_library_belongs_to_repo(boost_library, boost_library_repository):
 
 
 @pytest.mark.django_db
-def test_multiple_libraries_in_repo(make_boost_library, boost_library_repository):
+def test_multiple_libraries_in_repo(
+    make_boost_library, boost_library_repository
+):
     """Multiple BoostLibraries can be created in the same repository."""
     make_boost_library(repo=boost_library_repository, name="algorithm")
     make_boost_library(repo=boost_library_repository, name="container")
@@ -182,9 +186,13 @@ def test_boost_dependency_links_client_version_dep(
     """BoostDependency links client_library, version, dep_library."""
     from boost_library_tracker import services
 
-    client = make_boost_library(repo=boost_library_repository, name="client-lib")
+    client = make_boost_library(
+        repo=boost_library_repository, name="client-lib"
+    )
     dep = make_boost_library(repo=boost_library_repository, name="dep-lib")
-    dep_obj, created = services.add_boost_dependency(client, boost_version, dep)
+    dep_obj, created = services.add_boost_dependency(
+        client, boost_version, dep
+    )
     assert created is True
     assert dep_obj.client_library_id == client.pk
     assert dep_obj.version_id == boost_version.pk
@@ -233,8 +241,12 @@ def test_dependency_changelog_links_client_dep(
     """DependencyChangeLog links client_library and dep_library."""
     from boost_library_tracker import services
 
-    client = make_boost_library(repo=boost_library_repository, name="changelog-client")
-    dep = make_boost_library(repo=boost_library_repository, name="changelog-dep")
+    client = make_boost_library(
+        repo=boost_library_repository, name="changelog-client"
+    )
+    dep = make_boost_library(
+        repo=boost_library_repository, name="changelog-dep"
+    )
     log, created = services.add_dependency_changelog(
         client, dep, is_add=True, created_at=date(2024, 1, 15)
     )
@@ -278,8 +290,12 @@ def test_dependency_changelog_reverse_relations(
     services.add_dependency_changelog(
         client, dep, is_add=True, created_at=date(2024, 3, 1)
     )
-    assert client.dependency_changelog_as_client.filter(dep_library=dep).exists()
-    assert dep.dependency_changelog_as_dep.filter(client_library=client).exists()
+    assert client.dependency_changelog_as_client.filter(
+        dep_library=dep
+    ).exists()
+    assert dep.dependency_changelog_as_dep.filter(
+        client_library=client
+    ).exists()
 
 
 # --- BoostLibraryCategory (3+ tests) ---
@@ -377,7 +393,9 @@ def test_boost_library_category_relationship_links_library_and_category(
     """BoostLibraryCategoryRelationship links library and category."""
     from boost_library_tracker import services
 
-    rel, created = services.add_library_category(boost_library, boost_library_category)
+    rel, created = services.add_library_category(
+        boost_library, boost_library_category
+    )
     assert created is True
     assert rel.library_id == boost_library.pk
     assert rel.category_id == boost_library_category.pk
@@ -408,6 +426,8 @@ def test_boost_library_category_relationship_has_timestamps(
     """BoostLibraryCategoryRelationship has created_at and updated_at."""
     from boost_library_tracker import services
 
-    rel, _ = services.add_library_category(boost_library, boost_library_category)
+    rel, _ = services.add_library_category(
+        boost_library, boost_library_category
+    )
     assert rel.created_at is not None
     assert rel.updated_at is not None

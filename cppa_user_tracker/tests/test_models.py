@@ -101,7 +101,9 @@ def test_tmp_identity_creation(make_tmp_identity):
 @pytest.mark.django_db
 def test_tmp_identity_with_description(make_tmp_identity):
     """TmpIdentity stores description."""
-    tmp = make_tmp_identity(display_name="Staging", description="Staging record")
+    tmp = make_tmp_identity(
+        display_name="Staging", description="Staging record"
+    )
     assert tmp.description == "Staging record"
 
 
@@ -268,7 +270,9 @@ def test_email_has_timestamps(github_account):
 
 
 @pytest.mark.django_db
-def test_temp_relation_links_profile_and_tmp_identity(github_account, tmp_identity):
+def test_temp_relation_links_profile_and_tmp_identity(
+    github_account, tmp_identity
+):
     """TempProfileIdentityRelation links BaseProfile to TmpIdentity."""
     rel = baker.make(
         "cppa_user_tracker.TempProfileIdentityRelation",

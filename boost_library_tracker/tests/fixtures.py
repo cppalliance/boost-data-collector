@@ -39,7 +39,9 @@ def boost_library_repository(db, github_repository):
 @pytest.fixture
 def boost_library(db, boost_library_repository):
     """Single BoostLibrary in a BoostLibraryRepository. Uses service API."""
-    lib, _ = services.get_or_create_boost_library(boost_library_repository, "algorithm")
+    lib, _ = services.get_or_create_boost_library(
+        boost_library_repository, "algorithm"
+    )
     return lib
 
 
@@ -72,7 +74,9 @@ def make_boost_version():
     """Factory: create BoostVersion via service API."""
 
     def _make(version="1.0.0", version_created_at=None):
-        return services.get_or_create_boost_version(version, version_created_at)[0]
+        return services.get_or_create_boost_version(
+            version, version_created_at
+        )[0]
 
     return _make
 

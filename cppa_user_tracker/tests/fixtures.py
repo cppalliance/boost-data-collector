@@ -12,7 +12,9 @@ from cppa_user_tracker.models import GitHubAccountType
 @pytest.fixture
 def identity(db):
     """Single Identity instance."""
-    return baker.make("cppa_user_tracker.Identity", display_name="Test Identity")
+    return baker.make(
+        "cppa_user_tracker.Identity", display_name="Test Identity"
+    )
 
 
 @pytest.fixture
@@ -55,7 +57,9 @@ def make_github_account():
 @pytest.fixture
 def tmp_identity(db):
     """Single TmpIdentity instance (staging)."""
-    return baker.make("cppa_user_tracker.TmpIdentity", display_name="Tmp Identity")
+    return baker.make(
+        "cppa_user_tracker.TmpIdentity", display_name="Tmp Identity"
+    )
 
 
 @pytest.fixture
