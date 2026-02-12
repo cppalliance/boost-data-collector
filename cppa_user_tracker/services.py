@@ -45,9 +45,13 @@ def get_or_create_identity(
     """Get or create an Identity by display_name. If exists, updates description from defaults."""
     lookup = {"display_name": display_name}
     defaults = defaults or {"description": description}
+<<<<<<< HEAD
     identity, created = Identity.objects.get_or_create(
         defaults=defaults, **lookup
     )
+=======
+    identity, created = Identity.objects.get_or_create(defaults=defaults, **lookup)
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5
     if (
         not created
         and "description" in defaults

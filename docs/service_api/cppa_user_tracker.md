@@ -1,7 +1,12 @@
 # cppa_user_tracker.services
 
+<<<<<<< HEAD
 **Module path:** `cppa_user_tracker.services`  
 **Description:** Identity, profiles (GitHubAccount, SlackUser, MailingListProfile, etc.), emails, and staging (TmpIdentity, TempProfileIdentityRelation). Single place for all writes to cppa_user_tracker models.
+=======
+**Module path:** `cppa_user_tracker.services`
+**Description:** Identity, profiles, emails, and staging (TmpIdentity, TempProfileIdentityRelation). Single place for all writes to cppa_user_tracker models.
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5
 
 **Type notation:** Model types refer to `cppa_user_tracker.models` (e.g. `Identity`, `BaseProfile`, `Email`).
 

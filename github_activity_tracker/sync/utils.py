@@ -19,11 +19,14 @@ __all__ = [
     "parse_github_user",
     "parse_datetime",
 ]
+<<<<<<< HEAD
 
 
 def test_lint_error_remove_me():
     """Intentional lint error for CI test branch. Delete after verifying CI fails."""
     x = 1
+=======
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5
 
 
 def parse_github_user(user_dict: Optional[dict]) -> dict:

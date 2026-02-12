@@ -4,7 +4,12 @@ Depends on github_activity_tracker (GitHubRepository) and cppa_user_tracker (Git
 All model creation goes through the service API (see boost_library_tracker.services).
 """
 
+<<<<<<< HEAD
 import uuid
+=======
+from django.db import connection
+from django.utils import timezone
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5
 
 import pytest
 from model_bakery import baker
@@ -50,6 +55,7 @@ def make_boost_library():
     """Factory: create BoostLibrary via service API; repo created via service if not provided."""
 
     def _make(**kwargs):
+<<<<<<< HEAD
         repo = kwargs.pop("repo", None)
         if repo is None:
             repo = _make_boost_library_repository(repo_name="boost-algorithm")
@@ -117,5 +123,18 @@ def make_boost_library_category():
     def _make(name=None):
         name = name or ("cat-" + uuid.uuid4().hex[:6])
         return services.get_or_create_boost_library_category(name)[0]
+=======
+        if "repo" not in kwargs:
+            kwargs["repo"] = baker.make(
+                "boost_library_tracker.BoostLibraryRepository",
+                owner_account=baker.make("cppa_user_tracker.GitHubAccount"),
+                repo_name="boost-algorithm",
+            )
+        if "name" not in kwargs:
+            import uuid
+
+            kwargs["name"] = "lib-" + uuid.uuid4().hex[:6]
+        return baker.make("boost_library_tracker.BoostLibrary", **kwargs)
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5
 
     return _make

@@ -1,6 +1,7 @@
 """Tests for cppa_user_tracker models."""
 
 import pytest
+<<<<<<< HEAD
 from model_bakery import baker
 
 from cppa_user_tracker.models import (
@@ -10,6 +11,11 @@ from cppa_user_tracker.models import (
 
 
 # --- Identity ---
+=======
+from cppa_user_tracker.models import (
+    ProfileType,
+)
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5
 
 
 @pytest.mark.django_db

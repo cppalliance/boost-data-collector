@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 """Tests for github_ops client and tokens (smoke / no-network where possible)."""
 
 import pytest
@@ -13,10 +14,25 @@ from github_ops.tokens import get_github_client, get_github_token
 
 
 # --- get_github_token ---
+=======
+"""Tests for github_ops client (smoke / no-network where possible)."""
+
+
+def test_import_get_github_client():
+    """github_ops.get_github_client is importable."""
+    from github_ops import get_github_client
+
+    assert callable(get_github_client)
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5
 
 
 def test_import_get_github_token():
     """github_ops.get_github_token is importable."""
+<<<<<<< HEAD
+=======
+    from github_ops import get_github_token
+
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5
     assert callable(get_github_token)
 
 

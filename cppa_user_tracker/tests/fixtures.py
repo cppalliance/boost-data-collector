@@ -51,6 +51,7 @@ def make_github_account():
             kwargs["github_account_id"] = 99999
         return baker.make("cppa_user_tracker.GitHubAccount", **kwargs)
 
+<<<<<<< HEAD
     return _make
 
 
@@ -69,4 +70,6 @@ def make_tmp_identity():
     def _make(**kwargs):
         return baker.make("cppa_user_tracker.TmpIdentity", **kwargs)
 
+=======
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5
     return _make

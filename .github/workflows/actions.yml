@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+<<<<<<< HEAD
     paths-ignore:
       - "**.md"
       - "docs/**"
@@ -42,6 +43,14 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+=======
+  push:
+    branches: [develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5
 
     services:
       postgres:
@@ -56,12 +65,16 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+<<<<<<< HEAD
           --shm-size=256mb
+=======
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+<<<<<<< HEAD
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -77,6 +90,25 @@ jobs:
 
       - name: Install dependencies
         run: uv pip install -r requirements-dev.txt --system
+=======
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt', 'requirements-dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5
 
       - name: Test with pytest
         env:
@@ -84,6 +116,7 @@ jobs:
           SECRET_KEY: for-testing-only
           DJANGO_SETTINGS_MODULE: config.test_settings
         run: |
+<<<<<<< HEAD
           python -m pytest --cov --cov-report=html --cov-report=xml --junitxml=junit.xml -v
 
       - name: Upload HTML coverage report
@@ -107,3 +140,12 @@ jobs:
         with:
           name: pytest-results
           path: junit.xml
+=======
+          python -m pytest --tb=short -q
+
+      # Add .pre-commit-config.yaml to the repo for this step to pass
+      - name: Lint / format with pre-commit
+        run: |
+          pip install pre-commit
+          pre-commit run -a
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5

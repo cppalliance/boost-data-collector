@@ -1,9 +1,12 @@
 """Tests for github_activity_tracker models."""
 
 import pytest
+<<<<<<< HEAD
 from django.db import IntegrityError
 
 from github_activity_tracker.models import GitHubRepository
+=======
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5
 
 
 @pytest.mark.django_db

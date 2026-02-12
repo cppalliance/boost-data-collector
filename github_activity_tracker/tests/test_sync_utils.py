@@ -6,6 +6,7 @@ from github_activity_tracker.sync.utils import (
     parse_github_user,
     parse_datetime,
 )
+<<<<<<< HEAD
 
 
 def test_lint_error_remove_me():
@@ -16,6 +17,8 @@ def test_lint_error_remove_me():
 def test_ci_should_fail_remove_me():
     """Intentional failure to verify CI rejects bad PRs. Delete this test after checking."""
     assert False, "CI check: this test is meant to fail so the PR is rejected"
+=======
+>>>>>>> aa7ee908d69923833dae28f3c22652ec1337d2d5
 
 
 def test_parse_github_user_none():
