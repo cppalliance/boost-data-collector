@@ -47,7 +47,12 @@ _test_dir = BASE_DIR / ".test_artifacts"
 _test_dir.mkdir(exist_ok=True)
 WORKSPACE_DIR = _test_dir / "workspace"
 WORKSPACE_DIR.mkdir(exist_ok=True)
-for _slug in ("github_activity_tracker", "boost_library_tracker", "discord_activity_tracker", "shared"):
+for _slug in (
+    "github_activity_tracker",
+    "boost_library_tracker",
+    "discord_activity_tracker",
+    "shared",
+):
     (WORKSPACE_DIR / _slug).mkdir(parents=True, exist_ok=True)
 LOG_DIR = _test_dir / "logs"
 LOG_DIR.mkdir(exist_ok=True)

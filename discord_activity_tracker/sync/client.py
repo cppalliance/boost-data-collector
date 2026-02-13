@@ -1,9 +1,9 @@
 """Discord API client wrapper."""
+
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional, List, Dict, Any
-import time
 
 import discord
 
@@ -56,7 +56,8 @@ class DiscordSyncClient:
             return []
 
         channels = [
-            channel for channel in all_channels
+            channel
+            for channel in all_channels
             if isinstance(channel, discord.TextChannel)
         ]
 
@@ -83,19 +84,19 @@ class DiscordSyncClient:
         self,
         channel: discord.TextChannel,
         after: Optional[datetime] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """Fetch messages from channel since datetime (None = all)."""
         messages = []
         count = 0
 
         try:
-            logger.info(f"Fetching messages from #{channel.name} (after={after}, limit={limit})")
+            logger.info(
+                f"Fetching messages from #{channel.name} (after={after}, limit={limit})"
+            )
 
             async for message in channel.history(
-                limit=limit,
-                after=after,
-                oldest_first=True
+                limit=limit, after=after, oldest_first=True
             ):
                 msg_data = self._message_to_dict(message)
                 messages.append(msg_data)
@@ -111,7 +112,9 @@ class DiscordSyncClient:
         except discord.HTTPException as e:
             logger.error(f"HTTP error fetching messages from #{channel.name}: {e}")
         except Exception as e:
-            logger.exception(f"Unexpected error fetching messages from #{channel.name}: {e}")
+            logger.exception(
+                f"Unexpected error fetching messages from #{channel.name}: {e}"
+            )
 
         return messages
 
@@ -123,14 +126,22 @@ class DiscordSyncClient:
             "author": {
                 "id": message.author.id,
                 "username": message.author.name,
-                "display_name": message.author.display_name if hasattr(message.author, 'display_name') else "",
-                "avatar_url": str(message.author.avatar.url) if message.author.avatar else "",
+                "display_name": (
+                    message.author.display_name
+                    if hasattr(message.author, "display_name")
+                    else ""
+                ),
+                "avatar_url": (
+                    str(message.author.avatar.url) if message.author.avatar else ""
+                ),
                 "bot": message.author.bot,
             },
             "created_at": message.created_at.isoformat(),
             "edited_at": message.edited_at.isoformat() if message.edited_at else None,
             "reference": {
-                "message_id": message.reference.message_id if message.reference else None,
+                "message_id": (
+                    message.reference.message_id if message.reference else None
+                ),
             },
             "attachments": [
                 {

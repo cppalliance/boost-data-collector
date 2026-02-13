@@ -1,4 +1,5 @@
 """Inspect reply data and raw markdown output."""
+
 from django.core.management.base import BaseCommand
 
 from discord_activity_tracker.models import DiscordMessage
@@ -33,9 +34,9 @@ class Command(BaseCommand):
     def _inspect_message(self, msg_id: int):
         """Show one message, its reply target, and raw markdown."""
         try:
-            msg = DiscordMessage.objects.select_related("author", "channel", "channel__server").get(
-                message_id=msg_id
-            )
+            msg = DiscordMessage.objects.select_related(
+                "author", "channel", "channel__server"
+            ).get(message_id=msg_id)
         except DiscordMessage.DoesNotExist:
             self.stdout.write(self.style.ERROR(f"Message {msg_id} not found in DB"))
             return
@@ -51,12 +52,14 @@ class Command(BaseCommand):
                 reply_to = DiscordMessage.objects.select_related("author").get(
                     message_id=msg.reply_to_message_id
                 )
-                self.stdout.write(f"\n  REPLY TO (found in DB):")
+                self.stdout.write("\n  REPLY TO (found in DB):")
                 self.stdout.write(f"    Author: @{reply_to.author.username}")
                 self.stdout.write(f"    Content: {(reply_to.content or '')[:100]}...")
             except DiscordMessage.DoesNotExist:
                 self.stdout.write(
-                    self.style.WARNING(f"\n  REPLY TO: message {msg.reply_to_message_id} NOT in DB")
+                    self.style.WARNING(
+                        f"\n  REPLY TO: message {msg.reply_to_message_id} NOT in DB"
+                    )
                 )
 
         self.stdout.write("\n--- Raw markdown ---")

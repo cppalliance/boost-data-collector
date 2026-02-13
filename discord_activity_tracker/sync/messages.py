@@ -1,13 +1,13 @@
 """Message sync logic - fetch from Discord and store in DB."""
+
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 
 from django.utils import timezone as django_timezone
 from asgiref.sync import sync_to_async
-import discord
 
-from ..models import DiscordServer, DiscordChannel, DiscordMessage
+from ..models import DiscordServer, DiscordChannel
 from ..services import (
     get_or_create_discord_server,
     get_or_create_discord_user,
@@ -33,9 +33,7 @@ async def sync_guild_async(client: DiscordSyncClient, guild_id: int):
 
     icon_url = str(guild.icon.url) if guild.icon else ""
     server, created = await sync_to_async(get_or_create_discord_server)(
-        server_id=guild.id,
-        server_name=guild.name,
-        icon_url=icon_url
+        server_id=guild.id, server_name=guild.name, icon_url=icon_url
     )
 
     if created:
@@ -47,9 +45,7 @@ async def sync_guild_async(client: DiscordSyncClient, guild_id: int):
 
 
 async def sync_channels_async(
-    client: DiscordSyncClient,
-    server: DiscordServer,
-    guild_id: int
+    client: DiscordSyncClient, server: DiscordServer, guild_id: int
 ):
     """Sync all text channels in guild."""
     channels = await client.get_channels(guild_id)
@@ -66,7 +62,7 @@ async def sync_channels_async(
             channel_name=channel.name,
             channel_type=str(channel.type),
             topic=channel.topic or "",
-            position=channel.position
+            position=channel.position,
         )
 
         if created:
@@ -78,10 +74,7 @@ async def sync_channels_async(
     return synced_channels
 
 
-async def _process_message_data(
-    channel: DiscordChannel,
-    message_data: Dict[str, Any]
-):
+async def _process_message_data(channel: DiscordChannel, message_data: Dict[str, Any]):
     """Process message dict and store in DB."""
     try:
         author_data = message_data.get("author", {})
@@ -92,14 +85,16 @@ async def _process_message_data(
             username=author_info["username"],
             display_name=author_info["display_name"],
             avatar_url=author_info["avatar_url"],
-            is_bot=author_info["is_bot"]
+            is_bot=author_info["is_bot"],
         )
 
         created_at = parse_datetime(message_data.get("created_at"))
         edited_at = parse_datetime(message_data.get("edited_at"))
 
         if created_at is None:
-            logger.error(f"Message {message_data.get('id')} has no created_at timestamp")
+            logger.error(
+                f"Message {message_data.get('id')} has no created_at timestamp"
+            )
             return
 
         attachments = message_data.get("attachments", [])
@@ -116,7 +111,7 @@ async def _process_message_data(
             message_created_at=created_at,
             message_edited_at=edited_at,
             reply_to_message_id=reply_to_message_id,
-            attachment_urls=attachment_urls
+            attachment_urls=attachment_urls,
         )
 
         reactions = message_data.get("reactions", [])
@@ -127,7 +122,9 @@ async def _process_message_data(
                 await sync_to_async(add_or_update_reaction)(message, emoji, count)
 
         if created:
-            logger.debug(f"Created message {message.message_id} in #{channel.channel_name}")
+            logger.debug(
+                f"Created message {message.message_id} in #{channel.channel_name}"
+            )
 
     except Exception as e:
         logger.exception(f"Error processing message {message_data.get('id')}: {e}")
@@ -138,7 +135,7 @@ async def sync_channel_messages_async(
     channel: DiscordChannel,
     guild_id: int,
     since_date: Optional[datetime] = None,
-    full_sync: bool = False
+    full_sync: bool = False,
 ):
     """Sync messages from channel (incremental or full)."""
     logger.info(f"Syncing messages for channel: #{channel.channel_name}")
@@ -146,7 +143,7 @@ async def sync_channel_messages_async(
     # Determine sync start point
     if full_sync:
         after = None
-        logger.info(f"Full sync mode: fetching all messages")
+        logger.info("Full sync mode: fetching all messages")
     elif since_date:
         after = since_date
         logger.info(f"Syncing messages since: {after}")
@@ -167,7 +164,7 @@ async def sync_channel_messages_async(
         messages = await client.fetch_messages_since(
             channel=discord_channel,
             after=after,
-            limit=None  # No limit - fetch all messages
+            limit=None,  # No limit - fetch all messages
         )
 
         logger.info(f"Fetched {len(messages)} messages from #{channel.channel_name}")
@@ -178,11 +175,15 @@ async def sync_channel_messages_async(
         if messages:
             last_message_time = parse_datetime(messages[-1]["created_at"])
             if last_message_time:
-                await sync_to_async(update_channel_last_activity)(channel, last_message_time)
+                await sync_to_async(update_channel_last_activity)(
+                    channel, last_message_time
+                )
 
         await sync_to_async(update_channel_last_synced)(channel)
 
-        logger.info(f"Successfully synced {len(messages)} messages for #{channel.channel_name}")
+        logger.info(
+            f"Successfully synced {len(messages)} messages for #{channel.channel_name}"
+        )
 
     except Exception as e:
         logger.exception(f"Error syncing messages for #{channel.channel_name}: {e}")
@@ -212,12 +213,16 @@ def sync_channel_messages(
     channel: DiscordChannel,
     guild_id: int,
     since_date: Optional[datetime] = None,
-    full_sync: bool = False
+    full_sync: bool = False,
 ):
     """Sync channel messages (sync wrapper)."""
     client = DiscordSyncClient(token)
     try:
-        run_async(sync_channel_messages_async(client, channel, guild_id, since_date, full_sync))
+        run_async(
+            sync_channel_messages_async(
+                client, channel, guild_id, since_date, full_sync
+            )
+        )
     finally:
         run_async(client.close())
 
@@ -228,7 +233,7 @@ def sync_all_channels(
     since_date: Optional[datetime] = None,
     full_sync: bool = False,
     active_only: bool = True,
-    active_days: int = 30
+    active_days: int = 30,
 ):
     """Sync all channels in guild."""
     logger.info(f"Starting sync for guild {guild_id}")
@@ -243,10 +248,13 @@ def sync_all_channels(
     if active_only and not full_sync:
         cutoff = django_timezone.now() - timedelta(days=active_days)
         channels = [
-            ch for ch in channels
+            ch
+            for ch in channels
             if ch.last_activity_at and ch.last_activity_at >= cutoff
         ]
-        logger.info(f"Filtered to {len(channels)} active channels (last {active_days} days)")
+        logger.info(
+            f"Filtered to {len(channels)} active channels (last {active_days} days)"
+        )
 
     # Sync messages for each channel
     for channel in channels:

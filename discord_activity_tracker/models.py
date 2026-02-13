@@ -3,6 +3,7 @@ from django.db import models
 
 class DiscordServer(models.Model):
     """Discord server/guild."""
+
     server_id = models.BigIntegerField(unique=True, db_index=True)
     server_name = models.CharField(max_length=255, db_index=True)
     icon_url = models.URLField(max_length=512, blank=True)
@@ -19,6 +20,7 @@ class DiscordServer(models.Model):
 
 class DiscordUser(models.Model):
     """Discord user."""
+
     user_id = models.BigIntegerField(unique=True, db_index=True)
     username = models.CharField(max_length=255, db_index=True)
     display_name = models.CharField(max_length=255, blank=True)
@@ -37,11 +39,12 @@ class DiscordUser(models.Model):
 
 class DiscordChannel(models.Model):
     """Discord channel within a server."""
+
     server = models.ForeignKey(
         DiscordServer,
         on_delete=models.CASCADE,
         related_name="channels",
-        db_column="server_id"
+        db_column="server_id",
     )
     channel_id = models.BigIntegerField(unique=True, db_index=True)
     channel_name = models.CharField(max_length=255, db_index=True)
@@ -67,18 +70,19 @@ class DiscordChannel(models.Model):
 
 class DiscordMessage(models.Model):
     """Discord message in a channel."""
+
     message_id = models.BigIntegerField(unique=True, db_index=True)
     channel = models.ForeignKey(
         DiscordChannel,
         on_delete=models.CASCADE,
         related_name="messages",
-        db_column="channel_id"
+        db_column="channel_id",
     )
     author = models.ForeignKey(
         DiscordUser,
         on_delete=models.CASCADE,
         related_name="messages",
-        db_column="author_id"
+        db_column="author_id",
     )
     content = models.TextField(blank=True)
     message_created_at = models.DateTimeField(db_index=True)
@@ -107,11 +111,12 @@ class DiscordMessage(models.Model):
 
 class DiscordReaction(models.Model):
     """Reaction on a Discord message."""
+
     message = models.ForeignKey(
         DiscordMessage,
         on_delete=models.CASCADE,
         related_name="reactions",
-        db_column="message_id"
+        db_column="message_id",
     )
     emoji = models.CharField(max_length=255, db_index=True)
     count = models.IntegerField(default=1)
@@ -123,7 +128,7 @@ class DiscordReaction(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["message", "emoji"],
-                name="discord_activity_tracker_msg_emoji_uniq"
+                name="discord_activity_tracker_msg_emoji_uniq",
             )
         ]
 

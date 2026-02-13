@@ -1,6 +1,6 @@
 # discord_activity_tracker.services
 
-**Module path:** `discord_activity_tracker.services`  
+**Module path:** `discord_activity_tracker.services`
 **Description:** Discord servers, users, channels, messages, and reactions. Single place for all writes to discord_activity_tracker models.
 
 **Type notation:** Model types refer to `discord_activity_tracker.models`. User/identity profiles live in `cppa_user_tracker`; when linking Discord users to Identity, use `cppa_user_tracker.services`.

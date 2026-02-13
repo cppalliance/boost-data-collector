@@ -1,16 +1,14 @@
 """Tests for markdown export functions."""
+
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch, PropertyMock
-from collections import defaultdict
+from unittest.mock import MagicMock
 
 from django.test import TestCase
-from django.utils import timezone as django_timezone
 
 from discord_activity_tracker.sync.export import (
     _make_github_anchor,
     _sanitize_discord_content,
     generate_markdown_content,
-    DAY_SPLIT_THRESHOLD,
 )
 
 
@@ -101,8 +99,9 @@ class SanitizeDiscordContentTests(TestCase):
 
 class GenerateMarkdownContentTests(TestCase):
 
-    def _make_mock_channel(self, name="general", server_name="TestServer",
-                           server_id=111, channel_id=222):
+    def _make_mock_channel(
+        self, name="general", server_name="TestServer", server_id=111, channel_id=222
+    ):
         channel = MagicMock()
         channel.channel_name = name
         channel.channel_id = channel_id
@@ -110,9 +109,18 @@ class GenerateMarkdownContentTests(TestCase):
         channel.server.server_id = server_id
         return channel
 
-    def _make_mock_message(self, message_id, content, username,
-                           created_at, author_id=None, is_bot=False,
-                           reply_to=None, reactions=None, attachments=None):
+    def _make_mock_message(
+        self,
+        message_id,
+        content,
+        username,
+        created_at,
+        author_id=None,
+        is_bot=False,
+        reply_to=None,
+        reactions=None,
+        attachments=None,
+    ):
         msg = MagicMock()
         msg.message_id = message_id
         msg.content = content
@@ -157,7 +165,9 @@ class GenerateMarkdownContentTests(TestCase):
 
     def test_frontmatter_date_mode(self):
         channel = self._make_mock_channel()
-        result = generate_markdown_content(channel, "2026-02", [], date_str="2026-02-15")
+        result = generate_markdown_content(
+            channel, "2026-02", [], date_str="2026-02-15"
+        )
         self.assertIn("date: 2026-02-15", result)
         self.assertNotIn("month:", result)
 
@@ -168,7 +178,9 @@ class GenerateMarkdownContentTests(TestCase):
 
     def test_title_daily(self):
         channel = self._make_mock_channel(name="general")
-        result = generate_markdown_content(channel, "2026-02", [], date_str="2026-02-15")
+        result = generate_markdown_content(
+            channel, "2026-02", [], date_str="2026-02-15"
+        )
         self.assertIn("# #general - 2026-02-15", result)
 
     def test_message_utc_timestamp(self):
@@ -177,7 +189,7 @@ class GenerateMarkdownContentTests(TestCase):
             message_id=1001,
             content="Hello world",
             username="alice",
-            created_at=datetime(2026, 2, 15, 14, 30, 25, tzinfo=timezone.utc)
+            created_at=datetime(2026, 2, 15, 14, 30, 25, tzinfo=timezone.utc),
         )
         result = generate_markdown_content(channel, "2026-02", [msg])
         self.assertIn("14:30:25 UTC", result)
@@ -188,7 +200,7 @@ class GenerateMarkdownContentTests(TestCase):
             message_id=1001,
             content="Hello",
             username="alice",
-            created_at=datetime(2026, 2, 15, 14, 30, 25, tzinfo=timezone.utc)
+            created_at=datetime(2026, 2, 15, 14, 30, 25, tzinfo=timezone.utc),
         )
         result = generate_markdown_content(channel, "2026-02", [msg])
         self.assertIn("### 14:30:25 UTC — @alice", result)
@@ -199,7 +211,7 @@ class GenerateMarkdownContentTests(TestCase):
             message_id=1001,
             content="Hey <@99999> check this!",
             username="alice",
-            created_at=datetime(2026, 2, 15, 14, 30, 25, tzinfo=timezone.utc)
+            created_at=datetime(2026, 2, 15, 14, 30, 25, tzinfo=timezone.utc),
         )
         result = generate_markdown_content(channel, "2026-02", [msg])
         self.assertIn("@user-99999", result)
@@ -211,7 +223,7 @@ class GenerateMarkdownContentTests(TestCase):
             message_id=1001,
             content="Hello",
             username="alice",
-            created_at=datetime(2026, 2, 15, 14, 30, 25, tzinfo=timezone.utc)
+            created_at=datetime(2026, 2, 15, 14, 30, 25, tzinfo=timezone.utc),
         )
         result = generate_markdown_content(channel, "2026-02", [msg])
         self.assertIn("> Url: https://discord.com/channels/", result)
@@ -227,7 +239,7 @@ class GenerateMarkdownContentTests(TestCase):
             content="Bot message",
             username="MEE6",
             created_at=datetime(2026, 2, 15, 14, 30, 25, tzinfo=timezone.utc),
-            is_bot=True
+            is_bot=True,
         )
         result = generate_markdown_content(channel, "2026-02", [msg])
         self.assertIn("(bot)", result)
@@ -239,7 +251,7 @@ class GenerateMarkdownContentTests(TestCase):
             content="User message",
             username="alice",
             created_at=datetime(2026, 2, 15, 14, 30, 25, tzinfo=timezone.utc),
-            is_bot=False
+            is_bot=False,
         )
         result = generate_markdown_content(channel, "2026-02", [msg])
         self.assertNotIn("(bot)", result)
@@ -251,7 +263,7 @@ class GenerateMarkdownContentTests(TestCase):
             content="Great idea!",
             username="alice",
             created_at=datetime(2026, 2, 15, 14, 30, 25, tzinfo=timezone.utc),
-            reactions=[("👍", 3), ("🎉", 1)]
+            reactions=[("👍", 3), ("🎉", 1)],
         )
         result = generate_markdown_content(channel, "2026-02", [msg])
         self.assertNotIn("Reactions:", result)
@@ -263,7 +275,7 @@ class GenerateMarkdownContentTests(TestCase):
             content="Check this file",
             username="alice",
             created_at=datetime(2026, 2, 15, 14, 30, 25, tzinfo=timezone.utc),
-            attachments=["https://cdn.discord.com/attachments/1/2/image.png?ex=abc"]
+            attachments=["https://cdn.discord.com/attachments/1/2/image.png?ex=abc"],
         )
         result = generate_markdown_content(channel, "2026-02", [msg])
         self.assertIn("> Attachments:", result)
@@ -272,13 +284,17 @@ class GenerateMarkdownContentTests(TestCase):
     def test_multiple_messages_grouped_by_date(self):
         channel = self._make_mock_channel()
         msg1 = self._make_mock_message(
-            message_id=1001, content="Morning", username="alice",
-            created_at=datetime(2026, 2, 15, 8, 0, 0, tzinfo=timezone.utc)
+            message_id=1001,
+            content="Morning",
+            username="alice",
+            created_at=datetime(2026, 2, 15, 8, 0, 0, tzinfo=timezone.utc),
         )
         msg2 = self._make_mock_message(
-            message_id=1002, content="Evening", username="bob",
+            message_id=1002,
+            content="Evening",
+            username="bob",
             created_at=datetime(2026, 2, 16, 20, 0, 0, tzinfo=timezone.utc),
-            author_id=2002
+            author_id=2002,
         )
         result = generate_markdown_content(channel, "2026-02", [msg1, msg2])
         self.assertIn("## 2026-02-15", result)
@@ -287,19 +303,25 @@ class GenerateMarkdownContentTests(TestCase):
     def test_message_count_and_active_users(self):
         channel = self._make_mock_channel()
         msg1 = self._make_mock_message(
-            message_id=1001, content="Hi", username="alice",
+            message_id=1001,
+            content="Hi",
+            username="alice",
             created_at=datetime(2026, 2, 15, 8, 0, 0, tzinfo=timezone.utc),
-            author_id=1
+            author_id=1,
         )
         msg2 = self._make_mock_message(
-            message_id=1002, content="Hello", username="bob",
+            message_id=1002,
+            content="Hello",
+            username="bob",
             created_at=datetime(2026, 2, 15, 9, 0, 0, tzinfo=timezone.utc),
-            author_id=2
+            author_id=2,
         )
         msg3 = self._make_mock_message(
-            message_id=1003, content="Hey", username="alice",
+            message_id=1003,
+            content="Hey",
+            username="alice",
             created_at=datetime(2026, 2, 15, 10, 0, 0, tzinfo=timezone.utc),
-            author_id=1
+            author_id=1,
         )
         result = generate_markdown_content(channel, "2026-02", [msg1, msg2, msg3])
         self.assertIn("message_count: 3", result)
@@ -308,8 +330,10 @@ class GenerateMarkdownContentTests(TestCase):
     def test_utc_frontmatter_timestamps(self):
         channel = self._make_mock_channel()
         msg = self._make_mock_message(
-            message_id=1001, content="Test", username="alice",
-            created_at=datetime(2026, 2, 15, 14, 30, 25, tzinfo=timezone.utc)
+            message_id=1001,
+            content="Test",
+            username="alice",
+            created_at=datetime(2026, 2, 15, 14, 30, 25, tzinfo=timezone.utc),
         )
         result = generate_markdown_content(channel, "2026-02", [msg])
         self.assertIn("first_message: 2026-02-15T14:30:25Z", result)
@@ -318,7 +342,9 @@ class GenerateMarkdownContentTests(TestCase):
     def test_discord_channel_url(self):
         channel = self._make_mock_channel(server_id=111, channel_id=222)
         result = generate_markdown_content(channel, "2026-02", [])
-        self.assertIn("discord_channel_url: https://discord.com/channels/111/222", result)
+        self.assertIn(
+            "discord_channel_url: https://discord.com/channels/111/222", result
+        )
 
     def test_two_day_split_generates_separate_content(self):
         channel = self._make_mock_channel(name="dev-chat")
@@ -326,41 +352,52 @@ class GenerateMarkdownContentTests(TestCase):
         # Day 1: 3 messages
         day1_msgs = [
             self._make_mock_message(
-                message_id=1001, content="Good morning!", username="alice",
+                message_id=1001,
+                content="Good morning!",
+                username="alice",
                 created_at=datetime(2026, 2, 15, 8, 0, 0, tzinfo=timezone.utc),
-                author_id=1
+                author_id=1,
             ),
             self._make_mock_message(
-                message_id=1002, content="Hey <@111> check <#222>", username="bob",
+                message_id=1002,
+                content="Hey <@111> check <#222>",
+                username="bob",
                 created_at=datetime(2026, 2, 15, 9, 30, 0, tzinfo=timezone.utc),
-                author_id=2
+                author_id=2,
             ),
             self._make_mock_message(
-                message_id=1003, content="Thanks!", username="alice",
+                message_id=1003,
+                content="Thanks!",
+                username="alice",
                 created_at=datetime(2026, 2, 15, 10, 0, 0, tzinfo=timezone.utc),
-                author_id=1, reactions=[("👍", 2)]
+                author_id=1,
+                reactions=[("👍", 2)],
             ),
         ]
 
         # Day 2: 2 messages (one bot, one with attachment)
         day2_msgs = [
             self._make_mock_message(
-                message_id=2001, content="Daily reminder", username="MEE6",
+                message_id=2001,
+                content="Daily reminder",
+                username="MEE6",
                 created_at=datetime(2026, 2, 16, 6, 0, 0, tzinfo=timezone.utc),
-                author_id=99, is_bot=True
+                author_id=99,
+                is_bot=True,
             ),
             self._make_mock_message(
-                message_id=2002, content="Here's the doc", username="charlie",
+                message_id=2002,
+                content="Here's the doc",
+                username="charlie",
                 created_at=datetime(2026, 2, 16, 14, 0, 0, tzinfo=timezone.utc),
                 author_id=3,
-                attachments=["https://cdn.discord.com/files/report.pdf?token=abc"]
+                attachments=["https://cdn.discord.com/files/report.pdf?token=abc"],
             ),
         ]
 
         # Generate per-day file for Day 1
         result_day1 = generate_markdown_content(
-            channel, "2026-02", day1_msgs,
-            date_str="2026-02-15", split_by_day=True
+            channel, "2026-02", day1_msgs, date_str="2026-02-15", split_by_day=True
         )
 
         # Verify Day 1 output
@@ -375,8 +412,7 @@ class GenerateMarkdownContentTests(TestCase):
 
         # Generate per-day file for Day 2
         result_day2 = generate_markdown_content(
-            channel, "2026-02", day2_msgs,
-            date_str="2026-02-16", split_by_day=True
+            channel, "2026-02", day2_msgs, date_str="2026-02-16", split_by_day=True
         )
 
         # Verify Day 2 output
@@ -392,20 +428,22 @@ class GenerateMarkdownContentTests(TestCase):
         channel = self._make_mock_channel(name="general")
         msgs = [
             self._make_mock_message(
-                message_id=1001, content="Day 1 msg", username="alice",
+                message_id=1001,
+                content="Day 1 msg",
+                username="alice",
                 created_at=datetime(2026, 2, 15, 12, 0, 0, tzinfo=timezone.utc),
-                author_id=1
+                author_id=1,
             ),
             self._make_mock_message(
-                message_id=2001, content="Day 2 msg", username="bob",
+                message_id=2001,
+                content="Day 2 msg",
+                username="bob",
                 created_at=datetime(2026, 2, 16, 18, 0, 0, tzinfo=timezone.utc),
-                author_id=2
+                author_id=2,
             ),
         ]
 
-        result = generate_markdown_content(
-            channel, "2026-02", msgs, split_by_day=False
-        )
+        result = generate_markdown_content(channel, "2026-02", msgs, split_by_day=False)
 
         # Both days in one file
         self.assertIn("month: 2026-02", result)

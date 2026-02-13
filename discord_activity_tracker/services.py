@@ -2,11 +2,11 @@
 
 All DB writes go through these functions (get_or_create_* pattern).
 """
+
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional, Tuple
 
-from django.db import transaction
 from django.utils import timezone as django_timezone
 
 from .models import (
@@ -21,9 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_or_create_discord_server(
-    server_id: int,
-    server_name: str,
-    icon_url: str = ""
+    server_id: int, server_name: str, icon_url: str = ""
 ) -> Tuple[DiscordServer, bool]:
     """Get or create server, update name/icon if changed."""
     server, created = DiscordServer.objects.get_or_create(
@@ -31,7 +29,7 @@ def get_or_create_discord_server(
         defaults={
             "server_name": server_name,
             "icon_url": icon_url,
-        }
+        },
     )
 
     if not created:
@@ -56,7 +54,7 @@ def get_or_create_discord_user(
     username: str,
     display_name: str = "",
     avatar_url: str = "",
-    is_bot: bool = False
+    is_bot: bool = False,
 ) -> Tuple[DiscordUser, bool]:
     """Get or create user, update fields if changed."""
     user, created = DiscordUser.objects.get_or_create(
@@ -66,7 +64,7 @@ def get_or_create_discord_user(
             "display_name": display_name,
             "avatar_url": avatar_url,
             "is_bot": is_bot,
-        }
+        },
     )
 
     if not created:
@@ -86,7 +84,15 @@ def get_or_create_discord_user(
             updated = True
 
         if updated:
-            user.save(update_fields=["username", "display_name", "avatar_url", "is_bot", "updated_at"])
+            user.save(
+                update_fields=[
+                    "username",
+                    "display_name",
+                    "avatar_url",
+                    "is_bot",
+                    "updated_at",
+                ]
+            )
             logger.debug(f"Updated user: {username}")
 
     return user, created
@@ -98,7 +104,7 @@ def get_or_create_discord_channel(
     channel_name: str,
     channel_type: str,
     topic: str = "",
-    position: int = 0
+    position: int = 0,
 ) -> Tuple[DiscordChannel, bool]:
     """Get or create channel, update fields if changed."""
     channel, created = DiscordChannel.objects.get_or_create(
@@ -109,7 +115,7 @@ def get_or_create_discord_channel(
             "channel_type": channel_type,
             "topic": topic,
             "position": position,
-        }
+        },
     )
 
     if not created:
@@ -129,7 +135,15 @@ def get_or_create_discord_channel(
             updated = True
 
         if updated:
-            channel.save(update_fields=["channel_name", "channel_type", "topic", "position", "updated_at"])
+            channel.save(
+                update_fields=[
+                    "channel_name",
+                    "channel_type",
+                    "topic",
+                    "position",
+                    "updated_at",
+                ]
+            )
             logger.debug(f"Updated channel: {channel_name}")
 
     return channel, created
@@ -143,7 +157,7 @@ def create_or_update_discord_message(
     message_created_at: datetime,
     message_edited_at: Optional[datetime] = None,
     reply_to_message_id: Optional[int] = None,
-    attachment_urls: Optional[list] = None
+    attachment_urls: Optional[list] = None,
 ) -> Tuple[DiscordMessage, bool]:
     """Create or update message."""
     if attachment_urls is None:
@@ -161,13 +175,15 @@ def create_or_update_discord_message(
             "has_attachments": len(attachment_urls) > 0,
             "attachment_urls": attachment_urls,
             "is_deleted": False,
-        }
+        },
     )
 
     return message, created
 
 
-def mark_message_deleted(message: DiscordMessage, deleted_at: Optional[datetime] = None) -> DiscordMessage:
+def mark_message_deleted(
+    message: DiscordMessage, deleted_at: Optional[datetime] = None
+) -> DiscordMessage:
     """Mark message as deleted."""
     if deleted_at is None:
         deleted_at = django_timezone.now()
@@ -181,28 +197,28 @@ def mark_message_deleted(message: DiscordMessage, deleted_at: Optional[datetime]
 
 
 def add_or_update_reaction(
-    message: DiscordMessage,
-    emoji: str,
-    count: int
+    message: DiscordMessage, emoji: str, count: int
 ) -> Tuple[DiscordReaction, bool]:
     """Add or update reaction."""
     reaction, created = DiscordReaction.objects.update_or_create(
-        message=message,
-        emoji=emoji,
-        defaults={"count": count}
+        message=message, emoji=emoji, defaults={"count": count}
     )
 
     return reaction, created
 
 
-def update_channel_last_activity(channel: DiscordChannel, last_activity_at: datetime) -> DiscordChannel:
+def update_channel_last_activity(
+    channel: DiscordChannel, last_activity_at: datetime
+) -> DiscordChannel:
     """Update channel last_activity_at timestamp."""
     channel.last_activity_at = last_activity_at
     channel.save(update_fields=["last_activity_at", "updated_at"])
     return channel
 
 
-def update_channel_last_synced(channel: DiscordChannel, timestamp: Optional[datetime] = None) -> DiscordChannel:
+def update_channel_last_synced(
+    channel: DiscordChannel, timestamp: Optional[datetime] = None
+) -> DiscordChannel:
     """Update channel last_synced_at (defaults to now)."""
     if timestamp is None:
         timestamp = django_timezone.now()
@@ -216,9 +232,9 @@ def update_channel_last_synced(channel: DiscordChannel, timestamp: Optional[date
 def get_active_channels(server: DiscordServer, days: int = 30) -> list:
     """Get channels with activity in last N days."""
     from datetime import timedelta
+
     cutoff = django_timezone.now() - timedelta(days=days)
 
     return DiscordChannel.objects.filter(
-        server=server,
-        last_activity_at__gte=cutoff
+        server=server, last_activity_at__gte=cutoff
     ).order_by("position", "channel_name")

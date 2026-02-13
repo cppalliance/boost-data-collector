@@ -119,7 +119,12 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 WORKSPACE_DIR = Path(
     env("WORKSPACE_DIR", default=str(BASE_DIR / "workspace"))
 ).resolve()
-_WORKSPACE_APP_SLUGS = ("github_activity_tracker", "boost_library_tracker", "discord_activity_tracker", "shared")
+_WORKSPACE_APP_SLUGS = (
+    "github_activity_tracker",
+    "boost_library_tracker",
+    "discord_activity_tracker",
+    "shared",
+)
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 for _slug in _WORKSPACE_APP_SLUGS:
     (WORKSPACE_DIR / _slug).mkdir(parents=True, exist_ok=True)
@@ -144,7 +149,10 @@ DISCORD_TOKEN = (env("DISCORD_TOKEN", default="") or "").strip()
 DISCORD_USER_TOKEN = (env("DISCORD_USER_TOKEN", default="") or "").strip()
 DISCORD_SERVER_ID = (env("DISCORD_SERVER_ID", default="") or "").strip()
 DISCORD_CONTEXT_REPO_PATH = Path(
-    env("DISCORD_CONTEXT_REPO_PATH", default=str(BASE_DIR.parent / "discord-cplusplus-together-context"))
+    env(
+        "DISCORD_CONTEXT_REPO_PATH",
+        default=str(BASE_DIR.parent / "discord-cplusplus-together-context"),
+    )
 ).resolve()
 
 # Logging - project-wide configuration for app commands (console + rotating file)

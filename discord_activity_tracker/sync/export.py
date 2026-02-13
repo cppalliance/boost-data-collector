@@ -1,4 +1,5 @@
 """Export Discord messages to markdown files."""
+
 import logging
 import re
 import subprocess
@@ -25,9 +26,7 @@ def _make_github_anchor(timestamp: str, username: str) -> str:
     return f"{safe_ts}-utc--{safe_user}"
 
 
-_INVISIBLE_UNICODE = re.compile(
-    "[\u200b-\u200d\u2060-\u2064\u2066-\u2069\ufeff]+"
-)
+_INVISIBLE_UNICODE = re.compile("[\u200b-\u200d\u2060-\u2064\u2066-\u2069\ufeff]+")
 
 
 def _strip_invisible_unicode(text: str) -> str:
@@ -44,20 +43,20 @@ def _sanitize_discord_content(content: str) -> str:
     content = _strip_invisible_unicode(content)
 
     def replace_mentions(text: str) -> str:
-        text = re.sub(r'<@!?(\d+)>', r'@user-\1', text)
-        text = re.sub(r'<@&(\d+)>', r'@role-\1', text)
-        text = re.sub(r'<#(\d+)>', r'#channel-\1', text)
-        text = re.sub(r'<a?:(\w+):\d+>', r':\1:', text)
+        text = re.sub(r"<@!?(\d+)>", r"@user-\1", text)
+        text = re.sub(r"<@&(\d+)>", r"@role-\1", text)
+        text = re.sub(r"<#(\d+)>", r"#channel-\1", text)
+        text = re.sub(r"<a?:(\w+):\d+>", r":\1:", text)
         return text
 
-    parts = re.split(r'(```[\s\S]*?```|`[^`]*`)', content)
+    parts = re.split(r"(```[\s\S]*?```|`[^`]*`)", content)
     result = []
     for part in parts:
-        if part.startswith('`') and part.endswith('`'):
+        if part.startswith("`") and part.endswith("`"):
             result.append(part)
         else:
             result.append(replace_mentions(part))
-    return ''.join(result)
+    return "".join(result)
 
 
 def generate_markdown_content(
@@ -65,7 +64,7 @@ def generate_markdown_content(
     year_month: str,
     messages: List[DiscordMessage],
     date_str: Optional[str] = None,
-    split_by_day: bool = False
+    split_by_day: bool = False,
 ) -> str:
     """Build markdown for a channel-month or channel-day."""
     lines = []
@@ -99,10 +98,8 @@ def generate_markdown_content(
         lines.append(f"last_message: {last_utc.strftime('%Y-%m-%dT%H:%M:%SZ')}")
 
     discord_url = format_discord_url(
-        channel.server.server_id,
-        channel.channel_id,
-        0
-    ).rsplit('/', 1)[0]
+        channel.server.server_id, channel.channel_id, 0
+    ).rsplit("/", 1)[0]
     lines.append(f"discord_channel_url: {discord_url}")
     lines.append("---")
     lines.append("")
@@ -142,34 +139,42 @@ def generate_markdown_content(
             lines.append("")
 
             msg_url = format_discord_url(
-                channel.server.server_id,
-                channel.channel_id,
-                msg.message_id
+                channel.server.server_id, channel.channel_id, msg.message_id
             )
 
             # Reply, Url (blockquoted)
             metadata_lines = []
             if msg.reply_to_message_id:
                 try:
-                    reply_to = DiscordMessage.objects.get(message_id=msg.reply_to_message_id)
-                    reply_utc = reply_to.message_created_at.astimezone(django_timezone.utc)
+                    reply_to = DiscordMessage.objects.get(
+                        message_id=msg.reply_to_message_id
+                    )
+                    reply_utc = reply_to.message_created_at.astimezone(
+                        django_timezone.utc
+                    )
                     reply_time = reply_utc.strftime("%H:%M:%S")
                     if reply_utc.microsecond:
                         reply_time += f".{reply_utc.microsecond // 1000:03d}"
                     reply_date = reply_utc.strftime("%Y-%m-%d")
-                    reply_anchor = _make_github_anchor(reply_time, reply_to.author.username)
+                    reply_anchor = _make_github_anchor(
+                        reply_time, reply_to.author.username
+                    )
 
                     if reply_date == d:
                         link_target = f"#{reply_anchor}"
                     elif split_by_day:
-                        link_target = f"../{reply_date}/{safe_channel_name}.md#{reply_anchor}"
+                        link_target = (
+                            f"../{reply_date}/{safe_channel_name}.md#{reply_anchor}"
+                        )
                     elif reply_date.startswith(year_month):
                         link_target = f"#{reply_anchor}"
                     else:
                         reply_ym = reply_date[:7]
                         link_target = f"../{reply_ym}/{reply_ym}-{safe_channel_name}.md#{reply_anchor}"
 
-                    metadata_lines.append(f"> Reply to: [@{reply_to.author.username} ({reply_time} UTC)]({link_target})  ")
+                    metadata_lines.append(
+                        f"> Reply to: [@{reply_to.author.username} ({reply_time} UTC)]({link_target})  "
+                    )
                     if reply_to.content:
                         preview = _sanitize_discord_content(
                             reply_to.content.replace("\n", " ").strip()[:80]
@@ -216,9 +221,7 @@ def generate_markdown_content(
 
 
 def export_channel_to_markdown(
-    channel: DiscordChannel,
-    year_month: str,
-    output_dir: Path
+    channel: DiscordChannel, year_month: str, output_dir: Path
 ) -> Optional[List[Path]]:
     """Export a channel-month to markdown. Splits into per-day files."""
     logger.info(f"Exporting #{channel.channel_name} for {year_month}")
@@ -227,17 +230,23 @@ def export_channel_to_markdown(
     start_date = django_timezone.make_aware(start_date)
     end_date = start_date + relativedelta(months=1)
 
-    messages = DiscordMessage.objects.filter(
-        channel=channel,
-        message_created_at__gte=start_date,
-        message_created_at__lt=end_date,
-        is_deleted=False
-    ).select_related("author").order_by("message_created_at")
+    messages = (
+        DiscordMessage.objects.filter(
+            channel=channel,
+            message_created_at__gte=start_date,
+            message_created_at__lt=end_date,
+            is_deleted=False,
+        )
+        .select_related("author")
+        .order_by("message_created_at")
+    )
 
     message_list = list(messages)
 
     if not message_list:
-        logger.debug(f"No messages for #{channel.channel_name} in {year_month}, skipping")
+        logger.debug(
+            f"No messages for #{channel.channel_name} in {year_month}, skipping"
+        )
         return None
 
     year = year_month.split("-")[0]
@@ -257,9 +266,7 @@ def export_channel_to_markdown(
     for date_str in sorted(messages_by_date.keys()):
         day_messages = messages_by_date[date_str]
         md_content = generate_markdown_content(
-            channel, year_month, day_messages,
-            date_str=date_str,
-            split_by_day=True
+            channel, year_month, day_messages, date_str=date_str, split_by_day=True
         )
         day_dir = month_dir / date_str
         day_dir.mkdir(parents=True, exist_ok=True)
@@ -275,16 +282,17 @@ def export_all_active_channels(
     context_repo_path: Path,
     server: DiscordServer,
     months_back: int = 12,
-    active_days: int = 30
+    active_days: int = 30,
 ) -> List[Path]:
     """Export active channels for the last N months."""
     logger.info(f"Exporting all active channels for last {months_back} months")
 
     cutoff = django_timezone.now() - timedelta(days=active_days)
-    channels = DiscordChannel.objects.filter(
-        server=server,
-        last_activity_at__gte=cutoff
-    ).select_related("server").order_by("position", "channel_name")
+    channels = (
+        DiscordChannel.objects.filter(server=server, last_activity_at__gte=cutoff)
+        .select_related("server")
+        .order_by("position", "channel_name")
+    )
 
     logger.info(f"Found {channels.count()} active channels")
 
@@ -297,11 +305,15 @@ def export_all_active_channels(
 
         for channel in channels:
             try:
-                result = export_channel_to_markdown(channel, year_month, context_repo_path)
+                result = export_channel_to_markdown(
+                    channel, year_month, context_repo_path
+                )
                 if result:
                     exported_files.extend(result)
             except Exception as e:
-                logger.error(f"Failed to export #{channel.channel_name} for {year_month}: {e}")
+                logger.error(
+                    f"Failed to export #{channel.channel_name} for {year_month}: {e}"
+                )
                 continue
 
     logger.info(f"Exported {len(exported_files)} files")
@@ -309,8 +321,7 @@ def export_all_active_channels(
 
 
 def commit_and_push_context_repo(
-    repo_path: Path,
-    commit_message: Optional[str] = None
+    repo_path: Path, commit_message: Optional[str] = None
 ) -> bool:
     """Commit and push to the context repo."""
     if commit_message is None:
@@ -325,7 +336,7 @@ def commit_and_push_context_repo(
             cwd=repo_path,
             check=True,
             capture_output=True,
-            text=True
+            text=True,
         )
         logger.debug(f"git add: {result.stdout}")
 
@@ -334,7 +345,7 @@ def commit_and_push_context_repo(
             cwd=repo_path,
             check=True,
             capture_output=True,
-            text=True
+            text=True,
         )
 
         if not result.stdout.strip():
@@ -346,16 +357,12 @@ def commit_and_push_context_repo(
             cwd=repo_path,
             check=True,
             capture_output=True,
-            text=True
+            text=True,
         )
         logger.info(f"git commit: {result.stdout}")
 
         result = subprocess.run(
-            ["git", "push"],
-            cwd=repo_path,
-            check=True,
-            capture_output=True,
-            text=True
+            ["git", "push"], cwd=repo_path, check=True, capture_output=True, text=True
         )
         logger.info(f"git push: {result.stdout}")
 
@@ -376,14 +383,14 @@ def export_and_push(
     months_back: int = 12,
     active_days: int = 30,
     commit_message: Optional[str] = None,
-    auto_commit: bool = False
+    auto_commit: bool = False,
 ) -> bool:
     """Export channels, optionally commit and push."""
     exported_files = export_all_active_channels(
         context_repo_path=context_repo_path,
         server=server,
         months_back=months_back,
-        active_days=active_days
+        active_days=active_days,
     )
 
     if not exported_files:

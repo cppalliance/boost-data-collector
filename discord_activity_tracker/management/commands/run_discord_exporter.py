@@ -1,7 +1,8 @@
 """Django management command - sync using DiscordChatExporter CLI with user token."""
+
 import logging
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from django.core.management.base import BaseCommand
 from django.conf import settings
@@ -9,7 +10,10 @@ from django.utils import timezone as django_timezone
 from asgiref.sync import sync_to_async
 
 from discord_activity_tracker.models import DiscordServer, DiscordChannel
-from discord_activity_tracker.sync.chat_exporter import export_and_parse_guild, convert_exporter_message_to_dict
+from discord_activity_tracker.sync.chat_exporter import (
+    export_and_parse_guild,
+    convert_exporter_message_to_dict,
+)
 from discord_activity_tracker.sync.messages import _process_message_data
 from discord_activity_tracker.sync.utils import parse_datetime
 from discord_activity_tracker.sync.export import export_and_push
@@ -17,7 +21,7 @@ from discord_activity_tracker.services import (
     get_or_create_discord_server,
     get_or_create_discord_channel,
     update_channel_last_synced,
-    update_channel_last_activity
+    update_channel_last_activity,
 )
 from discord_activity_tracker.workspace import get_raw_dir
 
@@ -25,43 +29,45 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Run Discord Activity Tracker using DiscordChatExporter CLI (user token method)"
+    help = (
+        "Run Discord Activity Tracker using DiscordChatExporter CLI (user token method)"
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--dry-run",
             action="store_true",
-            help="Preview actions without writing to database"
+            help="Preview actions without writing to database",
         )
         parser.add_argument(
             "--task",
             type=str,
             default="all",
             choices=["sync", "export", "all", "import-only"],
-            help="Task to run: sync, export, all, or import-only (default: all)"
+            help="Task to run: sync, export, all, or import-only (default: all)",
         )
         parser.add_argument(
             "--full-sync",
             action="store_true",
-            help="Sync all messages (ignore last_synced_at)"
+            help="Sync all messages (ignore last_synced_at)",
         )
         parser.add_argument(
             "--months",
             type=int,
             default=12,
-            help="Number of months to export to markdown (default: 12)"
+            help="Number of months to export to markdown (default: 12)",
         )
         parser.add_argument(
             "--active-days",
             type=int,
             default=30,
-            help="Number of days to consider a channel active (default: 30)"
+            help="Number of days to consider a channel active (default: 30)",
         )
         parser.add_argument(
             "--days-back",
             type=int,
             default=30,
-            help="Number of days back to sync messages (default: 30, 0 for all history)"
+            help="Number of days back to sync messages (default: 30, 0 for all history)",
         )
 
     def handle(self, *args, **options):
@@ -79,7 +85,9 @@ class Command(BaseCommand):
 
             if not user_token:
                 self.stdout.write(self.style.ERROR("DISCORD_USER_TOKEN not configured"))
-                self.stdout.write("Set it in .env file. See discord_activity_tracker/tools/README.md")
+                self.stdout.write(
+                    "Set it in .env file. See discord_activity_tracker/tools/README.md"
+                )
                 return
 
             if not guild_id:
@@ -87,7 +95,9 @@ class Command(BaseCommand):
                 return
 
             if not context_repo_path:
-                self.stdout.write(self.style.ERROR("DISCORD_CONTEXT_REPO_PATH not configured"))
+                self.stdout.write(
+                    self.style.ERROR("DISCORD_CONTEXT_REPO_PATH not configured")
+                )
                 return
 
             context_repo_path = Path(context_repo_path)
@@ -99,7 +109,7 @@ class Command(BaseCommand):
                     user_token=user_token,
                     guild_id=guild_id,
                     full_sync=full_sync,
-                    days_back=days_back
+                    days_back=days_back,
                 )
 
             if task == "import-only":
@@ -111,7 +121,7 @@ class Command(BaseCommand):
                     guild_id=guild_id,
                     context_repo_path=context_repo_path,
                     months=months,
-                    active_days=active_days
+                    active_days=active_days,
                 )
 
             self.stdout.write(self.style.SUCCESS("✓ Discord exporter completed"))
@@ -121,7 +131,14 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"Error: {e}"))
             raise
 
-    def _sync_messages(self, dry_run: bool, user_token: str, guild_id: int, full_sync: bool, days_back: int):
+    def _sync_messages(
+        self,
+        dry_run: bool,
+        user_token: str,
+        guild_id: int,
+        full_sync: bool,
+        days_back: int,
+    ):
         """Export messages via CLI and persist to database."""
         self.stdout.write("\n=== Syncing Messages using DiscordChatExporter ===")
 
@@ -134,20 +151,27 @@ class Command(BaseCommand):
             server = DiscordServer.objects.filter(server_id=guild_id).first()
 
             after_date = None
-            days_back_date = (django_timezone.now() - timedelta(days=days_back)) if days_back > 0 else None
+            days_back_date = (
+                (django_timezone.now() - timedelta(days=days_back))
+                if days_back > 0
+                else None
+            )
 
             if full_sync:
                 after_date = days_back_date
                 if after_date:
-                    self.stdout.write(f"Full sync - last {days_back} days from: {after_date}")
+                    self.stdout.write(
+                        f"Full sync - last {days_back} days from: {after_date}"
+                    )
                 else:
                     self.stdout.write("Full sync - fetching all messages")
             elif server:
-                earliest_sync = DiscordChannel.objects.filter(
-                    server=server
-                ).exclude(
-                    last_synced_at__isnull=True
-                ).order_by('last_synced_at').first()
+                earliest_sync = (
+                    DiscordChannel.objects.filter(server=server)
+                    .exclude(last_synced_at__isnull=True)
+                    .order_by("last_synced_at")
+                    .first()
+                )
 
                 sync_date = earliest_sync.last_synced_at if earliest_sync else None
 
@@ -159,13 +183,17 @@ class Command(BaseCommand):
                     self.stdout.write(f"Incremental sync from: {after_date}")
                 elif days_back_date:
                     after_date = days_back_date
-                    self.stdout.write(f"First sync - last {days_back} days from: {after_date}")
+                    self.stdout.write(
+                        f"First sync - last {days_back} days from: {after_date}"
+                    )
                 else:
                     self.stdout.write("First sync - fetching all messages")
             else:
                 after_date = days_back_date
                 if after_date:
-                    self.stdout.write(f"First sync - last {days_back} days from: {after_date}")
+                    self.stdout.write(
+                        f"First sync - last {days_back} days from: {after_date}"
+                    )
                 else:
                     self.stdout.write("First sync - fetching all messages")
 
@@ -173,7 +201,7 @@ class Command(BaseCommand):
                 user_token=user_token,
                 guild_id=guild_id,
                 output_dir=temp_dir,
-                after_date=after_date
+                after_date=after_date,
             )
 
             self.stdout.write(f"Exported {len(parsed_data)} channels")
@@ -182,10 +210,13 @@ class Command(BaseCommand):
                 for channel_data in parsed_data:
                     channel_info = channel_data["channel"]
                     msg_count = len(channel_data["messages"])
-                    self.stdout.write(f"  #{channel_info['name']}: {msg_count} messages")
+                    self.stdout.write(
+                        f"  #{channel_info['name']}: {msg_count} messages"
+                    )
                 return
 
             import asyncio
+
             asyncio.run(self._persist_exported_data(guild_id, parsed_data))
 
             for json_file in temp_dir.glob("*.json"):
@@ -207,7 +238,7 @@ class Command(BaseCommand):
                 server, _ = await sync_to_async(get_or_create_discord_server)(
                     server_id=guild_info["id"],
                     server_name=guild_info["name"],
-                    icon_url=""
+                    icon_url="",
                 )
 
                 channel, _ = await sync_to_async(get_or_create_discord_channel)(
@@ -216,7 +247,7 @@ class Command(BaseCommand):
                     channel_name=channel_info["name"],
                     channel_type=channel_info.get("type", "text"),
                     topic=channel_info.get("topic") or "",
-                    position=0
+                    position=0,
                 )
 
                 for msg_data in messages:
@@ -227,14 +258,18 @@ class Command(BaseCommand):
                     last_msg = convert_exporter_message_to_dict(messages[-1])
                     last_time = parse_datetime(last_msg.get("created_at"))
                     if last_time:
-                        await sync_to_async(update_channel_last_activity)(channel, last_time)
+                        await sync_to_async(update_channel_last_activity)(
+                            channel, last_time
+                        )
 
                 await sync_to_async(update_channel_last_synced)(channel)
 
                 logger.info(f"Synced #{channel.channel_name}: {len(messages)} messages")
 
             except Exception as e:
-                logger.error(f"Failed to persist channel {channel_info.get('name')}: {e}")
+                logger.error(
+                    f"Failed to persist channel {channel_info.get('name')}: {e}"
+                )
                 continue
 
     def _import_json_files(self, dry_run: bool, guild_id: int):
@@ -262,25 +297,39 @@ class Command(BaseCommand):
         for json_path in json_files:
             try:
                 data = parse_exported_json(json_path)
-                parsed_data.append({
-                    "guild": data.get("guild", {}),
-                    "channel": data.get("channel", {}),
-                    "messages": data.get("messages", []),
-                    "file_path": json_path
-                })
-                self.stdout.write(f"  Parsed {json_path.name}: {len(data.get('messages', []))} messages")
+                parsed_data.append(
+                    {
+                        "guild": data.get("guild", {}),
+                        "channel": data.get("channel", {}),
+                        "messages": data.get("messages", []),
+                        "file_path": json_path,
+                    }
+                )
+                self.stdout.write(
+                    f"  Parsed {json_path.name}: {len(data.get('messages', []))} messages"
+                )
             except Exception as e:
-                self.stdout.write(self.style.WARNING(f"  Skipping {json_path.name}: {e}"))
+                self.stdout.write(
+                    self.style.WARNING(f"  Skipping {json_path.name}: {e}")
+                )
                 continue
 
         self.stdout.write(f"Importing {len(parsed_data)} channels...")
 
         import asyncio
+
         asyncio.run(self._persist_exported_data(guild_id, parsed_data))
 
         self.stdout.write(self.style.SUCCESS(f"✓ Imported {len(parsed_data)} channels"))
 
-    def _export_markdown(self, dry_run: bool, guild_id: int, context_repo_path: Path, months: int, active_days: int):
+    def _export_markdown(
+        self,
+        dry_run: bool,
+        guild_id: int,
+        context_repo_path: Path,
+        months: int,
+        active_days: int,
+    ):
         """Export to markdown files."""
         self.stdout.write("\n=== Exporting to Markdown ===")
 
@@ -291,7 +340,11 @@ class Command(BaseCommand):
         try:
             server = DiscordServer.objects.get(server_id=guild_id)
         except DiscordServer.DoesNotExist:
-            self.stdout.write(self.style.ERROR(f"Server {guild_id} not found in database. Run sync first."))
+            self.stdout.write(
+                self.style.ERROR(
+                    f"Server {guild_id} not found in database. Run sync first."
+                )
+            )
             return
 
         success = export_and_push(
@@ -299,7 +352,7 @@ class Command(BaseCommand):
             server=server,
             months_back=months,
             active_days=active_days,
-            auto_commit=False
+            auto_commit=False,
         )
 
         if success:

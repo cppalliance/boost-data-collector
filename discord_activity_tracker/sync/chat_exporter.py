@@ -1,4 +1,5 @@
 """DiscordChatExporter CLI wrapper for user token-based scraping."""
+
 import json
 import logging
 import os
@@ -22,7 +23,7 @@ def export_guild_to_json(
     output_dir: Path,
     after_date: Optional[datetime] = None,
     before_date: Optional[datetime] = None,
-    include_threads: str = "None"
+    include_threads: str = "None",
 ) -> List[Path]:
     """Export all channels from a guild. Returns list of JSON file paths."""
     if not CLI_PATH.exists():
@@ -36,14 +37,22 @@ def export_guild_to_json(
     cmd = [
         str(CLI_PATH),
         "exportguild",
-        "--token", user_token,
-        "--guild", str(guild_id),
-        "--output", str(output_dir) + "\\",  # trailing slash = directory output
-        "--format", "Json",
-        "--include-threads", include_threads,
-        "--parallel", "3",
-        "--respect-rate-limits", "True",
-        "--markdown", "True"
+        "--token",
+        user_token,
+        "--guild",
+        str(guild_id),
+        "--output",
+        str(output_dir) + "\\",  # trailing slash = directory output
+        "--format",
+        "Json",
+        "--include-threads",
+        include_threads,
+        "--parallel",
+        "3",
+        "--respect-rate-limits",
+        "True",
+        "--markdown",
+        "True",
     ]
 
     if after_date:
@@ -61,8 +70,11 @@ def export_guild_to_json(
 
     try:
         # Clear proxy env vars that block DiscordChatExporter
-        env = {k: v for k, v in os.environ.items()
-               if k.lower() not in ('http_proxy', 'https_proxy')}
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k.lower() not in ("http_proxy", "https_proxy")
+        }
 
         # No timeout — full exports can take hours
         process = subprocess.Popen(
@@ -70,8 +82,8 @@ def export_guild_to_json(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            encoding='utf-8',
-            errors='replace',
+            encoding="utf-8",
+            errors="replace",
             env=env,
         )
 
@@ -87,7 +99,9 @@ def export_guild_to_json(
         stdout = process.stdout.read() if process.stdout else ""
 
         if process.returncode != 0:
-            error_msg = f"DiscordChatExporter failed with exit code {process.returncode}"
+            error_msg = (
+                f"DiscordChatExporter failed with exit code {process.returncode}"
+            )
             if stderr_lines:
                 error_msg += f"\nError: {stderr_lines[-1]}"
             logger.error(error_msg)
@@ -115,7 +129,7 @@ def parse_exported_json(json_path: Path) -> Dict[str, Any]:
     logger.debug(f"Parsing {json_path.name}")
 
     try:
-        with open(json_path, 'r', encoding='utf-8') as f:
+        with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         return data
@@ -142,27 +156,24 @@ def convert_exporter_message_to_dict(msg_data: Dict[str, Any]) -> Dict[str, Any]
             "username": author.get("name", "unknown"),
             "global_name": author.get("nickname") or author.get("name", "unknown"),
             "avatar": None,
-            "bot": author.get("isBot", False)
+            "bot": author.get("isBot", False),
         },
         "attachments": [
-            {"url": att.get("url")}
-            for att in msg_data.get("attachments", [])
+            {"url": att.get("url")} for att in msg_data.get("attachments", [])
         ],
         "reactions": [
             {
                 "emoji": {"name": reaction.get("emoji", {}).get("name")},
-                "count": reaction.get("count", 0)
+                "count": reaction.get("count", 0),
             }
             for reaction in msg_data.get("reactions", [])
         ],
-        "reference": None
+        "reference": None,
     }
 
     if "reference" in msg_data and msg_data["reference"]:
         ref = msg_data["reference"]
-        converted["reference"] = {
-            "message_id": ref.get("messageId")
-        }
+        converted["reference"] = {"message_id": ref.get("messageId")}
 
     return converted
 
@@ -171,14 +182,14 @@ def export_and_parse_guild(
     user_token: str,
     guild_id: int,
     output_dir: Path,
-    after_date: Optional[datetime] = None
+    after_date: Optional[datetime] = None,
 ) -> List[Dict[str, Any]]:
     """Export guild via CLI and parse all resulting JSON files."""
     json_files = export_guild_to_json(
         user_token=user_token,
         guild_id=guild_id,
         output_dir=output_dir,
-        after_date=after_date
+        after_date=after_date,
     )
 
     parsed_channels = []
@@ -187,12 +198,14 @@ def export_and_parse_guild(
         try:
             data = parse_exported_json(json_path)
 
-            parsed_channels.append({
-                "guild": data.get("guild", {}),
-                "channel": data.get("channel", {}),
-                "messages": data.get("messages", []),
-                "file_path": json_path
-            })
+            parsed_channels.append(
+                {
+                    "guild": data.get("guild", {}),
+                    "channel": data.get("channel", {}),
+                    "messages": data.get("messages", []),
+                    "file_path": json_path,
+                }
+            )
 
         except Exception as e:
             logger.error(f"Failed to process {json_path.name}: {e}")

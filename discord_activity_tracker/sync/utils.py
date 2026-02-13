@@ -1,4 +1,5 @@
 """Helpers for Discord sync."""
+
 import logging
 from datetime import datetime
 from typing import Optional, Dict, Any
@@ -12,8 +13,8 @@ def parse_datetime(date_str: Optional[str]) -> Optional[datetime]:
         return None
 
     try:
-        if date_str.endswith('Z'):
-            date_str = date_str[:-1] + '+00:00'
+        if date_str.endswith("Z"):
+            date_str = date_str[:-1] + "+00:00"
         return datetime.fromisoformat(date_str)
     except (ValueError, AttributeError) as e:
         logger.debug(f"Failed to parse datetime '{date_str}': {e}")
@@ -34,7 +35,8 @@ def parse_discord_user(user_data: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     return {
         "user_id": user_data.get("id", 0),
         "username": user_data.get("username") or user_data.get("name", "unknown"),
-        "display_name": user_data.get("display_name") or user_data.get("global_name", ""),
+        "display_name": user_data.get("display_name")
+        or user_data.get("global_name", ""),
         "avatar_url": user_data.get("avatar_url", ""),
         "is_bot": user_data.get("bot", False),
     }
@@ -59,4 +61,4 @@ def truncate_content(content: str, max_length: int = 100) -> str:
     """Truncate with ellipsis."""
     if len(content) <= max_length:
         return content
-    return content[:max_length - 3] + "..."
+    return content[: max_length - 3] + "..."
