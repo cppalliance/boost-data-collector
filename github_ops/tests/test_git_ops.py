@@ -1,4 +1,4 @@
-"""Tests for github_ops git_ops (clone, push, fetch_file_content)."""
+"""Tests for github_ops git_ops (clone, push, fetch_file_content, get_commit_file_changes)."""
 
 from unittest.mock import MagicMock, patch
 
@@ -6,6 +6,7 @@ from github_ops.git_ops import (
     _url_with_token,
     clone_repo,
     fetch_file_content,
+    get_commit_file_changes,
     push,
 )
 
@@ -185,3 +186,102 @@ def test_fetch_file_content_empty_content_returns_empty_bytes():
     mock_client.get_file_content.return_value = (b"", None)
     out = fetch_file_content("o", "r", "empty", client=mock_client)
     assert out == b""
+
+
+# --- get_commit_file_changes ---
+
+
+def test_get_commit_file_changes_returns_list_of_file_dicts(tmp_path):
+    """get_commit_file_changes returns list of file dicts with filename, status, additions, deletions, patch."""
+    # Mock git diff outputs
+    name_status_output = "M\tREADME.md\nA\tnew_file.txt\nD\told_file.txt"
+    numstat_output = "5\t2\tREADME.md\n10\t0\tnew_file.txt\n0\t3\told_file.txt"
+    patch_output = "diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ patch @@"
+    
+    with patch("github_ops.git_ops.subprocess.run") as run_mock:
+        run_mock.side_effect = [
+            MagicMock(stdout=name_status_output, returncode=0),  # --name-status
+            MagicMock(stdout=numstat_output, returncode=0),  # --numstat
+            MagicMock(stdout=patch_output, returncode=0),  # patch for README.md
+            MagicMock(stdout=patch_output, returncode=0),  # patch for new_file.txt
+            MagicMock(stdout=patch_output, returncode=0),  # patch for old_file.txt
+        ]
+        
+        files = get_commit_file_changes(tmp_path, "parent_sha", "commit_sha")
+    
+    assert len(files) == 3
+    assert all("filename" in f for f in files)
+    assert all("status" in f for f in files)
+    assert all("additions" in f for f in files)
+    assert all("deletions" in f for f in files)
+    assert all("patch" in f for f in files)
+
+
+def test_get_commit_file_changes_maps_status_codes():
+    """get_commit_file_changes maps git status codes (A/M/D/R) to added/modified/removed/renamed."""
+    name_status_output = "A\tadded.txt\nM\tmodified.txt\nD\tremoved.txt\nR100\told.txt\tnew.txt"
+    numstat_output = "1\t0\tadded.txt\n2\t1\tmodified.txt\n0\t1\tremoved.txt\n0\t0\tnew.txt"
+    
+    with patch("github_ops.git_ops.subprocess.run") as run_mock:
+        run_mock.side_effect = [
+            MagicMock(stdout=name_status_output, returncode=0),
+            MagicMock(stdout=numstat_output, returncode=0),
+            MagicMock(stdout="", returncode=0),  # patches
+            MagicMock(stdout="", returncode=0),
+            MagicMock(stdout="", returncode=0),
+            MagicMock(stdout="", returncode=0),
+        ]
+        
+        files = get_commit_file_changes("/fake/path", "parent", "commit")
+    
+    statuses = {f["filename"]: f["status"] for f in files}
+    assert statuses["added.txt"] == "added"
+    assert statuses["modified.txt"] == "modified"
+    assert statuses["removed.txt"] == "removed"
+    assert statuses["new.txt"] == "renamed"
+    
+    # Check rename has previous_filename
+    renamed = [f for f in files if f["filename"] == "new.txt"][0]
+    assert renamed.get("previous_filename") == "old.txt"
+
+
+def test_get_commit_file_changes_applies_patch_size_limit():
+    """get_commit_file_changes truncates patch when patch_size_limit is provided."""
+    name_status_output = "M\tfile.txt"
+    numstat_output = "1\t1\tfile.txt"
+    large_patch = "x" * 1000
+
+    with patch("github_ops.git_ops.subprocess.run") as run_mock:
+        run_mock.side_effect = [
+            MagicMock(stdout=name_status_output, returncode=0),
+            MagicMock(stdout=numstat_output, returncode=0),
+            MagicMock(stdout=large_patch, returncode=0),
+        ]
+
+        files = get_commit_file_changes("/fake", "parent", "commit", patch_size_limit=100)
+
+    assert len(files) == 1
+    assert len(files[0]["patch"]) == 100 + len("\n... (truncated)")  # patch_size_limit + suffix
+    assert files[0]["patch"].endswith("... (truncated)")
+
+
+def test_get_commit_file_changes_uses_utf8_encoding_for_subprocess():
+    """get_commit_file_changes passes encoding=utf-8 and errors=replace to avoid UnicodeDecodeError on Windows."""
+    name_status_output = "M\tfile.txt"
+    numstat_output = "1\t1\tfile.txt"
+    # Patch containing byte that would fail cp1252 decode (e.g. 0x9d)
+    patch_output = "diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt"
+
+    with patch("github_ops.git_ops.subprocess.run") as run_mock:
+        run_mock.side_effect = [
+            MagicMock(stdout=name_status_output, returncode=0),
+            MagicMock(stdout=numstat_output, returncode=0),
+            MagicMock(stdout=patch_output, returncode=0),
+        ]
+        get_commit_file_changes("/fake", "parent", "commit")
+
+    # All subprocess.run calls must use encoding and errors (for git diff output on Windows)
+    for call in run_mock.call_args_list:
+        kwargs = call[1]
+        assert kwargs.get("encoding") == "utf-8"
+        assert kwargs.get("errors") == "replace"

@@ -5,13 +5,23 @@ Layout: workspace/github_activity_tracker/<owner>/<repo>/
   - commits/<hash>.json
   - issues/<issue_number>.json
   - prs/<pr_number>.json
+  - clones/{owner}_{repo}/ (repo clones for big commits)
 """
 
+import os
+import stat
+import threading
 from pathlib import Path
+
+import shutil
 
 from config.workspace import get_workspace_path
 
 _APP_SLUG = "github_activity_tracker"
+
+# Clone registry: tracks clone paths to delete when run finishes
+_clone_registry: set[Path] = set()
+_clone_registry_lock = threading.Lock()
 
 
 def get_workspace_root() -> Path:
@@ -132,7 +142,9 @@ def get_raw_source_commit_path(owner: str, repo: str, commit_sha: str) -> Path:
     return get_raw_source_commits_dir(owner, repo) / f"{commit_sha}.json"
 
 
-def get_raw_source_issue_path(owner: str, repo: str, issue_number: int) -> Path:
+def get_raw_source_issue_path(
+    owner: str, repo: str, issue_number: int
+) -> Path:
     """Path for raw source issues/<number>.json."""
     return get_raw_source_issues_dir(owner, repo) / f"{issue_number}.json"
 
@@ -140,3 +152,71 @@ def get_raw_source_issue_path(owner: str, repo: str, issue_number: int) -> Path:
 def get_raw_source_pr_path(owner: str, repo: str, pr_number: int) -> Path:
     """Path for raw source prs/<number>.json."""
     return get_raw_source_prs_dir(owner, repo) / f"{pr_number}.json"
+
+
+# --- Clone management for big commits (300+ files) ---
+
+
+def get_clones_root() -> Path:
+    """Return workspace/github_activity_tracker/clones/; creates if missing."""
+    path = get_workspace_root() / "clones"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_clone_dir(owner: str, repo: str) -> Path:
+    """
+    Return clone path for a repo: workspace/.../clones/{owner}_{repo}/.
+    Does NOT create the directory (cloning creates it).
+    """
+    return get_clones_root() / f"{owner}_{repo}"
+
+
+def register_clone(clone_path: Path) -> None:
+    """Register a clone path to be deleted when the run finishes."""
+    with _clone_registry_lock:
+        _clone_registry.add(clone_path)
+
+
+def get_registered_clones() -> list[Path]:
+    """Return list of all registered clone paths (for cleanup)."""
+    with _clone_registry_lock:
+        return list(_clone_registry)
+
+
+def clear_clone_registry() -> None:
+    """Clear the clone registry (called after cleanup)."""
+    with _clone_registry_lock:
+        _clone_registry.clear()
+
+
+def remove_clone_dir(clone_path: Path) -> bool:
+    """
+    Remove a clone directory. Handles Windows read-only and locked files.
+
+    Uses shutil.rmtree with an onerror that clears read-only before retry,
+    so .git/objects pack files (often read-only on Windows) can be deleted.
+
+    Returns True if removed, False if removal failed (e.g. file locked by another process).
+    """
+    if not clone_path.exists():
+        return True
+
+    def _handle_rmtree_error(func, path, exc_info):
+        # Clear read-only so we can remove (common on Windows .git dirs)
+        if not os.access(path, os.W_OK):
+            try:
+                os.chmod(path, stat.S_IWRITE)
+            except OSError:
+                pass
+        try:
+            func(path)
+        except OSError:
+            raise exc_info[1]
+
+    try:
+        shutil.rmtree(clone_path, onerror=_handle_rmtree_error)
+        return True
+    except OSError:
+        # Read-only cleared but file may still be locked (e.g. antivirus, git)
+        return False

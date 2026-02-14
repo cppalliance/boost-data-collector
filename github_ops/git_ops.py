@@ -57,7 +57,14 @@ def clone_repo(
     if depth is not None:
         cmd.extend(["--depth", str(depth)])
     logger.info("Cloning %s -> %s", url_or_slug, dest_dir)
-    subprocess.run(cmd, check=True, capture_output=True, text=True)
+    subprocess.run(
+        cmd,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
 
 
 def push(
@@ -77,6 +84,8 @@ def push(
         ["git", "-C", str(repo_dir), "remote", "get-url", remote],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
     )
     remote_url = result.stdout.strip()
@@ -85,7 +94,14 @@ def push(
     if branch:
         cmd.append(branch)
     logger.info("Pushing %s %s", repo_dir, branch or "(current)")
-    subprocess.run(cmd, check=True, capture_output=True, text=True)
+    subprocess.run(
+        cmd,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
 
 
 def fetch_file_content(
@@ -121,7 +137,9 @@ def upload_file(
     """
     local_file_path = Path(local_file_path)
     if not local_file_path.is_file():
-        logger.error("Local file not found or is a directory: %s", local_file_path)
+        logger.error(
+            "Local file not found or is a directory: %s", local_file_path
+        )
         return None
     if client is None:
         client = get_github_client(use="write")
@@ -150,3 +168,169 @@ def upload_file(
             e,
         )
         return None
+
+
+def get_commit_file_changes(
+    repo_dir: str | Path,
+    parent_sha: str,
+    commit_sha: str,
+    *,
+    patch_size_limit: Optional[int] = None,
+) -> list[dict]:
+    """
+    Get full list of changed files between parent and commit via git diff.
+
+    For initial commits (no parent), pass git's empty tree SHA as parent_sha
+    to get all files as "added" with full patches.
+
+    Returns list of file dicts matching GitHub API 'files' shape:
+    - filename: str
+    - previous_filename: str (for renames)
+    - status: str (added, modified, removed, renamed)
+    - additions: int
+    - deletions: int
+    - patch: str
+
+    Args:
+        repo_dir: Path to cloned repo
+        parent_sha: Parent commit SHA, or empty tree SHA for initial commits
+        commit_sha: Commit SHA
+        patch_size_limit: Optional max chars per patch (None = no limit)
+    """
+    repo_dir = Path(repo_dir)
+
+    # Get file status (A=added, M=modified, D=deleted, R=renamed, etc.)
+    # Use utf-8 encoding so git diff output (e.g. patches) decodes correctly on Windows
+    result_status = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_dir),
+            "diff",
+            "--name-status",
+            f"{parent_sha}..{commit_sha}",
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+    )
+
+    # Get additions/deletions per file
+    result_numstat = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_dir),
+            "diff",
+            "--numstat",
+            f"{parent_sha}..{commit_sha}",
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+    )
+
+    # Parse status (format: "M\tpath" or "R100\told_path\tnew_path")
+    status_map = {}
+    for line in result_status.stdout.strip().split("\n"):
+        if not line:
+            continue
+        parts = line.split("\t")
+        status_code = parts[0]
+
+        if status_code.startswith("R"):  # Rename
+            old_path = parts[1]
+            new_path = parts[2]
+            status_map[new_path] = ("renamed", old_path)
+        else:
+            path = parts[1]
+            status_name = {
+                "A": "added",
+                "M": "modified",
+                "D": "removed",
+                "C": "copied",
+                "T": "changed",  # Type change
+            }.get(status_code[0], "modified")
+            status_map[path] = (status_name, None)
+
+    # Parse numstat (format: "additions\tdeletions\tpath")
+    numstat_map = {}
+    for line in result_numstat.stdout.strip().split("\n"):
+        if not line:
+            continue
+        parts = line.split("\t")
+        if len(parts) < 3:
+            continue
+        adds = parts[0]
+        dels = parts[1]
+        path = parts[2]
+
+        # Handle binary files (marked as "-")
+        additions = 0 if adds == "-" else int(adds)
+        deletions = 0 if dels == "-" else int(dels)
+        numstat_map[path] = (additions, deletions)
+
+    # Build file list
+    files = []
+    for filename, (status, prev_filename) in status_map.items():
+        additions, deletions = numstat_map.get(filename, (0, 0))
+
+        # Get per-file patch
+        patch = ""
+        if (
+            status != "removed"
+        ):  # Can't get patch for removed files in some cases
+            try:
+                result_patch = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(repo_dir),
+                        "diff",
+                        f"{parent_sha}..{commit_sha}",
+                        "--",
+                        filename,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    check=True,
+                    timeout=30,
+                )
+                patch = result_patch.stdout
+
+                # Apply size limit if specified
+                if patch_size_limit and len(patch) > patch_size_limit:
+                    patch = patch[:patch_size_limit] + "\n... (truncated)"
+            except (
+                subprocess.TimeoutExpired,
+                subprocess.CalledProcessError,
+            ) as e:
+                logger.warning("Failed to get patch for %s: %s", filename, e)
+                patch = ""
+
+        file_dict = {
+            "filename": filename,
+            "status": status,
+            "additions": additions,
+            "deletions": deletions,
+            "patch": patch,
+        }
+
+        if prev_filename:
+            file_dict["previous_filename"] = prev_filename
+
+        files.append(file_dict)
+
+    logger.info(
+        "Extracted %d file changes from git diff %s..%s",
+        len(files),
+        parent_sha[:7],
+        commit_sha[:7],
+    )
+    return files
