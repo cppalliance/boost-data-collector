@@ -11,8 +11,8 @@ from django.core.management import call_command
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True)
-def run_all_collectors_task(self, stop_on_failure=False):
+@shared_task
+def run_all_collectors_task(stop_on_failure=False):
     """Run the run_all_collectors management command. Used by Celery Beat for daily schedule."""
     logger.info(
         "run_all_collectors_task: starting (stop_on_failure=%s)",
