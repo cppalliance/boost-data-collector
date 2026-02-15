@@ -106,9 +106,21 @@ def _run_boost_search_stage(
             logger.error("Rate limit / connection error during batch search: %s", e)
             raise
 
+        files_in_batch = len(batch_file_results)
+        logger.info(
+            "  [%s] Batch found %d file(s) with Boost includes",
+            log_label or "boost_search",
+            files_in_batch,
+        )
+
         by_repo: dict[str, list] = {}
         for fr in batch_file_results:
             by_repo.setdefault(fr.repo_full_name, []).append(fr)
+
+        batch_usages_created = 0
+        batch_usages_updated = 0
+        batch_usages_excepted = 0
+        batch_missing_headers = 0
 
         for repo_result in batch:
             file_results_for_repo = by_repo.get(repo_result.full_name, [])
@@ -125,6 +137,10 @@ def _run_boost_search_stage(
                 totals["usages_created"] += stats["usages_created"]
                 totals["usages_updated"] += stats["usages_updated"]
                 totals["usages_excepted"] += stats["usages_excepted"]
+                batch_usages_created += stats["usages_created"]
+                batch_usages_updated += stats["usages_updated"]
+                batch_usages_excepted += stats["usages_excepted"]
+                batch_missing_headers += stats.get("missing_header_recorded", 0)
             except (ConnectionException, RateLimitException) as e:
                 logger.error(
                     "Rate limit / connection error at %s: %s", repo_result.full_name, e
@@ -132,6 +148,18 @@ def _run_boost_search_stage(
                 raise
             except Exception as e:
                 logger.warning("Skipping %s due to error: %s", repo_result.full_name, e)
+
+        batch_usages_total = batch_usages_created + batch_usages_updated
+        logger.info(
+            "  [%s] Batch summary: %d files → %d header usages (created=%d, updated=%d), excepted=%d, missing_header_recorded=%d",
+            log_label or "boost_search",
+            files_in_batch,
+            batch_usages_total,
+            batch_usages_created,
+            batch_usages_updated,
+            batch_usages_excepted,
+            batch_missing_headers,
+        )
 
     return totals
 

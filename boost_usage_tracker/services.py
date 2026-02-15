@@ -3,6 +3,10 @@ Service layer for boost_usage_tracker.
 
 All creates/updates/deletes for this app's models must go through functions here.
 See docs/Contributing.md for the project-wide rule.
+
+Includes bulk operations for speed (fewer round-trips):
+- bulk_create_or_update_boost_usage
+- mark_usages_excepted_bulk
 """
 
 from __future__ import annotations
@@ -185,3 +189,99 @@ def get_or_create_missing_header_usage(
         header_name=header_name,
     )
     return usage, tmp, created_tmp
+
+
+# ---------------------------------------------------------------------------
+# Bulk operations (speed: fewer DB round-trips)
+# ---------------------------------------------------------------------------
+
+def bulk_create_or_update_boost_usage(
+    repo: BoostExternalRepository,
+    items: list[tuple["BoostFile", "GitHubFile", Optional[datetime]]],
+) -> tuple[int, int]:
+    """Create or update many BoostUsage rows in bulk.
+
+    *items*: list of (boost_header, file_path, last_commit_date).
+    Returns (created_count, updated_count).
+    """
+    if not items:
+        return 0, 0
+
+    # Key by (boost_header_id, file_path_id) for lookups
+    key_to_item = {}
+    for boost_header, file_path, last_commit_date in items:
+        key = (boost_header.pk, file_path.pk)
+        key_to_item[key] = (boost_header, file_path, last_commit_date)
+
+    # Build map (boost_header_id, file_path_id) -> usage for existing rows
+    existing_map = {
+        (u.boost_header_id, u.file_path_id): u
+        for u in BoostUsage.objects.filter(
+            repo=repo,
+            boost_header__isnull=False,
+        ).select_related("boost_header", "file_path")
+    }
+
+    to_update: list[BoostUsage] = []
+    to_create_keys: set[tuple[int, int]] = set(key_to_item.keys())
+
+    for (bh_id, fp_id), usage in existing_map.items():
+        key = (bh_id, fp_id)
+        if key not in key_to_item:
+            continue
+        to_create_keys.discard(key)
+        boost_header, file_path, last_commit_date = key_to_item[key]
+        if last_commit_date is not None and usage.last_commit_date != last_commit_date:
+            usage.last_commit_date = last_commit_date
+        if usage.excepted_at is not None:
+            usage.excepted_at = None
+        to_update.append(usage)
+
+    created_count = 0
+    updated_count = 0
+
+    if to_update:
+        from django.utils import timezone
+
+        now = timezone.now()
+        for u in to_update:
+            u.updated_at = now
+        BoostUsage.objects.bulk_update(
+            to_update,
+            ["last_commit_date", "excepted_at", "updated_at"],
+        )
+        updated_count = len(to_update)
+
+    if to_create_keys:
+        create_objs = []
+        for key in to_create_keys:
+            boost_header, file_path, last_commit_date = key_to_item[key]
+            create_objs.append(
+                BoostUsage(
+                    repo=repo,
+                    boost_header=boost_header,
+                    file_path=file_path,
+                    last_commit_date=last_commit_date,
+                )
+            )
+        BoostUsage.objects.bulk_create(create_objs)
+        created_count = len(create_objs)
+
+    return created_count, updated_count
+
+
+def mark_usages_excepted_bulk(usage_ids: list[int]) -> int:
+    """Set excepted_at to today for multiple BoostUsage rows in one query.
+
+    Returns the number of rows updated.
+    """
+    if not usage_ids:
+        return 0
+    from django.utils import timezone
+
+    today = date.today()
+    updated = BoostUsage.objects.filter(pk__in=usage_ids).update(
+        excepted_at=today,
+        updated_at=timezone.now(),
+    )
+    return updated

@@ -1,5 +1,9 @@
 """
 Boost include and version detection utilities for boost_usage_tracker.
+
+Uses producer-consumer for file fetching: producer paginates code search and
+queues (repo, file_paths); consumer workers fetch file contents in parallel
+per repo, with bounded pending futures to limit memory.
 """
 
 from __future__ import annotations
@@ -8,6 +12,8 @@ import base64
 import logging
 import re
 import time
+from collections import defaultdict
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
@@ -57,6 +63,10 @@ PER_PAGE = 100
 SEARCH_DELAY = 2.0
 FILE_FETCH_DELAY = 0.1
 PAGE_DELAY = 0.3
+
+# Producer-consumer: parallel file fetches per repo, bounded pending tasks
+MAX_CONCURRENT_FILE_FETCHES = 4
+MAX_PENDING_FUTURES = max(MAX_CONCURRENT_FILE_FETCHES * 4, MAX_CONCURRENT_FILE_FETCHES + 4)
 
 MAX_CODE_SEARCH_QUERY_LEN = 255
 BOOST_INCLUDE_SEARCH_BATCH_SIZE = 5
@@ -263,57 +273,109 @@ def _build_boost_include_query(repo_full_names: list[str]) -> tuple[str, list[st
     return query, repos
 
 
+def _fetch_repo_files_task(
+    client: GitHubAPIClient,
+    repo_name: str,
+    file_paths: list[str],
+) -> list[FileSearchResult]:
+    """Consumer task: fetch file contents for one repo's paths, return FileSearchResult list."""
+    found: list[FileSearchResult] = []
+    for path in file_paths:
+        file_info = get_file_content_with_commit_date(client, repo_name, path)
+        if not file_info:
+            continue
+        content = file_info.get("content", "")
+        headers = extract_boost_includes(content)
+        if not headers:
+            continue
+        found.append(
+            FileSearchResult(
+                repo_full_name=repo_name,
+                file_path=path,
+                content=content,
+                commit_date=file_info.get("commit_date"),
+                boost_headers=headers,
+            )
+        )
+        if FILE_FETCH_DELAY > 0:
+            time.sleep(FILE_FETCH_DELAY)
+    return found
+
+
 def _search_boost_include_by_query(
     client: GitHubAPIClient,
     query: str,
 ) -> list[FileSearchResult]:
+    """Producer-consumer: paginate code search (producer), fetch file contents in parallel (consumer)."""
     results: list[FileSearchResult] = []
     page = 1
+    seen_candidates: set[tuple[str, str]] = set()
+    workers = max(1, MAX_CONCURRENT_FILE_FETCHES)
+    futures: list[Any] = []
 
-    while True:
-        time.sleep(SEARCH_DELAY)
-        try:
-            data = client.rest_request(
-                "/search/code",
-                params={"q": query, "per_page": PER_PAGE, "page": page},
-            )
-        except Exception as e:
-            logger.warning("Code search failed (page %d): %s", page, e)
-            break
-
-        items = data.get("items") or []
-        if not items:
-            break
-
-        for item in items:
-            path = item.get("path", "")
-            if "/boost/" in path.lower():
-                continue
-            repo_name = item.get("repository", {}).get("full_name", "")
-            if not repo_name:
-                continue
-            file_info = get_file_content_with_commit_date(client, repo_name, path)
-            if not file_info:
-                continue
-            content = file_info.get("content", "")
-            headers = extract_boost_includes(content)
-            if not headers:
-                continue
-            results.append(
-                FileSearchResult(
-                    repo_full_name=repo_name,
-                    file_path=path,
-                    content=content,
-                    commit_date=file_info.get("commit_date"),
-                    boost_headers=headers,
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        while True:
+            time.sleep(SEARCH_DELAY)
+            try:
+                data = client.rest_request(
+                    "/search/code",
+                    params={"q": query, "per_page": PER_PAGE, "page": page},
                 )
-            )
-            time.sleep(FILE_FETCH_DELAY)
+            except Exception as e:
+                logger.warning("Code search failed (page %d): %s", page, e)
+                break
 
-        if len(items) < PER_PAGE or page >= 10:
-            break
-        page += 1
-        time.sleep(PAGE_DELAY)
+            items = data.get("items") or []
+            if not items:
+                break
+
+            # Producer: enumerate (repo_name, file_path) from this page, group by repo
+            repo_to_paths: dict[str, list[str]] = defaultdict(list)
+            for item in items:
+                path = item.get("path", "")
+                if "/boost/" in path.lower():
+                    continue
+                repo_name = item.get("repository", {}).get("full_name", "")
+                if not repo_name:
+                    continue
+                key = (repo_name, path)
+                if key in seen_candidates:
+                    continue
+                seen_candidates.add(key)
+                repo_to_paths[repo_name].append(path)
+
+            # Queue consumer tasks (one per repo)
+            for repo_name, paths in repo_to_paths.items():
+                futures.append(
+                    executor.submit(_fetch_repo_files_task, client, repo_name, paths)
+                )
+
+            # Backpressure: drain completed futures when too many pending
+            if len(futures) >= MAX_PENDING_FUTURES:
+                done, not_done = wait(futures, return_when=FIRST_COMPLETED)
+                futures = list(not_done)
+                for future in done:
+                    try:
+                        items_found = future.result()
+                        if items_found:
+                            results.extend(items_found)
+                    except Exception as e:
+                        logger.debug("File fetch task failed: %s", e)
+
+            if len(items) < PER_PAGE or page >= 10:
+                break
+            page += 1
+            if PAGE_DELAY > 0:
+                time.sleep(PAGE_DELAY)
+
+        # Drain remaining futures
+        for future in as_completed(futures):
+            try:
+                items_found = future.result()
+                if items_found:
+                    results.extend(items_found)
+            except Exception as e:
+                logger.debug("File fetch task failed: %s", e)
 
     return results
 

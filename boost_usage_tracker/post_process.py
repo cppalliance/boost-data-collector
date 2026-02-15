@@ -17,11 +17,11 @@ from boost_library_tracker.models import BoostFile
 from boost_usage_tracker.boost_searcher import detect_boost_version_in_repo, extract_boost_includes
 from boost_usage_tracker.repo_searcher import RepoSearchResult
 from boost_usage_tracker.services import (
-    create_or_update_boost_usage,
+    bulk_create_or_update_boost_usage,
     get_active_usages_for_repo,
     get_or_create_boost_external_repo,
     get_or_create_missing_header_usage,
-    mark_usage_excepted,
+    mark_usages_excepted_bulk,
 )
 from github_activity_tracker.services import create_or_update_github_file
 from github_ops.client import ConnectionException, RateLimitException
@@ -92,6 +92,9 @@ def process_single_repo(
         existing_keys = {(u.boost_header_id, u.file_path_id): u for u in existing_usages}
         seen_keys: set[tuple[int | None, int]] = set()
 
+        # Collect (boost_header, file_path, last_commit_date) for bulk upsert; handle missing headers in loop
+        bulk_usage_items: list[tuple] = []
+
         for file_result in file_results_for_repo:
             source_file, _ = create_or_update_github_file(github_repo, file_result.file_path)
             header_paths = extract_boost_includes(file_result.content or "")
@@ -119,22 +122,25 @@ def process_single_repo(
 
                 key = (boost_header.pk, source_file.pk)
                 seen_keys.add(key)
-
-                _, created = create_or_update_boost_usage(
-                    repo=ext_repo,
-                    boost_header=boost_header,
-                    file_path=source_file,
-                    last_commit_date=file_result.commit_date,
+                bulk_usage_items.append(
+                    (boost_header, source_file, file_result.commit_date),
                 )
-                if created:
-                    stats["usages_created"] += 1
-                else:
-                    stats["usages_updated"] += 1
 
-        for key, usage in existing_keys.items():
-            if key not in seen_keys:
-                mark_usage_excepted(usage)
-                stats["usages_excepted"] += 1
+        # Bulk create/update usages (fewer DB round-trips)
+        if bulk_usage_items:
+            created_count, updated_count = bulk_create_or_update_boost_usage(
+                ext_repo, bulk_usage_items
+            )
+            stats["usages_created"] += created_count
+            stats["usages_updated"] += updated_count
+
+        # Bulk mark usages that are no longer detected as excepted
+        excepted_ids = [
+            u.pk for u in existing_usages
+            if (u.boost_header_id, u.file_path_id) not in seen_keys
+        ]
+        if excepted_ids:
+            stats["usages_excepted"] += mark_usages_excepted_bulk(excepted_ids)
 
     except (ConnectionException, RateLimitException):
         raise
