@@ -62,7 +62,7 @@ def _build_documents_from_raw(raw_documents: list[dict[str, Any]]) -> list[Any]:
     for item in raw_documents:
         content = item.get("content", "")
         metadata = dict(item.get("metadata") or {})
-        ids_str = item.get("ids", "")
+        ids_str = metadata.get("ids", "")
 
         if "doc_id" not in metadata and "url" not in metadata:
             logger.warning(
@@ -102,7 +102,8 @@ def sync_to_pinecone(
             ``"wg21"``). Used as the key in PineconeFailList and PineconeSyncStatus.
         namespace: Pinecone namespace to upsert into.
         preprocess_fn: A callable returning ``(list[dict], is_chunked)``. Each dict
-            must have: ids, content, metadata (with doc_id or url), is_chunked.
+            must have ``content`` and ``metadata``; ``metadata`` must contain
+            ``doc_id`` or ``url``. See docs/Pinecone_preprocess_guideline.md.
 
     Returns:
         dict with keys: upserted, total, failed_count, failed_ids, errors.
