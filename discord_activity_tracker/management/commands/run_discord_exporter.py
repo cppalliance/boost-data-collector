@@ -14,7 +14,10 @@ from discord_activity_tracker.sync.chat_exporter import (
     export_and_parse_guild,
     convert_exporter_message_to_dict,
 )
-from discord_activity_tracker.sync.messages import _process_message_data
+from discord_activity_tracker.sync.messages import (
+    _prepare_message_data,
+    _process_messages_in_batches,
+)
 from discord_activity_tracker.sync.utils import parse_datetime
 from discord_activity_tracker.sync.export import export_and_push
 from discord_activity_tracker.services import (
@@ -228,7 +231,7 @@ class Command(BaseCommand):
             raise
 
     async def _persist_exported_data(self, guild_id: int, parsed_data: list):
-        """Write parsed channel data to the database."""
+        """Write parsed channel data to the database using bulk operations."""
         for channel_data in parsed_data:
             try:
                 guild_info = channel_data["guild"]
@@ -250,9 +253,10 @@ class Command(BaseCommand):
                     position=0,
                 )
 
-                for msg_data in messages:
-                    converted_msg = convert_exporter_message_to_dict(msg_data)
-                    await _process_message_data(channel, converted_msg)
+                # Convert exporter format to internal format for bulk processing
+                converted = [convert_exporter_message_to_dict(msg) for msg in messages]
+
+                processed = await _process_messages_in_batches(channel, converted)
 
                 if messages:
                     last_msg = convert_exporter_message_to_dict(messages[-1])
@@ -264,7 +268,10 @@ class Command(BaseCommand):
 
                 await sync_to_async(update_channel_last_synced)(channel)
 
-                logger.info(f"Synced #{channel.channel_name}: {len(messages)} messages")
+                logger.info(
+                    f"Synced #{channel.channel_name}: "
+                    f"{processed}/{len(messages)} messages"
+                )
 
             except Exception as e:
                 logger.error(

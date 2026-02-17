@@ -124,9 +124,7 @@ class TestBulkUpsertUsers:
 @pytest.mark.django_db
 class TestBulkUpsertMessages:
     def test_insert_new_messages(self, channel):
-        user_map = bulk_upsert_discord_users(
-            [_user(1001, "alice", display="Alice")]
-        )
+        user_map = bulk_upsert_discord_users([_user(1001, "alice", display="Alice")])
 
         now = datetime(2026, 2, 17, 12, 0, 0, tzinfo=timezone.utc)
         msg_data = [
@@ -140,9 +138,7 @@ class TestBulkUpsertMessages:
             ),
         ]
 
-        result = bulk_upsert_discord_messages(
-            msg_data, channel, user_map
-        )
+        result = bulk_upsert_discord_messages(msg_data, channel, user_map)
         assert len(result) == 2
         assert DiscordMessage.objects.count() == 2
 
@@ -152,14 +148,10 @@ class TestBulkUpsertMessages:
 
         msg2 = DiscordMessage.objects.get(message_id=5002)
         assert msg2.has_attachments is True
-        assert msg2.attachment_urls == [
-            "https://example.com/file.png"
-        ]
+        assert msg2.attachment_urls == ["https://example.com/file.png"]
 
     def test_update_existing_messages(self, channel):
-        user_map = bulk_upsert_discord_users(
-            [_user(1001, "alice")]
-        )
+        user_map = bulk_upsert_discord_users([_user(1001, "alice")])
         now = datetime(2026, 2, 17, 12, 0, 0, tzinfo=timezone.utc)
 
         # Insert first
@@ -203,9 +195,7 @@ class TestBulkUpsertMessages:
 @pytest.mark.django_db
 class TestBulkUpsertReactions:
     def test_insert_reactions(self, channel):
-        user_map = bulk_upsert_discord_users(
-            [_user(1001, "alice")]
-        )
+        user_map = bulk_upsert_discord_users([_user(1001, "alice")])
         now = datetime(2026, 2, 17, 12, 0, 0, tzinfo=timezone.utc)
         message_map = bulk_upsert_discord_messages(
             [_msg(5001, 1001, content="Test", ts=now)],
@@ -224,9 +214,7 @@ class TestBulkUpsertReactions:
         assert thumbs.count == 3
 
     def test_update_reaction_count(self, channel):
-        user_map = bulk_upsert_discord_users(
-            [_user(1001, "alice")]
-        )
+        user_map = bulk_upsert_discord_users([_user(1001, "alice")])
         now = datetime(2026, 2, 17, 12, 0, 0, tzinfo=timezone.utc)
         message_map = bulk_upsert_discord_messages(
             [_msg(5001, 1001, content="Test", ts=now)],
@@ -279,9 +267,7 @@ class TestBulkProcessMessageBatch:
                 "message_created_at": now,
                 "message_edited_at": None,
                 "reply_to_message_id": 5001,
-                "attachment_urls": [
-                    "https://example.com/img.png"
-                ],
+                "attachment_urls": ["https://example.com/img.png"],
                 "reactions": [],
             },
         ]
@@ -317,9 +303,7 @@ class TestBulkProcessMessageBatch:
                 "message_edited_at": None,
                 "reply_to_message_id": None,
                 "attachment_urls": [],
-                "reactions": [
-                    {"emoji": "\U0001f44d", "count": 1}
-                ],
+                "reactions": [{"emoji": "\U0001f44d", "count": 1}],
             },
         ]
 

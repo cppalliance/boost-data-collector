@@ -1,5 +1,6 @@
 """Message sync logic - fetch from Discord and store in DB."""
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -186,9 +187,7 @@ async def _process_messages_in_batches(
         if not batch_prepared:
             continue
 
-        count = await sync_to_async(bulk_process_message_batch)(
-            batch_prepared, channel
-        )
+        count = await sync_to_async(bulk_process_message_batch)(batch_prepared, channel)
         total_processed += count
 
         logger.info(
@@ -296,6 +295,31 @@ def sync_channel_messages(
         run_async(client.close())
 
 
+MAX_CONCURRENT_CHANNELS = 5
+
+
+async def _sync_all_channels_async(
+    client: DiscordSyncClient,
+    channels: List[DiscordChannel],
+    guild_id: int,
+    since_date: Optional[datetime] = None,
+    full_sync: bool = False,
+):
+    """Sync multiple channels concurrently with a semaphore."""
+    sem = asyncio.Semaphore(MAX_CONCURRENT_CHANNELS)
+
+    async def _sync_one(channel: DiscordChannel):
+        async with sem:
+            try:
+                await sync_channel_messages_async(
+                    client, channel, guild_id, since_date, full_sync
+                )
+            except Exception as e:
+                logger.error(f"Failed to sync channel #{channel.channel_name}: {e}")
+
+    await asyncio.gather(*[_sync_one(ch) for ch in channels])
+
+
 def sync_all_channels(
     token: str,
     guild_id: int,
@@ -304,7 +328,7 @@ def sync_all_channels(
     active_only: bool = True,
     active_days: int = 30,
 ):
-    """Sync all channels in guild (single client for entire run)."""
+    """Sync all channels in guild (parallel fetch, single client)."""
     logger.info(f"Starting sync for guild {guild_id}")
 
     client = DiscordSyncClient(token)
@@ -324,20 +348,18 @@ def sync_all_channels(
                 if ch.last_activity_at and ch.last_activity_at >= cutoff
             ]
             logger.info(
-                f"Filtered to {len(channels)} active channels (last {active_days} days)"
+                f"Filtered to {len(channels)} active channels "
+                f"(last {active_days} days)"
             )
 
-        # Sync messages for each channel (reusing same client)
-        for channel in channels:
-            try:
-                run_async(
-                    sync_channel_messages_async(
-                        client, channel, guild_id, since_date, full_sync
-                    )
-                )
-            except Exception as e:
-                logger.error(f"Failed to sync channel #{channel.channel_name}: {e}")
-                continue
+        # Sync messages for channels concurrently (up to MAX_CONCURRENT_CHANNELS)
+        logger.info(
+            f"Syncing {len(channels)} channels "
+            f"(max {MAX_CONCURRENT_CHANNELS} concurrent)"
+        )
+        run_async(
+            _sync_all_channels_async(client, channels, guild_id, since_date, full_sync)
+        )
     finally:
         run_async(client.close())
 

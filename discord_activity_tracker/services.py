@@ -274,13 +274,19 @@ def bulk_upsert_discord_users(
         instances,
         update_conflicts=True,
         unique_fields=["user_id"],
-        update_fields=["username", "display_name", "avatar_url", "is_bot", "updated_at"],
+        update_fields=[
+            "username",
+            "display_name",
+            "avatar_url",
+            "is_bot",
+            "updated_at",
+        ],
     )
 
     # Fetch back with PKs (bulk_create+update_conflicts doesn't return PKs for updated rows)
-    db_users = DiscordUser.objects.filter(
-        user_id__in=list(unique.keys())
-    ).only("id", "user_id")
+    db_users = DiscordUser.objects.filter(user_id__in=list(unique.keys())).only(
+        "id", "user_id"
+    )
     return {u.user_id: u for u in db_users}
 
 
@@ -298,7 +304,9 @@ def bulk_upsert_discord_messages(
     for d in message_data_list:
         author = user_map.get(d["author"]["user_id"])
         if author is None:
-            logger.warning(f"Skipping message {d['message_id']}: author not in user_map")
+            logger.warning(
+                f"Skipping message {d['message_id']}: author not in user_map"
+            )
             continue
         attachments = d.get("attachment_urls", [])
         instances.append(
@@ -340,9 +348,9 @@ def bulk_upsert_discord_messages(
     )
 
     msg_ids = [inst.message_id for inst in instances]
-    db_msgs = DiscordMessage.objects.filter(
-        message_id__in=msg_ids
-    ).only("id", "message_id")
+    db_msgs = DiscordMessage.objects.filter(message_id__in=msg_ids).only(
+        "id", "message_id"
+    )
     return {m.message_id: m for m in db_msgs}
 
 
@@ -405,11 +413,13 @@ def bulk_process_message_batch(
         for msg in message_data_list:
             for reaction in msg.get("reactions", []):
                 if reaction.get("emoji"):
-                    reaction_data.append({
-                        "discord_message_id": msg["message_id"],
-                        "emoji": reaction["emoji"],
-                        "count": reaction.get("count", 0),
-                    })
+                    reaction_data.append(
+                        {
+                            "discord_message_id": msg["message_id"],
+                            "emoji": reaction["emoji"],
+                            "count": reaction.get("count", 0),
+                        }
+                    )
         if reaction_data:
             bulk_upsert_discord_reactions(reaction_data, message_map)
 
