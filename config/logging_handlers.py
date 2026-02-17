@@ -5,8 +5,9 @@ Automatically sends error logs to configured channels.
 
 import json
 import logging
+import sys
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib import request
 from urllib.error import URLError
 
@@ -36,7 +37,7 @@ class DiscordHandler(logging.Handler):
                 "title": f"🚨 {record.levelname}: {record.name}",
                 "description": f"```\n{record.getMessage()}\n```",
                 "color": self._get_color(record.levelname),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "fields": [
                     {
                         "name": "Module",
@@ -76,14 +77,16 @@ class DiscordHandler(logging.Handler):
 
             with request.urlopen(req, timeout=10) as response:
                 if response.status != 204:
-                    print(f"Discord webhook returned status {response.status}")
+                    sys.stderr.write(
+                        f"Discord webhook returned status {response.status}\n"
+                    )
 
         except URLError as e:
             # Don't fail the application if notification fails
-            print(f"Failed to send Discord notification: {e}")
+            sys.stderr.write(f"Failed to send Discord notification: {e}\n")
         except Exception as e:
             # Prevent handler from breaking the logging system
-            print(f"Error in DiscordHandler: {e}")
+            sys.stderr.write(f"Error in DiscordHandler: {e}\n")
 
     def _get_color(self, levelname):
         """Get embed color based on log level."""
@@ -147,7 +150,7 @@ class SlackHandler(logging.Handler):
                         },
                         {
                             "type": "mrkdwn",
-                            "text": f"*Time:*\n{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                            "text": f"*Time:*\n{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}",
                         },
                         {
                             "type": "mrkdwn",
@@ -199,11 +202,13 @@ class SlackHandler(logging.Handler):
 
             with request.urlopen(req, timeout=10) as response:
                 if response.status != 200:
-                    print(f"Slack webhook returned status {response.status}")
+                    sys.stderr.write(
+                        f"Slack webhook returned status {response.status}\n"
+                    )
 
         except URLError as e:
             # Don't fail the application if notification fails
-            print(f"Failed to send Slack notification: {e}")
+            sys.stderr.write(f"Failed to send Slack notification: {e}\n")
         except Exception as e:
             # Prevent handler from breaking the logging system
-            print(f"Error in SlackHandler: {e}")
+            sys.stderr.write(f"Error in SlackHandler: {e}\n")

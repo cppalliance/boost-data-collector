@@ -227,7 +227,6 @@ if ENABLE_ERROR_NOTIFICATIONS:
             "class": "config.logging_handlers.DiscordHandler",
             "webhook_url": DISCORD_WEBHOOK_URL,
             "level": "ERROR",
-            "formatter": "verbose",
         }
         LOGGING["root"]["handlers"].append("discord")
 
@@ -236,6 +235,5 @@ if ENABLE_ERROR_NOTIFICATIONS:
             "class": "config.logging_handlers.SlackHandler",
             "webhook_url": SLACK_WEBHOOK_URL,
             "level": "ERROR",
-            "formatter": "verbose",
         }
         LOGGING["root"]["handlers"].append("slack")
