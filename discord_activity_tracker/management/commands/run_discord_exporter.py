@@ -15,7 +15,6 @@ from discord_activity_tracker.sync.chat_exporter import (
     convert_exporter_message_to_dict,
 )
 from discord_activity_tracker.sync.messages import (
-    _prepare_message_data,
     _process_messages_in_batches,
 )
 from discord_activity_tracker.sync.utils import parse_datetime
