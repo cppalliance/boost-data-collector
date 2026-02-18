@@ -120,6 +120,7 @@ erDiagram
     GitHubRepository ||--o{ RepoLanguage : "has"
     GitHubRepository ||--o{ RepoLicense : "has"
     RepoLanguage }o--|| Language : "used_in"
+    Language ||--o{ CreatedReposByLanguage : "yearly_stats"
     License ||--o{ RepoLicense : "used_in"
 
     GitHubRepository {
@@ -163,11 +164,21 @@ erDiagram
         int license_id FK
         datetime created_at
     }
+
+    CreatedReposByLanguage {
+        int id PK
+        int language_id FK
+        int year "IX"
+        int all_repos
+        int significant_repos
+        datetime created_at
+        datetime updated_at
+    }
 ```
 
 **Note:** **GitHubRepository** is the base table with all repository fields.
 
-**Note:** Composite unique constraints should be applied on: (`owner_account_id`, `repo_name`) in GitHubRepository, (`repo_id`, `language_id`) in RepoLanguage, (`repo_id`, `license_id`) in RepoLicense.
+**Note:** Composite unique constraints should be applied on: (`owner_account_id`, `repo_name`) in GitHubRepository, (`repo_id`, `language_id`) in RepoLanguage, (`repo_id`, `license_id`) in RepoLicense, (`language_id`, `year`) in CreatedReposByLanguage.
 
 #### Part 2: Git Commit and Issues
 
@@ -701,6 +712,7 @@ erDiagram
 | **GitHubRepository**                 | Repository metadata (owner, repo_name, stars, forks, etc.). Base table for repo subtypes.                | 2       |
 | **GitHubFile**                       | File in a repo (filename, repo_id, is_deleted). Base for file subtypes.                                  | 2       |
 | **Language**                         | Reference: language name.                                                                                | 2       |
+| **CreatedReposByLanguage**           | Yearly repository counts by language (`all_repos`, `significant_repos`; unique on `language_id + year`). | 2       |
 | **License**                          | Reference: license name, spdx_id, url.                                                                   | 2       |
 | **RepoLanguage**                     | Repo-language link with line_count.                                                                      | 2       |
 | **RepoLicense**                      | Repo-license link.                                                                                       | 2       |
@@ -753,6 +765,7 @@ erDiagram
 | TempProfileIdentityRelation | BaseProfile                                                                                                            | Has many (base_profile_id)                 |
 | GitHubAccount                | GitHubRepository                                                                                                       | Owns many                                  |
 | GitHubRepository             | RepoLanguage, RepoLicense                                                                                              | Has many                                   |
+| Language                     | CreatedReposByLanguage                                                                                                 | Has many yearly stats                      |
 | GitHubRepository             | BoostLibraryRepository, BoostExternalRepository                                                                        | Extends (1:1 subtype)                      |
 | GitHubRepository             | GitCommit, Issue, PullRequest                                                                                          | Contains many                              |
 | GitHubRepository             | GitHubFile                                                                                                             | Has many                                   |
