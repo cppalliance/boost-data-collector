@@ -89,7 +89,7 @@ class Command(BaseCommand):
             if not user_token:
                 self.stdout.write(self.style.ERROR("DISCORD_USER_TOKEN not configured"))
                 self.stdout.write(
-                    "Set it in .env file. See discord_activity_tracker/tools/README.md"
+                    "Set it in .env file. See DiscordChatExporter docs for token extraction."
                 )
                 return
 

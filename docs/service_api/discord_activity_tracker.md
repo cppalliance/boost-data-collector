@@ -15,14 +15,6 @@
 
 ---
 
-## DiscordUser (delegates to cppa_user_tracker)
-
-| Function                    | Parameter types                                                          | Return type               | Description                                    |
-| --------------------------- | ------------------------------------------------------------------------ | ------------------------- | ---------------------------------------------- |
-| `get_or_create_discord_user` | `user_id: int`, `username: str`, `display_name: str = ""`, `avatar_url: str = ""`, `is_bot: bool = False` | `tuple[DiscordProfile, bool]` | Delegates to `cppa_user_tracker.services.get_or_create_discord_profile`. |
-
----
-
 ## DiscordChannel
 
 | Function                      | Parameter types                                                       | Return type                   | Description                                   |

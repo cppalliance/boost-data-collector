@@ -39,6 +39,6 @@ celerybeat.pid
 *.swp
 *.swo
 
-# DiscordChatExporter CLI binaries (download separately, ~35MB)
-discord_activity_tracker/tools/*
-!discord_activity_tracker/tools/README.md
+# DiscordChatExporter CLI (download to workspace/discord_activity_tracker/tools/)
+discord_activity_tracker/tools/
+

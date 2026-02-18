@@ -51,22 +51,6 @@ def get_or_create_discord_server(
     return server, created
 
 
-def get_or_create_discord_user(
-    user_id: int,
-    username: str,
-    display_name: str = "",
-    avatar_url: str = "",
-    is_bot: bool = False,
-) -> Tuple[DiscordProfile, bool]:
-    """Get or create Discord user profile. Delegates to cppa_user_tracker."""
-    return get_or_create_discord_profile(
-        discord_user_id=user_id,
-        username=username,
-        display_name=display_name,
-        avatar_url=avatar_url,
-        is_bot=is_bot,
-    )
-
 
 def get_or_create_discord_channel(
     server: DiscordServer,

@@ -8,10 +8,10 @@ from typing import Any, Dict, List, Optional
 from django.utils import timezone as django_timezone
 from asgiref.sync import sync_to_async
 
+from cppa_user_tracker.services import get_or_create_discord_profile
 from ..models import DiscordServer, DiscordChannel
 from ..services import (
     get_or_create_discord_server,
-    get_or_create_discord_user,
     get_or_create_discord_channel,
     create_or_update_discord_message,
     add_or_update_reaction,
@@ -82,8 +82,8 @@ async def _process_message_data(channel: DiscordChannel, message_data: Dict[str,
         author_data = message_data.get("author", {})
         author_info = parse_discord_user(author_data)
 
-        author, _ = await sync_to_async(get_or_create_discord_user)(
-            user_id=author_info["user_id"],
+        author, _ = await sync_to_async(get_or_create_discord_profile)(
+            discord_user_id=author_info["user_id"],
             username=author_info["username"],
             display_name=author_info["display_name"],
             avatar_url=author_info["avatar_url"],

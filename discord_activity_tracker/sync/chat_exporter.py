@@ -8,9 +8,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
+from ..workspace import get_workspace_root
+
 logger = logging.getLogger(__name__)
 
-CLI_PATH = Path(__file__).parent.parent / "tools" / "DiscordChatExporter.Cli.exe"
+
+def _get_cli_path() -> Path:
+    """Resolve CLI path at call time (workspace may not exist at import time)."""
+    return get_workspace_root() / "tools" / "DiscordChatExporter.Cli.exe"
 
 
 class DiscordChatExporterError(Exception):
@@ -26,16 +31,17 @@ def export_guild_to_json(
     include_threads: str = "None",
 ) -> List[Path]:
     """Export all channels from a guild. Returns list of JSON file paths."""
-    if not CLI_PATH.exists():
+    cli_path = _get_cli_path()
+    if not cli_path.exists():
         raise DiscordChatExporterError(
-            f"DiscordChatExporter CLI not found at {CLI_PATH}. "
-            "Run: cd discord_activity_tracker/tools && download it from GitHub."
+            f"DiscordChatExporter CLI not found at {cli_path}. "
+            "Download it from GitHub and place in workspace/discord_activity_tracker/tools/."
         )
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
     cmd = [
-        str(CLI_PATH),
+        str(cli_path),
         "exportguild",
         "--token",
         user_token,

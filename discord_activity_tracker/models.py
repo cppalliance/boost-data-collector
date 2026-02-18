@@ -19,24 +19,6 @@ class DiscordServer(models.Model):
         return f"{self.server_name} ({self.server_id})"
 
 
-class DiscordUser(models.Model):
-    """Discord user."""
-
-    user_id = models.BigIntegerField(unique=True, db_index=True)
-    username = models.CharField(max_length=255, db_index=True)
-    display_name = models.CharField(max_length=255, blank=True)
-    avatar_url = models.URLField(max_length=512, blank=True)
-    is_bot = models.BooleanField(default=False, db_index=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["username"]
-
-    def __str__(self):
-        return f"@{self.username}"
-
-
 class DiscordChannel(models.Model):
     """Discord channel within a server."""
 
