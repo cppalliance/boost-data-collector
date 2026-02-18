@@ -87,29 +87,27 @@ def export_guild_to_json(
             env=env,
         )
 
-        # CLI writes progress to stderr
-        stderr_lines = []
-        for line in process.stderr:
+        # CLI writes progress to stdout
+        stdout_lines = []
+        for line in process.stdout:
             line = line.rstrip()
             if line:
-                stderr_lines.append(line)
+                stdout_lines.append(line)
                 logger.info(f"[CLI] {line}")
 
         process.wait()
-        stdout = process.stdout.read() if process.stdout else ""
+        stderr = process.stderr.read() if process.stderr else ""
 
         if process.returncode != 0:
             error_msg = (
                 f"DiscordChatExporter failed with exit code {process.returncode}"
             )
-            if stderr_lines:
-                error_msg += f"\nError: {stderr_lines[-1]}"
+            if stderr:
+                error_msg += f"\nError: {stderr.strip()}"
             logger.error(error_msg)
             raise DiscordChatExporterError(error_msg)
 
         logger.info("Export completed successfully")
-        if stdout:
-            logger.debug(f"Output: {stdout}")
 
     except DiscordChatExporterError:
         raise
