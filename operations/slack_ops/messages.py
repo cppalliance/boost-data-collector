@@ -1,10 +1,11 @@
 """
 Slack message operations: get channel history (messages).
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Optional
 
 from operations.slack_ops.client import SlackAPIClient
 from operations.slack_ops.tokens import get_slack_client

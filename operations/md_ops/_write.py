@@ -1,4 +1,5 @@
 """Shared markdown file writing."""
+
 from pathlib import Path
 
 

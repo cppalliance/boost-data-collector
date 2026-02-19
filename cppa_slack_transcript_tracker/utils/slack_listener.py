@@ -2,6 +2,7 @@
 Slack Event Listener Module
 Listens to Slack events using Slack Bolt
 """
+
 import os
 import json
 import re
@@ -88,8 +89,13 @@ class SlackListener:
                         for sub_elem in element.get("elements", []):
                             if sub_elem.get("type") == "link":
                                 link_text = sub_elem.get("text", "").strip()
-                                if link_text.lower() in ["view ai notes", "view ai note"]:
-                                    file_id = self._extract_file_id_from_url(sub_elem.get("url", ""))
+                                if link_text.lower() in [
+                                    "view ai notes",
+                                    "view ai note",
+                                ]:
+                                    file_id = self._extract_file_id_from_url(
+                                        sub_elem.get("url", "")
+                                    )
                                     if file_id:
                                         return file_id
             return None
@@ -112,17 +118,24 @@ class SlackListener:
                 save_event_to_file("huddle_ai_note", body)
                 file_id = self._extract_file_id_from_event(event)
                 if not file_id:
-                    logger.warning("Could not extract file ID from huddle AI note event")
+                    logger.warning(
+                        "Could not extract file ID from huddle AI note event"
+                    )
                     return
                 if file_id in processed_file_ids:
                     logger.debug("File %s already processed, skipping", file_id)
                     return
                 processed_file_ids.add(file_id)
-                logger.debug("Huddle AI note for file_id: %s, waiting 30 seconds", file_id)
+                logger.debug(
+                    "Huddle AI note for file_id: %s, waiting 30 seconds", file_id
+                )
                 time.sleep(30)
-                logger.debug("Starting processing huddle canvas for file_id: %s", file_id)
+                logger.debug(
+                    "Starting processing huddle canvas for file_id: %s", file_id
+                )
                 try:
                     from .huddle_processor import process_huddle_canvas
+
                     result = process_huddle_canvas(file_id)
                     if result and result.get("success"):
                         logger.debug("Successfully processed huddle canvas %s", file_id)
@@ -132,7 +145,9 @@ class SlackListener:
                         logger.error("Failed to process huddle canvas: %s", file_id)
                         processed_file_ids.discard(file_id)
                 except Exception as e:
-                    logger.exception("Error processing huddle canvas %s: %s", file_id, e)
+                    logger.exception(
+                        "Error processing huddle canvas %s: %s", file_id, e
+                    )
                     processed_file_ids.discard(file_id)
                 return
             logger.debug("Regular message event received")

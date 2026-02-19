@@ -2,6 +2,7 @@
 Huddle Markdown: orchestration for Slack huddle -> markdown.
 Reads HTML/JSON, fetches Slack channel/user info, then uses operations.md_ops for transcript MD.
 """
+
 import json
 import logging
 import re
@@ -58,14 +59,10 @@ def generate_huddle_markdown(
     transcript = generate_transcript_from_json(result_json)
     for entry in transcript:
         if entry.get("user_id") and entry["user_id"] not in user_info_map:
-            user_info_map[entry["user_id"]] = fetcher.get_user_info(
-                entry["user_id"]
-            )
+            user_info_map[entry["user_id"]] = fetcher.get_user_info(entry["user_id"])
 
     summary_markdown = html_to_markdown(html_content)
-    summary_markdown = replace_user_ids_with_usernames(
-        summary_markdown, user_info_map
-    )
+    summary_markdown = replace_user_ids_with_usernames(summary_markdown, user_info_map)
     summary_markdown = replace_channel_ids_with_names(
         summary_markdown, html_data.get("channel_id"), channel_name
     )

@@ -2,6 +2,7 @@
 Transcript markdown: parse huddle HTML/JSON and write transcript .md files.
 Used by cppa_slack_transcript_tracker; caller provides channel_name and user_info_map (from Slack).
 """
+
 from __future__ import annotations
 
 import logging
@@ -126,9 +127,7 @@ def parse_html_summary(html_content: str) -> dict:
     return html_data
 
 
-def replace_user_ids_with_usernames(
-    markdown_content: str, user_info_map: dict
-) -> str:
+def replace_user_ids_with_usernames(markdown_content: str, user_info_map: dict) -> str:
     """Replace user IDs with usernames in markdown."""
 
     def replace_user_id(match: re.Match) -> str:
@@ -136,9 +135,7 @@ def replace_user_ids_with_usernames(
         if user_id in user_info_map:
             u = user_info_map[user_id]
             username = (
-                u.get("display_name")
-                or u.get("real_name")
-                or u.get("name", user_id)
+                u.get("display_name") or u.get("real_name") or u.get("name", user_id)
             )
             return f"**@{username}**"
         return match.group(0)
@@ -298,9 +295,7 @@ def write_huddle_transcript_md(
         time_str = entry.get("time", "")
         content = entry.get("content", "")
         u = user_info_map.get(user_id, {})
-        username = (
-            u.get("display_name") or u.get("real_name") or u.get("name", user_id)
-        )
+        username = u.get("display_name") or u.get("real_name") or u.get("name", user_id)
         if time_str:
             markdown_lines.append(f"**@{username} [{time_str}]:** {content}  ")
         else:

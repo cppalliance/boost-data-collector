@@ -2,15 +2,13 @@
 Slack Token Extractor Module
 Extracts xoxc and xoxd tokens from Slack workspace
 """
+
 import json
 import logging
-import os
-import subprocess
 import time
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.remote.webdriver import WebDriver
 
 from django.conf import settings
 
@@ -40,7 +38,11 @@ def extract_slack_tokens(driver, team_id):
         teams = local_config.get("teams", {})
         team_data = teams.get(team_id)
         if not team_data:
-            logger.warning("Team ID '%s' not found in localConfig_v2. Available: %s", team_id, list(teams.keys()))
+            logger.warning(
+                "Team ID '%s' not found in localConfig_v2. Available: %s",
+                team_id,
+                list(teams.keys()),
+            )
             return None
         xoxc_token = team_data.get("token")
         team_name = team_data.get("name")
@@ -93,7 +95,9 @@ def get_all_team_ids(driver):
 def check_docker_selenium_connection():
     """Check if Docker Selenium container is accessible."""
     try:
-        selenium_hub_url = getattr(settings, "SELENIUM_HUB_URL", "http://localhost:4444/wd/hub")
+        selenium_hub_url = getattr(
+            settings, "SELENIUM_HUB_URL", "http://localhost:4444/wd/hub"
+        )
         import socket
         import urllib.error
         import urllib.request
@@ -106,10 +110,14 @@ def check_docker_selenium_connection():
                 logger.debug("Docker Selenium accessible at %s", selenium_hub_url)
                 return True
         except socket.timeout:
-            logger.warning("Connection to Docker Selenium timed out at %s", selenium_hub_url)
+            logger.warning(
+                "Connection to Docker Selenium timed out at %s", selenium_hub_url
+            )
             return False
         except urllib.error.URLError as e:
-            logger.warning("Cannot connect to Docker Selenium at %s: %s", selenium_hub_url, e)
+            logger.warning(
+                "Cannot connect to Docker Selenium at %s: %s", selenium_hub_url, e
+            )
             return False
         return False
     except Exception as e:
@@ -134,8 +142,12 @@ def connect_to_chrome():
                 return _global_driver
             except Exception:
                 _global_driver = None
-                logger.debug("Existing driver connection invalid, creating new connection")
-        selenium_hub_url = getattr(settings, "SELENIUM_HUB_URL", "http://localhost:4444/wd/hub")
+                logger.debug(
+                    "Existing driver connection invalid, creating new connection"
+                )
+        selenium_hub_url = getattr(
+            settings, "SELENIUM_HUB_URL", "http://localhost:4444/wd/hub"
+        )
         chrome_profile_path = getattr(
             settings, "CHROME_PROFILE_PATH", "/home/seluser/chrome_profile"
         )
@@ -144,7 +156,11 @@ def connect_to_chrome():
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--mute-audio")
-        logger.debug("Connecting to Docker Selenium at %s, profile %s", selenium_hub_url, chrome_profile_path)
+        logger.debug(
+            "Connecting to Docker Selenium at %s, profile %s",
+            selenium_hub_url,
+            chrome_profile_path,
+        )
         driver = webdriver.Remote(command_executor=selenium_hub_url, options=options)
         _global_driver = driver
         logger.debug("Connected to Docker Chrome browser")
@@ -152,7 +168,9 @@ def connect_to_chrome():
     except Exception as e:
         logger.error(
             "Error connecting to Docker Chrome: %s. Verify container (docker ps | grep selenium), "
-            "SELENIUM_HUB_URL in settings: %s", e, getattr(settings, "SELENIUM_HUB_URL", "")
+            "SELENIUM_HUB_URL in settings: %s",
+            e,
+            getattr(settings, "SELENIUM_HUB_URL", ""),
         )
         return None
 
@@ -201,4 +219,6 @@ def extract_slack_tokens_auto(team_id):
         logger.exception("Error during extraction: %s", e)
         return None
     finally:
-        logger.debug("Docker Chrome browser and driver connection remain open for reuse")
+        logger.debug(
+            "Docker Chrome browser and driver connection remain open for reuse"
+        )

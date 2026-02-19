@@ -1,11 +1,15 @@
 """
 Slack token resolution: get bot or app token from Django settings or env.
 """
+
 from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from operations.slack_ops.client import SlackAPIClient
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +29,9 @@ def get_slack_bot_token() -> str:
         token = os.environ.get("SLACK_BOT_TOKEN", "")
     token = (token or "").strip()
     if not token:
-        raise ValueError("SLACK_BOT_TOKEN is not set. Set it in Django settings or SLACK_BOT_TOKEN env.")
+        raise ValueError(
+            "SLACK_BOT_TOKEN is not set. Set it in Django settings or SLACK_BOT_TOKEN env."
+        )
     return token
 
 
@@ -44,7 +50,9 @@ def get_slack_app_token() -> str:
         token = os.environ.get("SLACK_APP_TOKEN", "")
     token = (token or "").strip()
     if not token:
-        raise ValueError("SLACK_APP_TOKEN is not set. Set it in Django settings or SLACK_APP_TOKEN env.")
+        raise ValueError(
+            "SLACK_APP_TOKEN is not set. Set it in Django settings or SLACK_APP_TOKEN env."
+        )
     return token
 
 
