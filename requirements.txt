@@ -5,3 +5,8 @@ requests>=2.31
 urllib3>=2.0
 celery[redis]>=5.3
 redis>=5.0
+
+# cppa_slack_transcript_tracker app (Slack Bolt, token extraction, etc.)
+slack-bolt>=1.18
+pytz>=2024.1
+selenium>=4.35

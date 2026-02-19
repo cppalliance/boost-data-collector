@@ -37,3 +37,7 @@ celerybeat.pid
 .vscode/
 *.swp
 *.swo
+
+# macOS
+.DS_Store
+._*
