@@ -89,18 +89,18 @@ def iter_existing_pr_jsons(owner: str, repo: str):
         yield path
 
 
-# --- Raw source (tmp: workspace/raw/github_activity_source); will be removed in product ---
+# --- Raw source (tmp: workspace/raw/github_activity_tracker); will be removed in product ---
 
 
 def get_raw_source_root() -> Path:
-    """Return workspace/raw/github_activity_source/; creates dirs if missing."""
-    path = get_workspace_path("raw") / "github_activity_source"
+    """Return workspace/raw/github_activity_tracker/; creates dirs if missing."""
+    path = get_workspace_path("raw") / "github_activity_tracker"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def get_raw_source_repo_dir(owner: str, repo: str) -> Path:
-    """Return .../raw/github_activity_source/<owner>/<repo>/; creates if missing."""
+    """Return .../raw/github_activity_tracker/<owner>/<repo>/; creates if missing."""
     path = get_raw_source_root() / owner / repo
     path.mkdir(parents=True, exist_ok=True)
     return path

@@ -30,7 +30,9 @@ def test_sync_github_calls_sync_without_dates_when_none():
     mock_repo = MagicMock()
     with patch("github_activity_tracker.sync.sync_repos"), patch(
         "github_activity_tracker.sync.sync_commits"
-    ) as m_commits, patch("github_activity_tracker.sync.sync_issues") as m_issues, patch(
+    ) as m_commits, patch(
+        "github_activity_tracker.sync.sync_issues"
+    ) as m_issues, patch(
         "github_activity_tracker.sync.sync_pull_requests"
     ) as m_prs:
         sync_github(mock_repo)

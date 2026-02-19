@@ -2,7 +2,6 @@
 
 import json
 import pytest
-from pathlib import Path
 from unittest.mock import patch
 
 from github_activity_tracker.sync.raw_source import (
@@ -15,7 +14,7 @@ from github_activity_tracker.sync.raw_source import (
 @pytest.fixture
 def raw_source_tmp(tmp_path):
     """Patch workspace path helpers so raw source writes go to tmp_path."""
-    root = tmp_path / "raw" / "github_activity_source"
+    root = tmp_path / "raw" / "github_activity_tracker"
     with patch(
         "github_activity_tracker.sync.raw_source.get_raw_source_commit_path",
         side_effect=lambda o, r, sha: root / o / r / "commits" / f"{sha}.json",
@@ -54,7 +53,11 @@ def test_save_issue_raw_source_merges_comments_by_id(raw_source_tmp):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
-            {"number": 1, "title": "Old", "comments": [{"id": 10, "body": "old comment"}]},
+            {
+                "number": 1,
+                "title": "Old",
+                "comments": [{"id": 10, "body": "old comment"}],
+            },
             indent=2,
         ),
         encoding="utf-8",
@@ -62,7 +65,11 @@ def test_save_issue_raw_source_merges_comments_by_id(raw_source_tmp):
     save_issue_raw_source(
         "owner",
         "repo",
-        {"number": 1, "title": "New", "comments": [{"id": 10, "body": "updated"}, {"id": 11, "body": "new"}]},
+        {
+            "number": 1,
+            "title": "New",
+            "comments": [{"id": 10, "body": "updated"}, {"id": 11, "body": "new"}],
+        },
     )
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["title"] == "New"

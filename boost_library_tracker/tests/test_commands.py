@@ -16,7 +16,13 @@ def test_run_boost_library_tracker_invalid_from_date_writes_error_and_returns():
     """With invalid --from-date, command writes error to stderr and returns without raising."""
     out = StringIO()
     err = StringIO()
-    call_command(CMD_NAME, "--from-date=not-a-date", "--task=github_activity", stdout=out, stderr=err)
+    call_command(
+        CMD_NAME,
+        "--from-date=not-a-date",
+        "--task=github_activity",
+        stdout=out,
+        stderr=err,
+    )
     assert "Invalid" in err.getvalue() or "from-date" in err.getvalue().lower()
 
 
@@ -25,7 +31,9 @@ def test_run_boost_library_tracker_invalid_to_date_writes_error_and_returns():
     """With invalid --to-date, command writes error to stderr and returns without raising."""
     out = StringIO()
     err = StringIO()
-    call_command(CMD_NAME, "--to-date=invalid", "--task=github_activity", stdout=out, stderr=err)
+    call_command(
+        CMD_NAME, "--to-date=invalid", "--task=github_activity", stdout=out, stderr=err
+    )
     assert "Invalid" in err.getvalue() or "to-date" in err.getvalue().lower()
 
 
