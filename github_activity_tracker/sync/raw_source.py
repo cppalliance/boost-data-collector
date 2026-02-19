@@ -1,5 +1,5 @@
 """
-Tmp: save/update JSON in workspace/raw/github_activity_source. Will be removed in product.
+Tmp: save/update JSON in workspace/raw/github_activity_tracker. Will be removed in product.
 
 - Commits: write once (no merge).
 - Issues/PRs: load existing file if any, merge by id for comments/reviews so updated
@@ -75,7 +75,7 @@ def _write_json(path: Path, data: dict) -> None:
 
 
 def save_commit_raw_source(owner: str, repo: str, commit_data: dict) -> None:
-    """Save commit JSON to raw/github_activity_source (no merge; overwrite)."""
+    """Save commit JSON to raw/github_activity_tracker (no merge; overwrite)."""
     path = get_raw_source_commit_path(owner, repo, commit_data.get("sha", ""))
     if not path.name or path.name == ".json":
         return
