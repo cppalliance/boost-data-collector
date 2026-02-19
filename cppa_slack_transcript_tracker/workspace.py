@@ -4,6 +4,7 @@ Workspace paths for cppa_slack_transcript_tracker: data and temp files for huddl
 Layout: workspace/cppa_slack_transcript_tracker/
   - data/<file_id>/  (huddle HTML, result.json, generated markdown)
 """
+
 from pathlib import Path
 
 from config.workspace import get_workspace_path
@@ -26,5 +27,6 @@ def get_data_dir() -> Path:
 def set_working_directory() -> None:
     """Change current working directory to this app's workspace root (for runner)."""
     import os
+
     root = get_workspace_root()
     os.chdir(root)

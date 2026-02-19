@@ -2,6 +2,7 @@
 Slack Fetcher: file download, user/channel info, huddle transcript.
 Uses SlackAPIClient for API calls; file download and xoxc/xoxd transcript here.
 """
+
 import os
 import re
 import time
@@ -47,10 +48,20 @@ class SlackFetcher:
                     "display_name": user.get("profile", {}).get("display_name", "")
                     or user.get("real_name", user.get("name", "")),
                 }
-            return {"id": user_id, "name": user_id, "real_name": user_id, "display_name": user_id}
+            return {
+                "id": user_id,
+                "name": user_id,
+                "real_name": user_id,
+                "display_name": user_id,
+            }
         except Exception as e:
             logger.debug("Error getting user info for %s: %s", user_id, e)
-            return {"id": user_id, "name": user_id, "real_name": user_id, "display_name": user_id}
+            return {
+                "id": user_id,
+                "name": user_id,
+                "real_name": user_id,
+                "display_name": user_id,
+            }
 
     def get_channel_info(self, channel_id):
         """Get channel information from Slack API using bot token."""
@@ -80,11 +91,16 @@ class SlackFetcher:
                     wait_time = retry_delay * (2**attempt)
                     logger.debug(
                         "Network error (attempt %s/%s): %s, retrying in %s s",
-                        attempt + 1, max_retries, e, wait_time,
+                        attempt + 1,
+                        max_retries,
+                        e,
+                        wait_time,
                     )
                     time.sleep(wait_time)
                 else:
-                    logger.error("Error getting file info after %s attempts: %s", max_retries, e)
+                    logger.error(
+                        "Error getting file info after %s attempts: %s", max_retries, e
+                    )
                     return None
             except Exception as e:
                 logger.exception("Error getting file info: %s", e)
@@ -113,21 +129,35 @@ class SlackFetcher:
                         wait_time = retry_delay * (2**attempt)
                         time.sleep(wait_time)
                         continue
-                    logger.error("Failed to download file: HTTP %s", response.status_code)
+                    logger.error(
+                        "Failed to download file: HTTP %s", response.status_code
+                    )
                     return None
                 if filename is None:
-                    content_disposition = response.headers.get("Content-Disposition", "")
+                    content_disposition = response.headers.get(
+                        "Content-Disposition", ""
+                    )
                     if "filename*=" in content_disposition:
                         match = re.search(
                             r"filename\*=utf-8''(.+?)(?:;|$)",
                             content_disposition,
                             re.IGNORECASE,
                         )
-                        filename = urllib.parse.unquote(match.group(1)) if match else file_url.split("/")[-1].split("?")[0]
+                        filename = (
+                            urllib.parse.unquote(match.group(1))
+                            if match
+                            else file_url.split("/")[-1].split("?")[0]
+                        )
                     elif "filename=" in content_disposition:
-                        filename = content_disposition.split("filename=")[1].split(";")[0].strip("\"'")
+                        filename = (
+                            content_disposition.split("filename=")[1]
+                            .split(";")[0]
+                            .strip("\"'")
+                        )
                     else:
-                        filename = file_url.split("/")[-1].split("?")[0] or "downloaded_file"
+                        filename = (
+                            file_url.split("/")[-1].split("?")[0] or "downloaded_file"
+                        )
                 filename = sanitize_filename(filename)
                 file_path = os.path.join(save_path, filename)
                 with open(file_path, "wb") as f:
@@ -154,7 +184,9 @@ class SlackFetcher:
         if not file_info or not file_info.get("ok"):
             return None, None
         file_data = file_info.get("file", {})
-        download_url = file_data.get("url_private_download") or file_data.get("url_private")
+        download_url = file_data.get("url_private_download") or file_data.get(
+            "url_private"
+        )
         if not download_url:
             logger.warning("No download URL found in file info")
             return file_info, None
@@ -223,7 +255,10 @@ def fetch_huddle_transcript(file_id):
         if not team_id:
             logger.error("Missing SLACK_TEAM_ID. Set it in .env file.")
             return None
-        from cppa_slack_transcript_tracker.utils.slack_tokens import extract_slack_tokens_auto
+        from cppa_slack_transcript_tracker.utils.slack_tokens import (
+            extract_slack_tokens_auto,
+        )
+
         tokens = extract_slack_tokens_auto(team_id)
         if not tokens or "xoxc" not in tokens or "xoxd" not in tokens:
             logger.error("Failed to extract Slack tokens")
@@ -246,7 +281,10 @@ def fetch_huddle_transcript(file_id):
                 logger.debug("Fetched file info for: %s", file_id)
                 return result
             if attempt == 0 and team_id:
-                from cppa_slack_transcript_tracker.utils.slack_tokens import extract_slack_tokens_auto
+                from cppa_slack_transcript_tracker.utils.slack_tokens import (
+                    extract_slack_tokens_auto,
+                )
+
                 tokens = extract_slack_tokens_auto(team_id)
                 if tokens and "xoxc" in tokens and "xoxd" in tokens:
                     xoxc_token, xoxd_token = tokens["xoxc"], tokens["xoxd"]

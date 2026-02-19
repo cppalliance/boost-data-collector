@@ -1,6 +1,7 @@
 """
 Process a Slack huddle canvas: fetch transcript, download HTML, generate markdown, upload to GitHub.
 """
+
 import json
 import logging
 import os
@@ -65,7 +66,9 @@ def process_huddle_canvas(file_id):
     owner = (getattr(settings, "GITHUB_SLACK_HUDDLE_REPO_OWNER", "") or "").strip()
     repo = (getattr(settings, "GITHUB_SLACK_HUDDLE_REPO_NAME", "") or "").strip()
     if not owner or not repo:
-        logger.error("Missing GITHUB_SLACK_HUDDLE_REPO_OWNER or GITHUB_SLACK_HUDDLE_REPO_NAME")
+        logger.error(
+            "Missing GITHUB_SLACK_HUDDLE_REPO_OWNER or GITHUB_SLACK_HUDDLE_REPO_NAME"
+        )
         return {"success": False}
     upload_result = upload_file(
         owner,

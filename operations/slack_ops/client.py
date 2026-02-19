@@ -1,11 +1,12 @@
 """
 Slack Web API client. Conversations, users, files, messages.
 """
+
 from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Optional
+from typing import Optional
 
 import requests
 from requests.exceptions import ConnectionError, RequestException, Timeout
@@ -85,7 +86,9 @@ class SlackAPIClient:
 
     def conversations_join(self, channel: str) -> dict:
         """Join a channel by ID."""
-        return self._request("POST", "conversations.join", json_data={"channel": channel})
+        return self._request(
+            "POST", "conversations.join", json_data={"channel": channel}
+        )
 
     def conversations_info(self, channel: str) -> dict:
         """Get channel info by ID."""
@@ -119,4 +122,6 @@ class SlackAPIClient:
         timeout: int = 30,
     ) -> dict:
         """Get file info by ID."""
-        return self._request("GET", "files.info", params={"file": file}, timeout=timeout)
+        return self._request(
+            "GET", "files.info", params={"file": file}, timeout=timeout
+        )

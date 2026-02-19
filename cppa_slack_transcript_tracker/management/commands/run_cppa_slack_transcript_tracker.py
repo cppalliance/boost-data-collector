@@ -4,6 +4,7 @@ Management command: run_cppa_slack_transcript_tracker
 Runs the CPPA Slack Transcript Tracker (Slack listener + huddle processing).
 All functionality lives in this app.
 """
+
 import logging
 
 from django.core.management.base import BaseCommand
@@ -52,6 +53,7 @@ class Command(BaseCommand):
         logger.debug("run_cppa_slack_transcript_tracker: starting in-app runner")
         try:
             from cppa_slack_transcript_tracker.runner import run_slack_huddle
+
             run_slack_huddle()
         except KeyboardInterrupt:
             self.stdout.write("Stopped by user (Ctrl+C).")

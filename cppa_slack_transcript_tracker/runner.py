@@ -2,9 +2,13 @@
 CPPA Slack Transcript Tracker runner.
 Runs the Slack listener and huddle processing logic.
 """
+
 import logging
 
-from cppa_slack_transcript_tracker.workspace import get_workspace_root, set_working_directory
+from cppa_slack_transcript_tracker.workspace import (
+    get_workspace_root,
+    set_working_directory,
+)
 from operations.slack_ops import get_slack_app_token, get_slack_bot_token
 
 logger = logging.getLogger(__name__)
@@ -48,4 +52,5 @@ def run_slack_huddle(bot_token=None, app_token=None):
 
     logger.debug("Starting Slack Event Listener")
     from cppa_slack_transcript_tracker.utils.slack_listener import start_slack_listener
+
     start_slack_listener(bot_token=bot_token, app_token=app_token)

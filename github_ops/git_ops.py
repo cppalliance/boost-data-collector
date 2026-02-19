@@ -141,5 +141,12 @@ def upload_file(
             sha=sha,
         )
     except Exception as e:
-        logger.exception("Upload file %s to %s/%s/%s failed: %s", local_file_path, owner, repo, dest_path, e)
+        logger.exception(
+            "Upload file %s to %s/%s/%s failed: %s",
+            local_file_path,
+            owner,
+            repo,
+            dest_path,
+            e,
+        )
         return None

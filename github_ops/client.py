@@ -210,9 +210,7 @@ class GitHubAPIClient:
                 logger.error("Request error on POST %s: %s", endpoint, e)
                 raise
 
-    def rest_put(
-        self, endpoint: str, json_data: Optional[dict] = None
-    ) -> dict:
+    def rest_put(self, endpoint: str, json_data: Optional[dict] = None) -> dict:
         """PUT to REST API with rate limit and connection error handling."""
         self._check_rate_limit()
         url = f"{self.rest_base_url}{endpoint}"
@@ -224,16 +222,10 @@ class GitHubAPIClient:
 
                 if response.status_code == 403:
                     if "X-RateLimit-Remaining" in response.headers:
-                        remaining = int(
-                            response.headers["X-RateLimit-Remaining"]
-                        )
+                        remaining = int(response.headers["X-RateLimit-Remaining"])
                         if remaining == 0:
-                            reset_time = int(
-                                response.headers["X-RateLimit-Reset"]
-                            )
-                            wait_time = (
-                                reset_time - int(time.time()) + 10
-                            )
+                            reset_time = int(response.headers["X-RateLimit-Reset"])
+                            wait_time = reset_time - int(time.time()) + 10
                             self._handle_rate_limit(wait_time)
                             return self.rest_put(endpoint, json_data)
 
@@ -284,22 +276,14 @@ class GitHubAPIClient:
 
         for attempt in range(self.max_retries):
             try:
-                response = self.session.delete(
-                    url, json=json_data, timeout=30
-                )
+                response = self.session.delete(url, json=json_data, timeout=30)
 
                 if response.status_code == 403:
                     if "X-RateLimit-Remaining" in response.headers:
-                        remaining = int(
-                            response.headers["X-RateLimit-Remaining"]
-                        )
+                        remaining = int(response.headers["X-RateLimit-Remaining"])
                         if remaining == 0:
-                            reset_time = int(
-                                response.headers["X-RateLimit-Reset"]
-                            )
-                            wait_time = (
-                                reset_time - int(time.time()) + 10
-                            )
+                            reset_time = int(response.headers["X-RateLimit-Reset"])
+                            wait_time = reset_time - int(time.time()) + 10
                             self._handle_rate_limit(wait_time)
                             return self.rest_delete(endpoint, json_data)
 
@@ -417,7 +401,11 @@ class GitHubAPIClient:
         """
         params = {} if not ref else {"ref": ref}
         return self.rest_request(
-            f"/repos/{owner}/{repo}/contents/{path}" if path else f"/repos/{owner}/{repo}/contents",
+            (
+                f"/repos/{owner}/{repo}/contents/{path}"
+                if path
+                else f"/repos/{owner}/{repo}/contents"
+            ),
             params=params,
         )
 

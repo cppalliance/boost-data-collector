@@ -1,6 +1,7 @@
 """
 Slack channel operations: list channels, join channel, run join-check (with allow/block list).
 """
+
 from __future__ import annotations
 
 import logging
@@ -9,7 +10,7 @@ import threading
 from typing import Optional
 
 from operations.slack_ops.client import SlackAPIClient
-from operations.slack_ops.tokens import get_slack_bot_token, get_slack_client
+from operations.slack_ops.tokens import get_slack_client
 
 logger = logging.getLogger(__name__)
 
@@ -28,14 +29,16 @@ def _parse_list_env(value: Optional[str]) -> set:
 def _get_channel_join_config() -> dict:
     """Load channel-join config from env (CHANNEL_JOIN_*, CHANNEL_ALLOWLIST, CHANNEL_BLOCKLIST)."""
     interval_min = int(
-        os.environ.get("CHANNEL_JOIN_INTERVAL_MINUTES", str(DEFAULT_JOIN_INTERVAL_MINUTES))
+        os.environ.get(
+            "CHANNEL_JOIN_INTERVAL_MINUTES", str(DEFAULT_JOIN_INTERVAL_MINUTES)
+        )
         or DEFAULT_JOIN_INTERVAL_MINUTES
     )
     if interval_min < 1:
         interval_min = DEFAULT_JOIN_INTERVAL_MINUTES
     public_only_str = (
-        os.environ.get("CHANNEL_JOIN_PUBLIC_ONLY", "true") or "true"
-    ).strip().lower()
+        (os.environ.get("CHANNEL_JOIN_PUBLIC_ONLY", "true") or "true").strip().lower()
+    )
     public_only = public_only_str in ("true", "1", "yes")
     allowlist = _parse_list_env(os.environ.get("CHANNEL_ALLOWLIST"))
     blocklist = _parse_list_env(os.environ.get("CHANNEL_BLOCKLIST"))
@@ -84,7 +87,9 @@ def channel_list(
             cursor=cursor,
         )
         if not data.get("ok"):
-            logger.warning("conversations.list failed: %s", data.get("error", "unknown"))
+            logger.warning(
+                "conversations.list failed: %s", data.get("error", "unknown")
+            )
             break
         channels = data.get("channels", [])
         all_channels.extend(channels)
@@ -193,6 +198,7 @@ def start_channel_join_background(
     bot_token: Optional[str] = None,
 ) -> threading.Thread:
     """Start a daemon thread that runs the channel-join check every N minutes."""
+
     def _run_loop():
         config = _get_channel_join_config()
         interval_seconds = config["interval_minutes"] * 60
