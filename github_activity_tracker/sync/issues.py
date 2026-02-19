@@ -77,12 +77,8 @@ def _process_issue_data(repo: GitHubRepository, issue_data: dict) -> None:
                 account=comment_account,
                 issue_comment_id=comment_data.get("id"),
                 body=comment_data.get("body", ""),
-                issue_comment_created_at=parse_datetime(
-                    comment_data.get("created_at")
-                ),
-                issue_comment_updated_at=parse_datetime(
-                    comment_data.get("updated_at")
-                ),
+                issue_comment_created_at=parse_datetime(comment_data.get("created_at")),
+                issue_comment_updated_at=parse_datetime(comment_data.get("updated_at")),
             )
 
     assignee_infos = [parse_github_user(a) for a in issue_data.get("assignees", [])]
@@ -131,15 +127,13 @@ def sync_issues(
     end_date: Optional[datetime] = None,
 ) -> None:
     """1) Process existing workspace JSONs; 2) Fetch from GitHub, save as JSON, persist to DB, remove file.
-    
+
     Args:
         repo: Repository to sync.
         start_date: Override start date (default: last issue updated_at + 1s, or None if no issues).
         end_date: Override end date (default: now).
     """
-    logger.info(
-        "sync_issues: starting for repo id=%s (%s)", repo.pk, repo.repo_name
-    )
+    logger.info("sync_issues: starting for repo id=%s (%s)", repo.pk, repo.repo_name)
 
     owner = repo.owner_account.username
     repo_name = repo.repo_name
@@ -148,9 +142,7 @@ def sync_issues(
         # Phase 1: process existing JSON files
         n_existing = _process_existing_issue_jsons(repo)
         if n_existing:
-            logger.info(
-                "sync_issues: processed %s existing issue JSON(s)", n_existing
-            )
+            logger.info("sync_issues: processed %s existing issue JSON(s)", n_existing)
 
         # Phase 2: fetch from GitHub, write JSON, persist to DB, remove file
         client = get_github_client()
@@ -189,7 +181,5 @@ def sync_issues(
         logger.error("sync_issues: failed for repo id=%s: %s", repo.pk, e)
         raise
     except Exception as e:
-        logger.exception(
-            "sync_issues: unexpected error for repo id=%s: %s", repo.pk, e
-        )
+        logger.exception("sync_issues: unexpected error for repo id=%s: %s", repo.pk, e)
         raise

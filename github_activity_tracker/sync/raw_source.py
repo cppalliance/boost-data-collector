@@ -18,9 +18,7 @@ from github_activity_tracker.workspace import (
 )
 
 
-def _merge_list_by_id(
-    existing_list: list, new_list: list, id_key: str = "id"
-) -> list:
+def _merge_list_by_id(existing_list: list, new_list: list, id_key: str = "id") -> list:
     """Merge two lists of dicts by id; new wins for same id. Preserve order: existing then new (by id)."""
     by_id: dict = {}
     for item in existing_list or []:
@@ -34,11 +32,7 @@ def _merge_list_by_id(
     # Order: existing order for pre-existing ids, then new ids in new order
     order_ids = list(
         dict.fromkeys(
-            [
-                x.get(id_key)
-                for x in (existing_list or [])
-                if x.get(id_key) is not None
-            ]
+            [x.get(id_key) for x in (existing_list or []) if x.get(id_key) is not None]
         )
     )
     for x in new_list or []:

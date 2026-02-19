@@ -45,9 +45,7 @@ def _process_commit_files(
 ) -> None:
     """Create/update GitHubFile and GitCommitFileChange for each file in the commit."""
     for file_info in commit_data.get("files") or []:
-        filename = file_info.get("filename") or file_info.get(
-            "previous_filename"
-        )
+        filename = file_info.get("filename") or file_info.get("previous_filename")
         if not (filename and filename.strip()):
             continue
         filename = filename.strip()
@@ -97,9 +95,7 @@ def _process_commit_data(repo: GitHubRepository, commit_data: dict) -> None:
         )
     else:
         name, email = _commit_author_name_and_email(commit_data)
-        account, _ = get_or_create_unknown_github_account(
-            name=name, email=email
-        )
+        account, _ = get_or_create_unknown_github_account(name=name, email=email)
 
     commit_hash = commit_data.get("sha")
     comment = commit_data.get("commit", {}).get("message", "")
@@ -148,9 +144,7 @@ def sync_commits(
         start_date: Override start date (default: last commit date + 1s, or None if no commits).
         end_date: Override end date (default: now).
     """
-    logger.info(
-        "sync_commits: starting for repo id=%s (%s)", repo.pk, repo.repo_name
-    )
+    logger.info("sync_commits: starting for repo id=%s (%s)", repo.pk, repo.repo_name)
 
     owner = repo.owner_account.username
     repo_name = repo.repo_name

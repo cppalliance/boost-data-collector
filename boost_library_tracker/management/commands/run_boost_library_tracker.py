@@ -59,7 +59,7 @@ def task_fetch_github_activity(
     from_library: str | None = None,
 ) -> None:
     """Fetch GitHub activity for boostorg/boost and all its submodules.
-    
+
     Args:
         dry_run: If True, only show what would be done.
         start_date: Start date for sync (default: auto from DB).
@@ -76,7 +76,7 @@ def task_fetch_github_activity(
         self.stdout.write("  To: now")
     if from_library:
         self.stdout.write(f"  From library: {from_library} (and all after)")
-    
+
     client = get_github_client(use="scraping")
 
     # Resolve owner account for main repo (boostorg)
@@ -126,7 +126,9 @@ def task_fetch_github_activity(
                 "Check the name (e.g. 'build', 'algorithm')."
             )
         repos_to_sync = repos_to_sync[idx:]
-        self.stdout.write(f"  Starting from {repos_to_sync[0][0]}/{repos_to_sync[0][1]} ({len(repos_to_sync)} repo(s))")
+        self.stdout.write(
+            f"  Starting from {repos_to_sync[0][0]}/{repos_to_sync[0][1]} ({len(repos_to_sync)} repo(s))"
+        )
 
     if dry_run:
         self.stdout.write(
@@ -209,7 +211,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
         task_filter = (options["task"] or "").strip().lower()
-        
+
         # Parse date arguments
         start_date = None
         end_date = None
@@ -225,7 +227,7 @@ class Command(BaseCommand):
             except ValueError as e:
                 self.stderr.write(self.style.ERROR(f"Invalid --to-date format: {e}"))
                 return
-        
+
         from_library = (options.get("from_library") or "").strip() or None
         logger.debug(
             "run_boost_library_tracker: starting (dry_run=%s, task=%s, from=%s, to=%s, from_library=%s)",
