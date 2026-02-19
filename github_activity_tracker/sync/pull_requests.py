@@ -79,12 +79,8 @@ def _process_pr_data(repo: GitHubRepository, pr_data: dict) -> None:
                 account=comment_account,
                 pr_comment_id=comment_data.get("id"),
                 body=comment_data.get("body", ""),
-                pr_comment_created_at=parse_datetime(
-                    comment_data.get("created_at")
-                ),
-                pr_comment_updated_at=parse_datetime(
-                    comment_data.get("updated_at")
-                ),
+                pr_comment_created_at=parse_datetime(comment_data.get("created_at")),
+                pr_comment_updated_at=parse_datetime(comment_data.get("updated_at")),
             )
 
     for review_data in pr_data.get("reviews", []):
@@ -102,12 +98,8 @@ def _process_pr_data(repo: GitHubRepository, pr_data: dict) -> None:
                 pr_review_id=review_data.get("id"),
                 body=review_data.get("body", ""),
                 in_reply_to_id=review_data.get("in_reply_to_id"),
-                pr_review_created_at=parse_datetime(
-                    review_data.get("created_at")
-                ),
-                pr_review_updated_at=parse_datetime(
-                    review_data.get("updated_at")
-                ),
+                pr_review_created_at=parse_datetime(review_data.get("created_at")),
+                pr_review_updated_at=parse_datetime(review_data.get("updated_at")),
             )
 
     for assignee_data in pr_data.get("assignees", []):
@@ -152,7 +144,7 @@ def sync_pull_requests(
     end_date: Optional[datetime] = None,
 ) -> None:
     """1) Process existing workspace JSONs; 2) Fetch from GitHub, save as JSON, persist to DB, remove file.
-    
+
     Args:
         repo: Repository to sync.
         start_date: Override start date (default: last PR updated_at + 1s, or None if no PRs).
@@ -210,9 +202,7 @@ def sync_pull_requests(
         )
 
     except (RateLimitException, ConnectionException) as e:
-        logger.error(
-            "sync_pull_requests: failed for repo id=%s: %s", repo.pk, e
-        )
+        logger.error("sync_pull_requests: failed for repo id=%s: %s", repo.pk, e)
         raise
     except Exception as e:
         logger.exception(

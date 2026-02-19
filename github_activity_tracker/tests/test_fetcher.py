@@ -1,5 +1,6 @@
 """Tests for github_activity_tracker.fetcher."""
 
+import pytest
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
@@ -109,6 +110,43 @@ def test_fetch_commits_from_github_includes_since_until_params():
     params = call_args[0][1] or {}
     assert "since" in params
     assert "until" in params
+
+
+def test_fetch_commits_from_github_skips_commit_on_502_503_504():
+    """fetch_commits_from_github skips commit and continues when full-commit fetch returns 502/503/504."""
+    import requests as req
+
+    client = MagicMock()
+    client.rest_request.side_effect = [
+        [
+            {
+                "sha": "abc123",
+                "commit": {"author": {"date": "2024-01-01T00:00:00Z"}},
+            },
+            {
+                "sha": "def456",
+                "commit": {"author": {"date": "2024-01-02T00:00:00Z"}},
+            },
+        ],
+        req.exceptions.HTTPError("Bad Gateway", response=MagicMock(status_code=502)),
+        {"sha": "def456", "commit": {"message": "msg2"}, "stats": {"additions": 2}},
+    ]
+    items = list(fetch_commits_from_github(client, "o", "r"))
+    assert len(items) == 1
+    assert items[0]["sha"] == "def456"
+
+
+def test_fetch_commits_from_github_reraises_non_server_error_http():
+    """fetch_commits_from_github re-raises HTTPError when status is not 502/503/504."""
+    import requests as req
+
+    client = MagicMock()
+    client.rest_request.side_effect = [
+        [{"sha": "abc", "commit": {"author": {"date": "2024-01-01T00:00:00Z"}}}],
+        req.exceptions.HTTPError("Forbidden", response=MagicMock(status_code=403)),
+    ]
+    with pytest.raises(req.exceptions.HTTPError):
+        list(fetch_commits_from_github(client, "o", "r"))
 
 
 # --- fetch_comments_from_github ---
