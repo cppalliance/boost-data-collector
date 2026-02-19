@@ -10,6 +10,7 @@ For now only task 1 (fetch GitHub activity) is implemented.
 """
 
 import logging
+from datetime import datetime
 
 import requests
 from django.core.management.base import BaseCommand
@@ -50,9 +51,27 @@ def _parse_gitmodules_owner_repo(gitmodules_content: str) -> list[tuple[str, str
     return result
 
 
-def task_fetch_github_activity(self, dry_run: bool = False) -> None:
-    """Fetch GitHub activity for boostorg/boost and all its submodules."""
+def task_fetch_github_activity(
+    self,
+    dry_run: bool = False,
+    start_date: datetime = None,
+    end_date: datetime = None,
+) -> None:
+    """Fetch GitHub activity for boostorg/boost and all its submodules.
+    
+    Args:
+        dry_run: If True, only show what would be done.
+        start_date: Start date for sync (default: auto from DB).
+        end_date: End date for sync (default: now).
+    """
     self.stdout.write("Task 1: Fetch GitHub activity (main repo + submodules)...")
+    if start_date:
+        self.stdout.write(f"  From: {start_date.isoformat()}")
+    if end_date:
+        self.stdout.write(f"  To: {end_date.isoformat()}")
+    else:
+        self.stdout.write("  To: now")
+    
     client = get_github_client(use="scraping")
 
     # Resolve owner account for main repo (boostorg)
@@ -105,7 +124,7 @@ def task_fetch_github_activity(self, dry_run: bool = False) -> None:
             repo, _ = get_or_create_repository(acc, repo_name)
             ensure_repository_owner(repo, acc)
             boost_repo, _ = get_or_create_boost_library_repo(repo)
-            sync_github(boost_repo)
+            sync_github(boost_repo, start_date=start_date, end_date=end_date)
             synced += 1
             self.stdout.write(self.style.SUCCESS(f"  Synced {owner}/{repo_name}"))
         except (ConnectionException, RateLimitException) as e:
@@ -145,19 +164,52 @@ class Command(BaseCommand):
             default=None,
             help="Run only this task: 'github_activity' or 'library_tracker'. Default: run all.",
         )
+        parser.add_argument(
+            "--from-date",
+            type=str,
+            default=None,
+            help="Start date for sync (ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). Default: auto from DB.",
+        )
+        parser.add_argument(
+            "--to-date",
+            type=str,
+            default=None,
+            help="End date for sync (ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). Default: now.",
+        )
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
         task_filter = (options["task"] or "").strip().lower()
+        
+        # Parse date arguments
+        start_date = None
+        end_date = None
+        if options.get("from_date"):
+            try:
+                start_date = datetime.fromisoformat(options["from_date"])
+            except ValueError as e:
+                self.stderr.write(self.style.ERROR(f"Invalid --from-date format: {e}"))
+                return
+        if options.get("to_date"):
+            try:
+                end_date = datetime.fromisoformat(options["to_date"])
+            except ValueError as e:
+                self.stderr.write(self.style.ERROR(f"Invalid --to-date format: {e}"))
+                return
+        
         logger.debug(
-            "run_boost_library_tracker: starting (dry_run=%s, task=%s)",
+            "run_boost_library_tracker: starting (dry_run=%s, task=%s, from=%s, to=%s)",
             dry_run,
             task_filter or "all",
+            start_date.isoformat() if start_date else "auto",
+            end_date.isoformat() if end_date else "now",
         )
 
         try:
             if not task_filter or task_filter == "github_activity":
-                task_fetch_github_activity(self, dry_run=dry_run)
+                task_fetch_github_activity(
+                    self, dry_run=dry_run, start_date=start_date, end_date=end_date
+                )
             if not task_filter or task_filter == "library_tracker":
                 task_library_tracker(self, dry_run=dry_run)
 

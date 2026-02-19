@@ -11,10 +11,11 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from cppa_user_tracker.services import get_or_create_github_account
 from github_activity_tracker import fetcher, services
+from .raw_source import save_issue_raw_source
 from github_activity_tracker.workspace import (
     get_issue_json_path,
     iter_existing_issue_jsons,
@@ -76,8 +77,12 @@ def _process_issue_data(repo: GitHubRepository, issue_data: dict) -> None:
                 account=comment_account,
                 issue_comment_id=comment_data.get("id"),
                 body=comment_data.get("body", ""),
-                issue_comment_created_at=parse_datetime(comment_data.get("created_at")),
-                issue_comment_updated_at=parse_datetime(comment_data.get("updated_at")),
+                issue_comment_created_at=parse_datetime(
+                    comment_data.get("created_at")
+                ),
+                issue_comment_updated_at=parse_datetime(
+                    comment_data.get("updated_at")
+                ),
             )
 
     assignee_infos = [parse_github_user(a) for a in issue_data.get("assignees", [])]
@@ -112,6 +117,7 @@ def _process_existing_issue_jsons(repo: GitHubRepository) -> int:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             _process_issue_data(repo, data)
+            save_issue_raw_source(owner, repo_name, data)
             path.unlink()
             count += 1
         except Exception as e:
@@ -119,9 +125,21 @@ def _process_existing_issue_jsons(repo: GitHubRepository) -> int:
     return count
 
 
-def sync_issues(repo: GitHubRepository) -> None:
-    """1) Process existing workspace JSONs; 2) Fetch from GitHub, save as JSON, persist to DB, remove file."""
-    logger.info("sync_issues: starting for repo id=%s (%s)", repo.pk, repo.repo_name)
+def sync_issues(
+    repo: GitHubRepository,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+) -> None:
+    """1) Process existing workspace JSONs; 2) Fetch from GitHub, save as JSON, persist to DB, remove file.
+    
+    Args:
+        repo: Repository to sync.
+        start_date: Override start date (default: last issue updated_at + 1s, or None if no issues).
+        end_date: Override end date (default: now).
+    """
+    logger.info(
+        "sync_issues: starting for repo id=%s (%s)", repo.pk, repo.repo_name
+    )
 
     owner = repo.owner_account.username
     repo_name = repo.repo_name
@@ -130,16 +148,18 @@ def sync_issues(repo: GitHubRepository) -> None:
         # Phase 1: process existing JSON files
         n_existing = _process_existing_issue_jsons(repo)
         if n_existing:
-            logger.info("sync_issues: processed %s existing issue JSON(s)", n_existing)
+            logger.info(
+                "sync_issues: processed %s existing issue JSON(s)", n_existing
+            )
 
         # Phase 2: fetch from GitHub, write JSON, persist to DB, remove file
         client = get_github_client()
-        last_issue = repo.issues.order_by("-issue_updated_at").first()
-        if last_issue:
-            start_date = last_issue.issue_updated_at + timedelta(seconds=1)
-        else:
-            start_date = None
-        end_date = datetime.now()
+        if start_date is None:
+            last_issue = repo.issues.order_by("-issue_updated_at").first()
+            if last_issue:
+                start_date = last_issue.issue_updated_at + timedelta(seconds=1)
+        if end_date is None:
+            end_date = datetime.now()
 
         count = 0
         for issue_data in fetcher.fetch_issues_from_github(
@@ -154,6 +174,7 @@ def sync_issues(repo: GitHubRepository) -> None:
                 json.dumps(issue_data, indent=2, default=str), encoding="utf-8"
             )
             _process_issue_data(repo, issue_data)
+            save_issue_raw_source(owner, repo_name, issue_data)
             json_path.unlink()
             count += 1
 
@@ -168,5 +189,7 @@ def sync_issues(repo: GitHubRepository) -> None:
         logger.error("sync_issues: failed for repo id=%s: %s", repo.pk, e)
         raise
     except Exception as e:
-        logger.exception("sync_issues: unexpected error for repo id=%s: %s", repo.pk, e)
+        logger.exception(
+            "sync_issues: unexpected error for repo id=%s: %s", repo.pk, e
+        )
         raise
