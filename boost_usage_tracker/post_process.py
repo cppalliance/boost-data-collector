@@ -38,7 +38,7 @@ def _resolve_boost_header(header_path: str):
     for i in range(len(parts)):
         suffix = "/".join(parts[i:])
         boost_file = (
-            BoostFile.objects
+            BoostFile.objects  # pylint: disable=no-member
             .filter(github_file__filename__endswith=suffix)
             .select_related("github_file")
             .first()
@@ -52,10 +52,38 @@ def _resolve_boost_headers_bulk(header_paths: set[str]) -> dict[str, object]:
     """Resolve a set of Boost include paths to BoostFile instances in one pass.
 
     Returns a dict ``{header_path: BoostFile | None}``.  Deduplicates the
-    incoming paths so each unique header causes at most one DB lookup instead
-    of one lookup per file occurrence (mirrors old ``get_or_set_header_ids_bulk``).
+    incoming paths and performs one bulk exact-match query first; unresolved
+    paths are then handled by suffix fallback.
     """
-    return {path: _resolve_boost_header(path) for path in header_paths}
+    if not header_paths:
+        return {}
+
+    # Fast path: one bulk query for exact filename matches.
+    exact_rows = (
+        BoostFile.objects.filter(github_file__filename__in=header_paths)  # pylint: disable=no-member
+        .select_related("github_file")
+        .order_by("github_file_id")
+    )
+    by_filename: dict[str, object] = {}
+    for row in exact_rows:
+        filename = row.github_file.filename
+        if filename not in by_filename:
+            by_filename[filename] = row
+
+    resolved: dict[str, object] = {}
+    unresolved: list[str] = []
+    for path in header_paths:
+        boost_file = by_filename.get(path)
+        if boost_file is not None:
+            resolved[path] = boost_file
+        else:
+            unresolved.append(path)
+
+    # Fallback for non-exact cases (still deduplicated by unique header path).
+    for path in unresolved:
+        resolved[path] = _resolve_boost_header(path)
+
+    return resolved
 
 
 def process_single_repo(
@@ -99,7 +127,6 @@ def process_single_repo(
 
         stats["boost_used"] = is_boost_used
         existing_usages = get_active_usages_for_repo(ext_repo)
-        existing_keys = {(u.boost_header_id, u.file_path_id): u for u in existing_usages}
         seen_keys: set[tuple[int | None, int]] = set()
 
         # --- Pass 1: collect file/header data without touching the DB ---

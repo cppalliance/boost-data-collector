@@ -13,7 +13,7 @@ import logging
 import re
 import time
 from collections import defaultdict
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait  # pylint: disable=no-name-in-module
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
@@ -63,10 +63,11 @@ PER_PAGE = 100
 SEARCH_DELAY = 2.0
 FILE_FETCH_DELAY = 0.1
 PAGE_DELAY = 0.3
+GRAPHQL_BATCH_FILE_COUNT = 20
 
 # Producer-consumer: parallel file fetches per repo, bounded pending tasks
-MAX_CONCURRENT_FILE_FETCHES = 4
-MAX_PENDING_FUTURES = max(MAX_CONCURRENT_FILE_FETCHES * 4, MAX_CONCURRENT_FILE_FETCHES + 4)
+MAX_CONCURRENT_FILE_FETCHES = 8
+MAX_PENDING_FUTURES = max(MAX_CONCURRENT_FILE_FETCHES * 6, MAX_CONCURRENT_FILE_FETCHES + 4)
 
 MAX_CODE_SEARCH_QUERY_LEN = 255
 BOOST_INCLUDE_SEARCH_BATCH_SIZE = 5
@@ -147,11 +148,8 @@ def get_file_content_with_commit_date(
 ) -> Optional[dict[str, Any]]:
     """Return {'content': str, 'commit_date': datetime|None} or None."""
     owner, repo_name = repo_full_name.split("/", 1)
-    result = _get_file_info_graphql(client, owner, repo_name, file_path)
-    if result:
-        return result
-    return _get_file_info_rest(client, repo_full_name, file_path)
-
+    return _get_file_info_graphql(client, owner, repo_name, file_path)
+    
 
 def _get_file_info_graphql(
     client: GitHubAPIClient,
@@ -273,6 +271,91 @@ def _build_boost_include_query(repo_full_names: list[str]) -> tuple[str, list[st
     return query, repos
 
 
+def _chunked(items: list[str], size: int) -> list[list[str]]:
+    return [items[i : i + size] for i in range(0, len(items), size)]
+
+
+def _get_files_info_graphql_batch(
+    client: GitHubAPIClient,
+    owner: str,
+    repo_name: str,
+    file_paths: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Fetch multiple files from one repo in a single GraphQL request."""
+    if not file_paths:
+        return {}
+
+    paths = file_paths[:GRAPHQL_BATCH_FILE_COUNT]
+    aliases = []
+    for idx in range(len(paths)):
+        aliases.append(
+            f"""
+            f{idx}: object(expression: $expr{idx}) {{
+              ... on Blob {{ text oid }}
+            }}
+            h{idx}: defaultBranchRef {{
+              target {{
+                ... on Commit {{
+                  history(first: 1, path: $path{idx}) {{
+                    edges {{ node {{ committedDate oid }} }}
+                  }}
+                }}
+              }}
+            }}
+            """
+        )
+
+    query = (
+        "query BatchFileQuery($owner: String!, $name: String!"
+        + "".join(
+            [f", $expr{i}: String!, $path{i}: String!" for i in range(len(paths))]
+        )
+        + ") { repository(owner: $owner, name: $name) { "
+        + " ".join(aliases)
+        + " } }"
+    )
+    variables: dict[str, Any] = {"owner": owner, "name": repo_name}
+    for idx, path in enumerate(paths):
+        variables[f"expr{idx}"] = f"HEAD:{path}"
+        variables[f"path{idx}"] = path
+
+    try:
+        data = client.graphql_request(query, variables=variables)
+        repo_data = data.get("data", {}).get("repository")
+        if not repo_data:
+            return {}
+
+        result: dict[str, dict[str, Any]] = {}
+        for idx, path in enumerate(paths):
+            blob = repo_data.get(f"f{idx}")
+            if not blob or blob.get("text") is None:
+                continue
+            commit_date = None
+            history = (
+                (repo_data.get(f"h{idx}") or {})
+                .get("target", {})
+                .get("history", {})
+                .get("edges", [])
+            )
+            if history:
+                date_str = history[0]["node"]["committedDate"]
+                commit_date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            result[path] = {
+                "content": blob.get("text", ""),
+                "commit_date": commit_date,
+            }
+        return result
+    except Exception as e:
+        logger.debug(
+            "GraphQL batch file fetch failed for %s/%s (%d files): %s",
+            owner,
+            repo_name,
+            len(paths),
+            e,
+        )
+        return {}
+
+
 def _fetch_repo_files_task(
     client: GitHubAPIClient,
     repo_name: str,
@@ -280,23 +363,34 @@ def _fetch_repo_files_task(
 ) -> list[FileSearchResult]:
     """Consumer task: fetch file contents for one repo's paths, return FileSearchResult list."""
     found: list[FileSearchResult] = []
-    for path in file_paths:
-        file_info = get_file_content_with_commit_date(client, repo_name, path)
-        if not file_info:
-            continue
-        content = file_info.get("content", "")
-        headers = extract_boost_includes(content)
-        if not headers:
-            continue
-        found.append(
-            FileSearchResult(
-                repo_full_name=repo_name,
-                file_path=path,
-                content=content,
-                commit_date=file_info.get("commit_date"),
-                boost_headers=headers,
-            )
+    owner, repo_name_only = repo_name.split("/", 1)
+    for path_chunk in _chunked(file_paths, max(1, GRAPHQL_BATCH_FILE_COUNT)):
+        batch_data = _get_files_info_graphql_batch(
+            client,
+            owner,
+            repo_name_only,
+            path_chunk,
         )
+        for path in path_chunk:
+            file_info = batch_data.get(path)
+            if file_info is None:
+                # Fallback only when batch did not return this path.
+                file_info = _get_file_info_rest(client, repo_name, path)
+            if not file_info:
+                continue
+            content = file_info.get("content", "")
+            headers = extract_boost_includes(content)
+            if not headers:
+                continue
+            found.append(
+                FileSearchResult(
+                    repo_full_name=repo_name,
+                    file_path=path,
+                    content=content,
+                    commit_date=file_info.get("commit_date"),
+                    boost_headers=headers,
+                )
+            )
         if FILE_FETCH_DELAY > 0:
             time.sleep(FILE_FETCH_DELAY)
     return found
@@ -435,7 +529,7 @@ def check_repo_has_vendored_boost(
             "/search/code",
             params={
                 "q": f"filename:version.hpp path:boost repo:{repo_full_name}",
-                "per_page": 5,
+                "per_page": PER_PAGE,
             },
         )
     except Exception:
