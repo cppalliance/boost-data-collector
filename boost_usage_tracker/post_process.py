@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from boost_library_tracker.models import BoostFile
@@ -90,6 +91,7 @@ def process_single_repo(
     client,
     repo_result: RepoSearchResult,
     file_results_for_repo: list,
+    db_last_commit_date: datetime,
     ensure_repo_fn: Callable[[object, RepoSearchResult], "GitHubRepository"],
 ) -> dict:
     """Persist Boost usage data for one repository from pre-fetched file results.
@@ -128,6 +130,7 @@ def process_single_repo(
         stats["boost_used"] = is_boost_used
         existing_usages = get_active_usages_for_repo(ext_repo)
         seen_keys: set[tuple[int | None, int]] = set()
+        seen_file_paths: set[int] = set()
 
         # --- Pass 1: collect file/header data without touching the DB ---
         # This mirrors old process_boost_usage_files which gathered all headers
@@ -135,10 +138,18 @@ def process_single_repo(
         file_header_map: list[tuple] = []   # (file_result, [header_path, ...])
         all_header_paths: set[str] = set()
         for file_result in file_results_for_repo:
+            source_file, created = create_or_update_github_file(github_repo, file_result.file_path)
+            if (
+                not created
+                and file_result.commit_date
+                and file_result.commit_date <= db_last_commit_date
+            ):
+                seen_file_paths.add(source_file.pk)
+                continue
             header_paths = extract_boost_includes(file_result.content or "")
             if not header_paths:
                 header_paths = list(file_result.boost_headers or [])
-            file_header_map.append((file_result, header_paths))
+            file_header_map.append((source_file, file_result, header_paths))
             all_header_paths.update(header_paths)
 
         # --- Pass 2: resolve all unique header paths in one bulk call ---
@@ -150,9 +161,7 @@ def process_single_repo(
         # handle missing headers in the same loop.
         bulk_usage_items: list[tuple] = []
 
-        for file_result, header_paths in file_header_map:
-            source_file, _ = create_or_update_github_file(github_repo, file_result.file_path)
-
+        for source_file, file_result, header_paths in file_header_map:
             for header_path in header_paths:
                 boost_header = header_cache.get(header_path)
                 if boost_header is None:
@@ -189,7 +198,7 @@ def process_single_repo(
         # Bulk mark usages that are no longer detected as excepted
         excepted_ids = [
             u.pk for u in existing_usages
-            if (u.boost_header_id, u.file_path_id) not in seen_keys
+            if (u.boost_header_id, u.file_path_id) not in seen_keys and u.file_path_id not in seen_file_paths
         ]
         if excepted_ids:
             stats["usages_excepted"] += mark_usages_excepted_bulk(excepted_ids)

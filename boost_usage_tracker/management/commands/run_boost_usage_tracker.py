@@ -18,9 +18,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from django.core.management.base import BaseCommand
+from django.db.models import Max
 from django.utils.dateparse import parse_datetime
 
-from boost_usage_tracker.models import BoostExternalRepository
+from boost_usage_tracker.models import BoostExternalRepository, BoostUsage
 from github_activity_tracker.models import GitHubRepository
 from boost_usage_tracker.boost_searcher import (
     BOOST_INCLUDE_SEARCH_BATCH_SIZE,
@@ -72,6 +73,7 @@ def _ensure_github_repo(client, result: RepoSearchResult):
 def _run_boost_search_stage(
     client,
     repo_results: list[RepoSearchResult],
+    last_commit_dt: datetime,
     log_label: str = "",
 ) -> dict:
     """Shared boost-search stage used by both tasks.
@@ -131,6 +133,7 @@ def _run_boost_search_stage(
                     client,
                     repo_result,
                     file_results_for_repo=file_results_for_repo,
+                    db_last_commit_date=last_commit_dt,
                     ensure_repo_fn=_ensure_github_repo,
                 )
                 totals["processed"] += 1
@@ -197,9 +200,18 @@ def task_monitor_content(
             logger.info("  … and %d more", len(repo_results) - 20)
         return
 
+    # For monitor_content, only re-process files changed after the latest known
+    # commit timestamp in BoostUsage. Fall back to creation epoch for first run.
+    last_commit_dt = (
+        BoostUsage.objects.aggregate(max_last_commit_date=Max("last_commit_date"))[
+            "max_last_commit_date"
+        ]
+        or CREATION_START_DEFAULT
+    )
     totals = _run_boost_search_stage(
         client,
         repo_results,
+        last_commit_dt=last_commit_dt,
         log_label="monitor_content",
     )
 
@@ -281,6 +293,7 @@ def task_monitor_stars(
     totals = _run_boost_search_stage(
         client,
         new_repos,
+        last_commit_dt=CREATION_START_DEFAULT,
         log_label="monitor_stars",
     )
 
