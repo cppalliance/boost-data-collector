@@ -14,6 +14,8 @@ import os
 
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
+from django.db.models import Max
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from boost_mailing_list_tracker.email_formatter import format_email
@@ -30,6 +32,14 @@ from cppa_user_tracker.services import get_or_create_mailing_list_profile
 
 logger = logging.getLogger(__name__)
 PINECONE_NAMESPACE_ENV_KEY = "BOOST_MAILING_LIST_PINECONE_NAMESPACE"
+
+
+def _clean_text(value: object) -> str:
+    """Return DB-safe text (PostgreSQL rejects NUL bytes in text fields)."""
+    if value is None:
+        return ""
+    return str(value).replace("\x00", "")
+
 
 def _run_pinecone_sync(app_id: str, namespace: str) -> None:
     """
@@ -69,34 +79,45 @@ def _persist_email(email_data: dict) -> tuple[bool, bool]:
 
     Sender is identified by email (sender_address); display_name is used only when creating.
     """
-    msg_id = email_data.get("msg_id", "")
+    msg_id = _clean_text(email_data.get("msg_id", "")).strip()
     if not msg_id:
         return False, True
 
     if MailingListMessage.objects.filter(msg_id=msg_id).exists():
         return False, True
 
-    sender_name = email_data.get("sender_name", "") or ""
-    sender_address = email_data.get("sender_address", "") or ""
+    sender_name = _clean_text(email_data.get("sender_name", "")).strip()
+    sender_address = _clean_text(email_data.get("sender_address", "")).strip()
     profile, _ = get_or_create_mailing_list_profile(
         email=sender_address,
         display_name=sender_name,
     )
 
-    sent_at_str = email_data.get("sent_at")
+    sent_at_str = _clean_text(email_data.get("sent_at", "")).strip()
     sent_at = parse_datetime(sent_at_str) if sent_at_str else None
 
     _, was_created = get_or_create_mailing_list_message(
         sender=profile,
         msg_id=msg_id,
-        parent_id=email_data.get("parent_id", ""),
-        thread_id=email_data.get("thread_id", ""),
-        subject=email_data.get("subject", ""),
-        content=email_data.get("content", ""),
-        list_name=email_data.get("list_name", ""),
+        parent_id=_clean_text(email_data.get("parent_id", "")),
+        thread_id=_clean_text(email_data.get("thread_id", "")),
+        subject=_clean_text(email_data.get("subject", "")),
+        content=_clean_text(email_data.get("content", "")),
+        list_name=_clean_text(email_data.get("list_name", "")).strip(),
         sent_at=sent_at,
     )
     return was_created, False
+
+
+def _get_start_date_from_db() -> str:
+    """Return latest sent_at in UTC ISO8601 format, or empty string when no data."""
+    result = MailingListMessage.objects.aggregate(Max("sent_at"))
+    max_sent = result.get("sent_at__max")
+    if max_sent is None:
+        return ""
+    if max_sent.tzinfo is not None:
+        max_sent = max_sent.astimezone(timezone.utc)
+    return max_sent.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _process_existing_workspace_json(list_name: str) -> int:
@@ -185,6 +206,14 @@ class Command(BaseCommand):
                     )
 
             # Phase 2: fetch from API
+            if not (start_date and start_date.strip()):
+                start_date = _get_start_date_from_db()
+                if start_date:
+                    logger.info(
+                        "run_boost_mailing_list_tracker: using start_date from DB (latest sent_at): %s",
+                        start_date,
+                    )
+
             self.stdout.write("Fetching emails from Boost mailing list archives...")
             emails = fetch_all_emails(start_date=start_date, end_date=end_date)
 
