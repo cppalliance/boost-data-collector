@@ -108,7 +108,13 @@ class BoostUsageDashboardAnalyzer:
         by_file_usage = self._calculate_library_metrics_by_file_usage(recent_years=5)
         by_repository = self._calculate_library_metrics_by_repository()
 
-        libs = BoostLibrary.objects.select_related("repo").all().order_by("name")  # pylint: disable=no-member
+        latest_version_id = self.version_info[-1].id if self.version_info else None
+        libs_qs = BoostLibrary.objects.select_related("repo")  # pylint: disable=no-member
+        if latest_version_id is not None:
+            libs_qs = libs_qs.filter(library_versions__version_id=latest_version_id)
+        else:
+            libs_qs = libs_qs.none()
+        libs = libs_qs.distinct().order_by("name")
         created_versions = {
             row["library_id"]: row["version__version"]
             for row in BoostLibraryVersion.objects.values("library_id").annotate(  # pylint: disable=no-member

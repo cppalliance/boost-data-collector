@@ -8,6 +8,14 @@ from typing import Any
 from .analyzer_libraries import collect_libraries_page_data
 
 
+def _version_key(version: str) -> tuple[int, ...]:
+    """Parse dotted numeric version (e.g. 1.84.0) for sorting/filtering."""
+    try:
+        return tuple(int(part) for part in str(version).split("."))
+    except ValueError:
+        return (0,)
+
+
 def collect_top_repositories_for_dashboard(repo_info: list[dict[str, Any]]) -> dict[str, Any]:
     """Return top repositories by stars/usage/created date."""
 
@@ -47,9 +55,14 @@ def collect_dashboard_data(analyzer: Any, stats: dict[str, Any]) -> None:
     dashboard_data: dict[str, Any] = {}
     dashboard_data["repos_by_year"] = stats["repos_by_year"]
     version_counts = stats["version_related_stats"]["distribution_by_version"]
+    min_chart_version = "1.34.0"
     dashboard_data["repos_by_version"] = sorted(
-        [(version, confirmed + guessed) for version, _, confirmed, guessed in version_counts],
-        key=lambda x: x[0],
+        [
+            (version, confirmed + guessed)
+            for version, _, confirmed, guessed in version_counts
+            if _version_key(version) >= _version_key(min_chart_version)
+        ],
+        key=lambda x: _version_key(x[0]),
     )
     dashboard_data["repos_by_year_boost_rate"] = stats["repos_by_year_boost_rate"]
     dashboard_data["language_comparison_data"] = stats["language_comparison_data"]

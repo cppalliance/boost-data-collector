@@ -24,6 +24,10 @@ def build_index_page(data: dict[str, Any], output_dir: Path) -> None:
     repos_by_year_boost_rate = data.get("repos_by_year_boost_rate", [])
     language_comparison_data = data.get("language_comparison_data", {})
     metrics_by_library = data.get("metrics_by_library", [])
+    all_libraries_sorted = sorted(
+        metrics_by_library,
+        key=lambda lib: str(lib.get("name", "")).lower(),
+    )
     top_repositories = data.get("top_repositories", {})
 
     top20_by_stars = top_repositories.get("top20_by_stars", [])
@@ -182,7 +186,7 @@ def build_index_page(data: dict[str, Any], output_dir: Path) -> None:
   <div class="panel">
     <h2>All Libraries</h2>
     <p style="color:#666;margin-top:0;">Browse all Boost libraries. Click on any library name to view detailed statistics.</p>
-    <div class="library-grid">{''.join(f"<div class='library-item'><a href='libraries/{e(sanitize_library_name(lib.get('name','')))}.html'>{e(lib.get('name',''))}</a></div>" for lib in metrics_by_library)}</div>
+    <div class="library-grid">{''.join(f"<div class='library-item'><a href='libraries/{e(sanitize_library_name(lib.get('name','')))}.html'>{e(lib.get('name',''))}</a></div>" for lib in all_libraries_sorted)}</div>
   </div>
 
   <script>
