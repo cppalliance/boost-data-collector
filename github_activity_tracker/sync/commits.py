@@ -23,6 +23,7 @@ from github_activity_tracker.workspace import (
     get_commit_json_path,
     iter_existing_commit_jsons,
 )
+from django.utils import timezone
 from github_ops import get_github_client
 from github_ops.client import ConnectionException, RateLimitException
 from .raw_source import save_commit_raw_source
@@ -165,7 +166,7 @@ def sync_commits(
             if last_commit:
                 start_date = last_commit.commit_at + timedelta(seconds=1)
         if end_date is None:
-            end_date = datetime.now()
+            end_date = timezone.now()
 
         count = 0
         for commit_data in fetcher.fetch_commits_from_github(

@@ -9,6 +9,7 @@ Tmp: save/update JSON in workspace/raw/github_activity_tracker. Will be removed 
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from github_activity_tracker.workspace import (
@@ -16,6 +17,8 @@ from github_activity_tracker.workspace import (
     get_raw_source_issue_path,
     get_raw_source_pr_path,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _merge_list_by_id(existing_list: list, new_list: list, id_key: str = "id") -> list:
@@ -100,10 +103,19 @@ def save_issue_raw_source(owner: str, repo: str, issue_data: dict) -> None:
         return
     existing: dict = {}
     if path.exists():
+        raw_text = None
         try:
-            existing = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            pass
+            raw_text = path.read_text(encoding="utf-8")
+            existing = json.loads(raw_text)
+        except Exception as e:
+            snippet = raw_text[:200] if raw_text else "(read failed or empty)"
+            logger.exception(
+                "Failed to read/parse existing issue JSON at %s: %s; snippet: %r",
+                path,
+                e,
+                snippet,
+            )
+            # Continue with existing={} so we still write the new data
     merged = _merge_issue_json(existing, issue_data)
     _write_json(path, merged)
 
@@ -126,9 +138,18 @@ def save_pr_raw_source(owner: str, repo: str, pr_data: dict) -> None:
         return
     existing: dict = {}
     if path.exists():
+        raw_text = None
         try:
-            existing = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            pass
+            raw_text = path.read_text(encoding="utf-8")
+            existing = json.loads(raw_text)
+        except Exception as e:
+            snippet = raw_text[:200] if raw_text else "(read failed or empty)"
+            logger.exception(
+                "Failed to read/parse existing PR JSON at %s: %s; snippet: %r",
+                path,
+                e,
+                snippet,
+            )
+            # Continue with existing={} so we still write the new data
     merged = _merge_pr_json(existing, pr_data)
     _write_json(path, merged)

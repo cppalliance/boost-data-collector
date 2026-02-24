@@ -20,6 +20,7 @@ from github_activity_tracker.workspace import (
     get_pr_json_path,
     iter_existing_pr_jsons,
 )
+from django.utils import timezone
 from github_ops import get_github_client
 from github_ops.client import ConnectionException, RateLimitException
 from github_activity_tracker.sync.utils import (
@@ -175,7 +176,7 @@ def sync_pull_requests(
             if last_pr:
                 start_date = last_pr.pr_updated_at + timedelta(seconds=1)
         if end_date is None:
-            end_date = datetime.now()
+            end_date = timezone.now()
 
         count = 0
         for pr_data in fetcher.fetch_pull_requests_from_github(

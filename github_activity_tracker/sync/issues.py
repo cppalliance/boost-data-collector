@@ -20,6 +20,7 @@ from github_activity_tracker.workspace import (
     get_issue_json_path,
     iter_existing_issue_jsons,
 )
+from django.utils import timezone
 from github_ops import get_github_client
 from github_ops.client import ConnectionException, RateLimitException
 from github_activity_tracker.sync.utils import (
@@ -151,7 +152,7 @@ def sync_issues(
             if last_issue:
                 start_date = last_issue.issue_updated_at + timedelta(seconds=1)
         if end_date is None:
-            end_date = datetime.now()
+            end_date = timezone.now()
 
         count = 0
         for issue_data in fetcher.fetch_issues_from_github(
