@@ -107,12 +107,11 @@ def save_issue_raw_source(owner: str, repo: str, issue_data: dict) -> None:
         try:
             raw_text = path.read_text(encoding="utf-8")
             existing = json.loads(raw_text)
-        except Exception as e:
+        except Exception:
             snippet = raw_text[:200] if raw_text else "(read failed or empty)"
             logger.exception(
-                "Failed to read/parse existing issue JSON at %s: %s; snippet: %r",
+                "Failed to read/parse existing issue JSON at %s; snippet: %r",
                 path,
-                e,
                 snippet,
             )
             # Continue with existing={} so we still write the new data
@@ -142,12 +141,11 @@ def save_pr_raw_source(owner: str, repo: str, pr_data: dict) -> None:
         try:
             raw_text = path.read_text(encoding="utf-8")
             existing = json.loads(raw_text)
-        except Exception as e:
+        except Exception:
             snippet = raw_text[:200] if raw_text else "(read failed or empty)"
             logger.exception(
-                "Failed to read/parse existing PR JSON at %s: %s; snippet: %r",
+                "Failed to read/parse existing PR JSON at %s; snippet: %r",
                 path,
-                e,
                 snippet,
             )
             # Continue with existing={} so we still write the new data
