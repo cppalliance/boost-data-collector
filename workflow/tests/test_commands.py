@@ -72,7 +72,7 @@ def test_run_all_collectors_stop_on_failure(workflow_cmd_name):
                 stdout=out,
                 stderr=err,
             )
-    # COLLECTOR_COMMANDS has one command; we should have called it only once.
+    # COLLECTOR_COMMANDS has two commands; with --stop-on-failure, only the first should run.
     assert call_command_mock.call_count == 1
 
 

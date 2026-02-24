@@ -6,11 +6,11 @@ import pytest
 
 # Load app-level fixture modules so fixtures from each app are available everywhere.
 pytest_plugins = [
-    "workflow.tests.fixtures",
     "cppa_user_tracker.tests.fixtures",
     "github_ops.tests.fixtures",
     "github_activity_tracker.tests.fixtures",
     "boost_library_tracker.tests.fixtures",
+    "workflow.tests.fixtures",
 ]
 
 
