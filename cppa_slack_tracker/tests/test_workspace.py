@@ -68,9 +68,14 @@ class TestGetRawRoot:
 
 class TestSlugAndPaths:
     def test_get_team_channel_dir_sanitizes_slugs(self, mock_get_workspace_path):
-        path = get_team_channel_dir("Cpplang", "boost-json")
-        assert path.name == "boost-json" or "boost" in path.name
-        assert path.parent.name != "Cpplang" or "Cpplang" in str(path)
+        # Use a team_slug that _slug sanitizes (e.g. "/" -> "_") so we can verify remapping
+        team_slug = "Cpp/lang"
+        path = get_team_channel_dir(team_slug, "boost-json")
+        assert path.name == "boost-json"
+        assert (
+            path.parent.name != team_slug
+        ), "team_slug should be sanitized for path segment"
+        assert team_slug not in str(path), "raw team_slug should not appear in path"
 
     def test_get_message_json_path_format(self, mock_get_workspace_path):
         path = get_message_json_path("Team", "general", "2026-01-15")

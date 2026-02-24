@@ -282,10 +282,10 @@ class TestSlackService:
         assert message is not None
         assert message.message == "<@U12345678> waves"
 
-    def test_save_slack_message_unknown_user_uses_unknown_without_api_call(
+    def test_save_slack_message_unknown_user_fetches_info_and_creates_unknown_without_fetch_for_sentinel(
         self, sample_slack_channel
     ):
-        """When user is not in DB and API returns nothing, message is saved with unknown user (no API call for -1)."""
+        """When user is not in DB, fetch_user_info is called for that id; when API returns nothing, message is saved with unknown user (-1), and -1 is never passed to fetch_user_info."""
         from unittest.mock import patch
         from cppa_user_tracker.models import SlackUser
 

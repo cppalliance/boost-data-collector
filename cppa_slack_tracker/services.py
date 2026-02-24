@@ -146,7 +146,8 @@ def get_or_create_slack_channel(
         channel.channel_name = channel_name or channel.channel_name
         channel.channel_type = channel_type or channel.channel_type
         channel.description = description
-        channel.creator = creator
+        if creator is not None:
+            channel.creator = creator
         channel.save()
     return channel, created
 
@@ -187,12 +188,13 @@ def add_channel_membership_change(
     return change_log
 
 
+@transaction.atomic
 def sync_channel_memberships(channel: SlackChannel, member_ids: list[str]) -> None:
     """Sync current channel memberships to match member_ids (add new, mark removed as deleted)."""
     existing_memberships = SlackChannelMembership.objects.filter(
         channel=channel,
         is_deleted=False,
-    )
+    ).select_related("user")
     existing_user_ids = {m.user.slack_user_id for m in existing_memberships}
     new_member_ids = set(member_ids) - existing_user_ids
     removed_member_ids = existing_user_ids - set(member_ids)
@@ -234,7 +236,7 @@ def save_slack_message(
     channel: SlackChannel,
     slack_message: dict[str, Any],
 ) -> Optional[SlackMessage]:
-    """Save or update a Slack message. Returns None if the message is ignored (e.g. join/leave). Raises ValueError for unknown subtype or missing user."""
+    """Save or update a Slack message. Returns None if the message is ignored (e.g. join/leave). Raises ValueError for unknown subtype, missing user, or missing ts."""
     subtype = slack_message.get("subtype")
     if subtype in SUBTYPE_IGNORE:
         return None
@@ -281,6 +283,8 @@ def save_slack_message(
 
     clean_text = text.replace("\x00", "").replace("\u0000", "")
     ts = slack_message.get("ts")
+    if not ts:
+        raise ValueError("Message timestamp (ts) is required")
     created_at = _parse_slack_ts_string(ts)
     edited = slack_message.get("edited", {})
     updated_at = _parse_slack_ts_string(edited.get("ts", ts)) if edited else created_at

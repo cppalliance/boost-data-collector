@@ -1,7 +1,7 @@
 """
 Sync Slack workspace users with the database.
 
-If workspace/cppa_user_tracker/<team_slug>/users.json exists, process it
+If workspace/cppa_slack_tracker/<team_slug>/users.json exists, process it
 (user by user via _process_user_info) then remove the file. Otherwise
 fetch users via cppa_slack_tracker.fetcher.fetch_user_list and sync.
 """
