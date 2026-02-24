@@ -23,6 +23,7 @@ media/
 # Testing / coverage
 .coverage
 htmlcov/
+pytest-cache-files*/
 
 # Celery
 celerybeat-schedule
@@ -41,3 +42,5 @@ celerybeat.pid
 # macOS
 .DS_Store
 ._*
+# DiscordChatExporter CLI (download to workspace/discord_activity_tracker/tools/)
+discord_activity_tracker/tools/

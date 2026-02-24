@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "github_activity_tracker",
     "boost_library_tracker",
     "cppa_slack_transcript_tracker",
+    "discord_activity_tracker",
 ]
 
 MIDDLEWARE = [
@@ -126,6 +127,7 @@ _WORKSPACE_APP_SLUGS = (
     "github_activity_tracker",
     "boost_library_tracker",
     "cppa_slack_transcript_tracker",
+    "discord_activity_tracker",
     "shared",
 )
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
@@ -172,6 +174,17 @@ CHROME_PROFILE_PATH = (
     env("CHROME_PROFILE_PATH", default=_DEFAULT_CHROME_PROFILE) or ""
 ).strip()
 
+# Discord configuration (for discord_activity_tracker)
+DISCORD_TOKEN = (env("DISCORD_TOKEN", default="") or "").strip()
+DISCORD_USER_TOKEN = (env("DISCORD_USER_TOKEN", default="") or "").strip()
+DISCORD_SERVER_ID = (env("DISCORD_SERVER_ID", default="") or "").strip()
+DISCORD_CONTEXT_REPO_PATH = Path(
+    env(
+        "DISCORD_CONTEXT_REPO_PATH",
+        default=str(BASE_DIR.parent / "discord-cplusplus-together-context"),
+    )
+).resolve()
+
 # Logging - project-wide configuration for app commands (console + rotating file)
 LOG_DIR = Path(env("LOG_DIR", default=str(BASE_DIR / "logs")))
 LOG_FILE = env("LOG_FILE", default="app.log")
@@ -187,6 +200,11 @@ else:
     LOG_LEVEL = "INFO"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 _LOG_FILE_PATH = LOG_DIR / LOG_FILE
+
+# Error notification settings (Discord/Slack)
+ENABLE_ERROR_NOTIFICATIONS = env.bool("ENABLE_ERROR_NOTIFICATIONS", default=False)
+DISCORD_WEBHOOK_URL = env("DISCORD_WEBHOOK_URL", default="")
+SLACK_WEBHOOK_URL = env("SLACK_WEBHOOK_URL", default="")
 
 LOGGING = {
     "version": 1,
@@ -242,3 +260,21 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=1, minute=0),
     },
 }
+
+# Conditionally add Discord/Slack handlers for error notifications
+if ENABLE_ERROR_NOTIFICATIONS:
+    if DISCORD_WEBHOOK_URL:
+        LOGGING["handlers"]["discord"] = {
+            "class": "config.logging_handlers.DiscordHandler",
+            "webhook_url": DISCORD_WEBHOOK_URL,
+            "level": "ERROR",
+        }
+        LOGGING["root"]["handlers"].append("discord")
+
+    if SLACK_WEBHOOK_URL:
+        LOGGING["handlers"]["slack"] = {
+            "class": "config.logging_handlers.SlackHandler",
+            "webhook_url": SLACK_WEBHOOK_URL,
+            "level": "ERROR",
+        }
+        LOGGING["root"]["handlers"].append("slack")
