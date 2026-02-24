@@ -247,9 +247,10 @@ def _get_next_negative_github_account_id() -> int:
 
 
 @transaction.atomic
-def add_or_update_slack_user(user_data: dict[str, Any]) -> SlackUser:
-    """Add or update a SlackUser from Slack API user data. Returns the SlackUser.
+def get_or_create_slack_user(user_data: dict[str, Any]) -> tuple[SlackUser, bool]:
+    """Get or create a SlackUser from Slack API user data. Returns (SlackUser, created).
 
+    If the user exists, updates username, display_name, and avatar_url from user_data.
     Creates an Email linked to the user if profile.email is provided and not already
     present. Does not create or link an Identity (that is handled separately).
     Raises ValueError if user_data has no 'id'.
@@ -261,7 +262,7 @@ def add_or_update_slack_user(user_data: dict[str, Any]) -> SlackUser:
     username = (user_data.get("name") or "").strip()
     display_name = (user_data.get("real_name") or user_data.get("name") or "").strip()
     avatar_url = (profile.get("image_72") or "").strip()
-    user, _ = SlackUser.objects.update_or_create(
+    user, created = SlackUser.objects.get_or_create(
         slack_user_id=user_id,
         defaults={
             "username": username,
@@ -269,6 +270,11 @@ def add_or_update_slack_user(user_data: dict[str, Any]) -> SlackUser:
             "avatar_url": avatar_url,
         },
     )
+    if not created:
+        user.username = username or user.username
+        user.display_name = display_name or user.display_name
+        user.avatar_url = avatar_url or user.avatar_url
+        user.save()
     email_str = (profile.get("email") or "").strip()
     if email_str and not user.emails.filter(email=email_str).exists():
         add_email(
@@ -276,7 +282,7 @@ def add_or_update_slack_user(user_data: dict[str, Any]) -> SlackUser:
             email_str,
             is_primary=not user.emails.filter(is_active=True).exists(),
         )
-    return user
+    return user, created
 
 
 def get_or_create_unknown_github_account(

@@ -12,7 +12,7 @@ import json
 import logging
 from typing import Optional
 
-from cppa_user_tracker.services import add_or_update_slack_user
+from cppa_user_tracker.services import get_or_create_slack_user
 
 from cppa_slack_tracker.fetcher import fetch_user_list
 from cppa_slack_tracker.workspace import get_users_json_path
@@ -28,14 +28,14 @@ def _process_user_info(
 ) -> bool:
     """
     Process one user: skip if bot/deleted (unless flags allow), else
-    add_or_update_slack_user. Returns True if user was synced, False if skipped.
+    get_or_create_slack_user. Returns True if user was synced, False if skipped.
     Raises on error.
     """
     if not include_bots and user_data.get("is_bot"):
         return False
     if not include_deleted and user_data.get("deleted"):
         return False
-    add_or_update_slack_user(user_data)
+    get_or_create_slack_user(user_data)
     return True
 
 

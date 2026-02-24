@@ -4,10 +4,10 @@ Tests for cppa_slack_tracker.services.
 
 import pytest
 
-from cppa_user_tracker.services import add_or_update_slack_user
+from cppa_user_tracker.services import get_or_create_slack_user
 from cppa_slack_tracker.services import (
-    add_or_update_slack_team,
-    add_or_update_slack_channel,
+    get_or_create_slack_channel,
+    get_or_create_slack_team,
     add_channel_membership_change,
     save_slack_message,
     sync_channel_memberships,
@@ -31,7 +31,7 @@ class TestSlackService:
             "team_id": "T12345678",
             "team_name": "Test Team",
         }
-        team = add_or_update_slack_team(team_data)
+        team, _ = get_or_create_slack_team(team_data)
 
         assert team.team_id == "T12345678"
         assert team.team_name == "Test Team"
@@ -43,13 +43,13 @@ class TestSlackService:
             "team_name": "Updated Team Name",
         }
 
-        team = add_or_update_slack_team(team_data)
+        team, _ = get_or_create_slack_team(team_data)
         assert team.team_id == "T12345678"
         assert team.team_name == "Updated Team Name"
 
     def test_add_slack_user(self, sample_slack_user_data):
         """Test adding a Slack user."""
-        user = add_or_update_slack_user(sample_slack_user_data)
+        user, _ = get_or_create_slack_user(sample_slack_user_data)
         assert user.slack_user_id == "U87654321"
         assert user.username == "janedoe"
         assert user.display_name == "Jane Doe"
@@ -67,7 +67,7 @@ class TestSlackService:
             "real_name": "No Email User",
             "profile": {},
         }
-        user = add_or_update_slack_user(user_data)
+        user, _ = get_or_create_slack_user(user_data)
         assert user.slack_user_id == "U11111111"
         assert user.identity is None
         emails = Email.objects.filter(base_profile=user)
@@ -84,7 +84,7 @@ class TestSlackService:
             },
         }
 
-        user = add_or_update_slack_user(user_data)
+        user, _ = get_or_create_slack_user(user_data)
         assert user.slack_user_id == "U12345678"
         assert user.username == "updateduser"
         assert user.display_name == "Updated Name"
@@ -93,7 +93,7 @@ class TestSlackService:
         self, sample_slack_team, sample_slack_user, sample_slack_channel_data
     ):
         """Test adding a Slack channel."""
-        channel = add_or_update_slack_channel(
+        channel, _ = get_or_create_slack_channel(
             sample_slack_channel_data,
             sample_slack_team,
             creator_user_id="U12345678",

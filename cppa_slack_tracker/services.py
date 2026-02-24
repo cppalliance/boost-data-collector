@@ -16,7 +16,7 @@ from typing import Any, Optional
 from django.db import transaction
 
 from cppa_user_tracker.models import SlackUser
-from cppa_user_tracker.services import add_or_update_slack_user
+from cppa_user_tracker.services import get_or_create_slack_user
 
 from .fetcher import fetch_user_info
 from .models import (
@@ -84,39 +84,42 @@ _UNKNOWN_SLACK_USER_DATA = {
 def _get_or_fetch_slack_user(user_id: str) -> SlackUser:
     """Get a Slack user from DB; if not found, fetch via fetch_user_info and upsert. Returns unknown user (id -1) if not found."""
     if user_id == _UNKNOWN_SLACK_USER_ID:
-        return add_or_update_slack_user(_UNKNOWN_SLACK_USER_DATA)
+        return get_or_create_slack_user(_UNKNOWN_SLACK_USER_DATA)[0]
     try:
         return SlackUser.objects.get(slack_user_id=user_id)
     except SlackUser.DoesNotExist:
         slack_user_data = fetch_user_info(user_id)
         if slack_user_data:
-            return add_or_update_slack_user(slack_user_data)
-        return add_or_update_slack_user(_UNKNOWN_SLACK_USER_DATA)
+            return get_or_create_slack_user(slack_user_data)[0]
+        return get_or_create_slack_user(_UNKNOWN_SLACK_USER_DATA)[0]
 
 
 # --- SlackTeam ---
 @transaction.atomic
-def add_or_update_slack_team(team_data: dict[str, Any]) -> SlackTeam:
-    """Add or update a Slack team (workspace). Requires team_data['team_id']. Returns the SlackTeam."""
+def get_or_create_slack_team(team_data: dict[str, Any]) -> tuple[SlackTeam, bool]:
+    """Get or create a Slack team (workspace). Requires team_data['team_id']. Returns (SlackTeam, created)."""
     if not team_data.get("team_id"):
         raise ValueError("Slack team ID is required")
-    team, _ = SlackTeam.objects.update_or_create(
-        team_id=team_data["team_id"],
-        defaults={
-            "team_name": team_data.get("team_name", team_data["team_id"]),
-        },
+    team_id = team_data["team_id"]
+    team_name = team_data.get("team_name", team_id)
+    team, created = SlackTeam.objects.get_or_create(
+        team_id=team_id,
+        defaults={"team_name": team_name},
     )
-    return team
+    if not created:
+        team.team_name = team_name or team.team_name
+        team.save()
+    return team, created
 
 
 # --- SlackChannel ---
 @transaction.atomic
-def add_or_update_slack_channel(
+def get_or_create_slack_channel(
     slack_channel: dict[str, Any],
     team: SlackTeam,
     creator_user_id: Optional[str] = None,
-) -> SlackChannel:
-    """Add or update a Slack channel. Requires slack_channel['id']. Returns the SlackChannel."""
+) -> tuple[SlackChannel, bool]:
+    """Get or create a Slack channel. Requires slack_channel['id']. Returns (SlackChannel, created)."""
     if not slack_channel.get("id"):
         raise ValueError("Slack channel ID is required")
     creator = None
@@ -127,17 +130,25 @@ def add_or_update_slack_channel(
         description = slack_channel["purpose"].get("value") or ""
     elif slack_channel.get("topic"):
         description = slack_channel["topic"].get("value") or ""
-    channel, _ = SlackChannel.objects.update_or_create(
+    channel_name = slack_channel.get("name", slack_channel["id"])
+    channel_type = slack_channel.get("type", "public_channel")
+    channel, created = SlackChannel.objects.get_or_create(
+        team=team,
         channel_id=slack_channel["id"],
         defaults={
-            "team": team,
-            "channel_name": slack_channel.get("name", slack_channel["id"]),
-            "channel_type": slack_channel.get("type", "public_channel"),
+            "channel_name": channel_name,
+            "channel_type": channel_type,
             "description": description,
             "creator": creator,
         },
     )
-    return channel
+    if not created:
+        channel.channel_name = channel_name or channel.channel_name
+        channel.channel_type = channel_type or channel.channel_type
+        channel.description = description
+        channel.creator = creator
+        channel.save()
+    return channel, created
 
 
 # --- SlackChannelMembership ---
@@ -161,11 +172,14 @@ def add_channel_membership_change(
         created_at=created_at,
     )
     if is_joined:
-        SlackChannelMembership.objects.update_or_create(
+        membership, _ = SlackChannelMembership.objects.get_or_create(
             channel=channel,
             user=user,
             defaults={"is_deleted": False},
         )
+        if membership.is_deleted:
+            membership.is_deleted = False
+            membership.save()
     else:
         SlackChannelMembership.objects.filter(channel=channel, user=user).update(
             is_deleted=True
@@ -185,11 +199,14 @@ def sync_channel_memberships(channel: SlackChannel, member_ids: list[str]) -> No
     for user_id in new_member_ids:
         try:
             user = SlackUser.objects.get(slack_user_id=user_id)
-            SlackChannelMembership.objects.update_or_create(
+            membership, created = SlackChannelMembership.objects.get_or_create(
                 channel=channel,
                 user=user,
                 defaults={"is_deleted": False},
             )
+            if not created and membership.is_deleted:
+                membership.is_deleted = False
+                membership.save()
         except SlackUser.DoesNotExist:
             continue
     for user_id in removed_member_ids:
@@ -268,7 +285,7 @@ def save_slack_message(
     edited = slack_message.get("edited", {})
     updated_at = _parse_slack_ts_string(edited.get("ts", ts)) if edited else created_at
 
-    message, created = SlackMessage.objects.update_or_create(
+    message, created = SlackMessage.objects.get_or_create(
         channel=channel,
         ts=ts,
         defaults={
@@ -279,4 +296,11 @@ def save_slack_message(
             "slack_message_updated_at": updated_at,
         },
     )
+    if not created:
+        message.user = user
+        message.message = clean_text
+        message.thread_ts = slack_message.get("thread_ts")
+        message.slack_message_created_at = created_at
+        message.slack_message_updated_at = updated_at
+        message.save()
     return message

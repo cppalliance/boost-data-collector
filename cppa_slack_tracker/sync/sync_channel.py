@@ -15,8 +15,8 @@ from typing import Optional
 from cppa_slack_tracker.fetcher import fetch_channel_list, fetch_team_info
 from cppa_slack_tracker.models import SlackTeam
 from cppa_slack_tracker.services import (
-    add_or_update_slack_channel,
-    add_or_update_slack_team,
+    get_or_create_slack_channel,
+    get_or_create_slack_team,
 )
 from cppa_slack_tracker.workspace import get_channels_json_path
 
@@ -36,22 +36,22 @@ def sync_team(team_id: str, team_name: Optional[str] = None) -> SlackTeam:
                 name = name or team_id
         else:
             name = name or team_id
-    return add_or_update_slack_team(
+    return get_or_create_slack_team(
         {
             "team_id": team_id,
             "team_name": name,
         }
-    )
+    )[0]
 
 
 def _process_channel_info(ch: dict, team: SlackTeam) -> bool:
     """
-    Process one channel: add_or_update_slack_channel. Returns True if synced,
+    Process one channel: get_or_create_slack_channel. Returns True if synced,
     False if skipped (missing id). Raises on error.
     """
     if not ch.get("id"):
         return False
-    add_or_update_slack_channel(ch, team, creator_user_id=ch.get("creator"))
+    get_or_create_slack_channel(ch, team, creator_user_id=ch.get("creator"))
     return True
 
 

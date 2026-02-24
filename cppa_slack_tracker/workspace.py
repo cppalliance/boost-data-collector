@@ -3,7 +3,8 @@ Workspace paths for cppa_slack_tracker: JSON cache for messages, etc.
 
 Layout (refer workspace/cppa_slack_tracker/Cpplang):
   - workspace/cppa_slack_tracker/<team_slug>/<channel_slug>/YYYY-MM-DD.json
-  - workspace/raw/cppa_slack_tracker/<team_slug>/<channel_slug>/YYYY-MM-DD.json
+  - RAW_DIR/cppa_slack_tracker/<team_slug>/<channel_slug>/YYYY-MM-DD.json
+  (RAW_DIR defaults to workspace/raw when unset; see settings.RAW_DIR.)
 """
 
 from pathlib import Path
@@ -22,8 +23,11 @@ def get_workspace_root() -> Path:
 
 
 def get_raw_root() -> Path:
-    """Return raw root for this app (e.g. workspace/raw/cppa_slack_tracker/)."""
-    path = Path(settings.WORKSPACE_DIR) / "raw" / _APP_SLUG
+    """Return raw root for this app (e.g. RAW_DIR/cppa_slack_tracker/ or workspace/raw/cppa_slack_tracker/)."""
+    raw_base = getattr(settings, "RAW_DIR", None)
+    if raw_base is None:
+        raw_base = Path(settings.WORKSPACE_DIR) / "raw"
+    path = Path(raw_base) / _APP_SLUG
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -65,14 +69,14 @@ def get_message_json_path(team_slug: str, channel_slug: str, date_str: str) -> P
 
 
 def get_raw_team_channel_dir(team_slug: str, channel_slug: str) -> Path:
-    """Return workspace/raw/cppa_slack_tracker/<team_slug>/<channel_slug>/; creates dirs if missing."""
+    """Return raw dir for this app: RAW_DIR/cppa_slack_tracker/<team_slug>/<channel_slug>/; creates dirs if missing."""
     path = get_raw_root() / _slug(team_slug) / _slug(channel_slug)
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def get_raw_message_json_path(team_slug: str, channel_slug: str, date_str: str) -> Path:
-    """Return raw path for messages on a given day: workspace/raw/.../<team_slug>/<channel_slug>/YYYY-MM-DD.json."""
+    """Return raw path for messages on a given day: RAW_DIR/.../<team_slug>/<channel_slug>/YYYY-MM-DD.json."""
     return get_raw_team_channel_dir(team_slug, channel_slug) / f"{date_str}.json"
 
 

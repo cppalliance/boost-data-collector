@@ -18,10 +18,11 @@ from cppa_slack_tracker.workspace import _slug  # noqa: PLC2701
 
 @pytest.fixture
 def mock_workspace_dir(tmp_path):
-    """Patch WORKSPACE_DIR to a temp path."""
+    """Patch WORKSPACE_DIR to a temp path; RAW_DIR unset so raw root is workspace/raw/."""
     with patch("cppa_slack_tracker.workspace.settings") as m_settings:
         m_settings.WORKSPACE_DIR = tmp_path / "workspace"
         m_settings.WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
+        m_settings.RAW_DIR = None  # force fallback to WORKSPACE_DIR/raw
         yield m_settings.WORKSPACE_DIR
 
 
@@ -52,6 +53,17 @@ class TestGetRawRoot:
         root = get_raw_root()
         assert "raw" in root.parts
         assert root.parts[-1] == "cppa_slack_tracker"
+
+    def test_raw_root_uses_raw_dir_when_set(self, tmp_path):
+        """When settings.RAW_DIR is set, get_raw_root uses it instead of WORKSPACE_DIR/raw."""
+        custom_raw = tmp_path / "custom_raw"
+        custom_raw.mkdir(parents=True)
+        with patch("cppa_slack_tracker.workspace.settings") as m_settings:
+            m_settings.WORKSPACE_DIR = tmp_path / "workspace"
+            m_settings.RAW_DIR = custom_raw
+            root = get_raw_root()
+        assert root == custom_raw / "cppa_slack_tracker"
+        assert root.exists()
 
 
 class TestSlugAndPaths:
