@@ -10,7 +10,7 @@ For now only task 1 (fetch GitHub activity) is implemented.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 import requests
 from django.core.management.base import BaseCommand, CommandError
@@ -229,6 +229,12 @@ class Command(BaseCommand):
             except ValueError as e:
                 self.stderr.write(self.style.WARNING(f"Invalid --to-date format: {e}"))
                 end_date = None
+
+        # Normalize to UTC-naive so comparison never mixes aware and naive
+        if start_date and start_date.tzinfo:
+            start_date = start_date.astimezone(timezone.utc).replace(tzinfo=None)
+        if end_date and end_date.tzinfo:
+            end_date = end_date.astimezone(timezone.utc).replace(tzinfo=None)
 
         if start_date and end_date and start_date > end_date:
             raise CommandError(
