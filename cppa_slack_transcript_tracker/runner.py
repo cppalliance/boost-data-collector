@@ -24,8 +24,10 @@ def run_slack_huddle(bot_token=None, app_token=None):
         root = get_workspace_root()
         set_working_directory()
         logger.debug("CPPA Slack Transcript Tracker working directory: %s", root)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.exception(
+            "Failed to resolve workspace root or set working directory: %s", e
+        )
 
     try:
         bot_token = bot_token or get_slack_bot_token()

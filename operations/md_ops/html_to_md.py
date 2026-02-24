@@ -16,6 +16,7 @@ class HTMLToMarkdownConverter(HTMLParser):
         self.current_tag = None
         self.list_depth = 0
         self.list_item_count = []
+        self.list_types = []
         self.in_code = False
         self.in_pre = False
         self.link_text = None
@@ -118,21 +119,28 @@ class HTMLToMarkdownConverter(HTMLParser):
         elif tag == "ul":
             self.list_depth += 1
             self.list_item_count.append(0)
+            self.list_types.append("ul")
         elif tag == "ol":
             self.list_depth += 1
             self.list_item_count.append(0)
+            self.list_types.append("ol")
         elif tag == "li":
             if self.list_item_count:
                 self.list_item_count[-1] += 1
             indent = "  " * (self.list_depth - 1)
-            self.markdown.append(f"\n{indent}- ")
+            if self.list_types and self.list_types[-1] == "ol" and self.list_item_count:
+                prefix = f"{self.list_item_count[-1]}. "
+            else:
+                prefix = "- "
+            self.markdown.append(f"\n{indent}{prefix}")
             self.current_tag = "li"
         elif tag == "br":
             self.markdown.append("\n")
         elif tag == "hr":
             self.markdown.append("\n\n---\n\n")
         elif tag == "code":
-            self.markdown.append("`")
+            if not self.in_pre:
+                self.markdown.append("`")
             self.in_code = True
         elif tag == "pre":
             self.markdown.append("\n```\n")
@@ -205,12 +213,15 @@ class HTMLToMarkdownConverter(HTMLParser):
         elif tag == "ul" or tag == "ol":
             if self.list_item_count:
                 self.list_item_count.pop()
+            if self.list_types:
+                self.list_types.pop()
             self.list_depth = max(0, self.list_depth - 1)
             self.markdown.append("\n")
         elif tag == "li":
             self.current_tag = None
         elif tag == "code":
-            self.markdown.append("`")
+            if not self.in_pre:
+                self.markdown.append("`")
             self.in_code = False
         elif tag == "pre":
             self.markdown.append("\n```\n")
@@ -263,6 +274,9 @@ class HTMLToMarkdownConverter(HTMLParser):
     def handle_data(self, data):
         """Handle text content."""
         if self.skip_embedded_file:
+            return
+        if self.in_pre or self.in_code:
+            self.markdown.append(data)
             return
         data = data.strip()
         if not data:

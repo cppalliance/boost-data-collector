@@ -48,11 +48,19 @@ class SlackAPIClient:
                     resp = self.session.post(
                         url, params=params, json=json_data or {}, timeout=timeout
                     )
+                if resp.status_code == 429:
+                    wait = int(resp.headers.get("Retry-After", 2))
+                    logger.warning(
+                        "Slack rate limited (429), waiting %s s (Retry-After)",
+                        wait,
+                    )
+                    time.sleep(wait)
+                    continue
                 resp.raise_for_status()
                 data = resp.json()
                 if not data.get("ok") and data.get("error") == "rate_limited":
                     wait = int(resp.headers.get("Retry-After", 2))
-                    logger.warning("Slack rate limited, waiting %s s", wait)
+                    logger.warning("Slack rate limited (body), waiting %s s", wait)
                     time.sleep(wait)
                     continue
                 return data

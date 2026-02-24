@@ -161,8 +161,25 @@ SLACK_BOT_TOKEN = (env("SLACK_BOT_TOKEN", default="") or "").strip()
 SLACK_APP_TOKEN = (env("SLACK_APP_TOKEN", default="") or "").strip()
 # Optional: for cppa_slack_transcript_tracker (huddle transcript, token extraction)
 SLACK_TEAM_ID = (env("SLACK_TEAM_ID", default="") or "").strip()
-SLACK_XOXC_TOKEN = (env("SLACK_XOXC_TOKEN", default="") or "").strip()
-SLACK_XOXD_TOKEN = (env("SLACK_XOXD_TOKEN", default="") or "").strip()
+# Internal session tokens (xoxc/xoxd) are ToS-sensitive; only read when explicitly opted in.
+_allow_internal_slack_tokens = (
+    env("ALLOW_INTERNAL_SLACK_TOKENS", default="") or ""
+).strip().lower() == "true"
+_xoxc_raw = (env("SLACK_XOXC_TOKEN", default="") or "").strip()
+_xoxd_raw = (env("SLACK_XOXD_TOKEN", default="") or "").strip()
+if _allow_internal_slack_tokens:
+    SLACK_XOXC_TOKEN = _xoxc_raw
+    SLACK_XOXD_TOKEN = _xoxd_raw
+else:
+    SLACK_XOXC_TOKEN = ""
+    SLACK_XOXD_TOKEN = ""
+    if _xoxc_raw or _xoxd_raw:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "SLACK_XOXC_TOKEN/SLACK_XOXD_TOKEN are set but ignored: "
+            "internal session tokens require ALLOW_INTERNAL_SLACK_TOKENS=true after compliance review."
+        )
 # Selenium/Chrome for Slack token extraction (cppa_slack_transcript_tracker)
 SELENIUM_HUB_URL = (
     env("SELENIUM_HUB_URL", default="http://localhost:4444/wd/hub") or ""
@@ -202,9 +219,7 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 _LOG_FILE_PATH = LOG_DIR / LOG_FILE
 
 # Error notification settings (Discord/Slack)
-ENABLE_ERROR_NOTIFICATIONS = env.bool(
-    "ENABLE_ERROR_NOTIFICATIONS", default=False
-)
+ENABLE_ERROR_NOTIFICATIONS = env.bool("ENABLE_ERROR_NOTIFICATIONS", default=False)
 DISCORD_WEBHOOK_URL = env("DISCORD_WEBHOOK_URL", default="")
 SLACK_WEBHOOK_URL = env("SLACK_WEBHOOK_URL", default="")
 

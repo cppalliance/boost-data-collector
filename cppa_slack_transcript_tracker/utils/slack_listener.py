@@ -8,6 +8,8 @@ import json
 import re
 import time
 import logging
+import threading
+from collections import OrderedDict
 from datetime import datetime
 
 from slack_bolt import App
@@ -21,7 +23,8 @@ from operations.slack_ops import (
 
 # Data folder for saving events (relative to cwd when listener runs)
 DATA_FOLDER = "data"
-processed_file_ids = set()
+# Max number of file IDs to retain for deduplication (LRU eviction)
+MAX_PROCESSED_FILE_IDS = 1000
 logger = logging.getLogger(__name__)
 
 
@@ -54,6 +57,8 @@ class SlackListener:
         if not self.app_token:
             raise ValueError("Missing SLACK_APP_TOKEN. Set it in .env file.")
         self.app = App(token=self.bot_token)
+        self._processed_file_ids = OrderedDict()
+        self._processed_file_ids_lock = threading.Lock()
         self._register_handlers()
         logger.debug("SlackListener initialized")
 
@@ -103,6 +108,21 @@ class SlackListener:
             logger.error("Error extracting file ID from event: %s", e)
             return None
 
+    def _mark_file_processed(self, file_id):
+        """Atomically check and add file_id; return True if newly added, False if already seen. Evicts oldest when at capacity."""
+        with self._processed_file_ids_lock:
+            if file_id in self._processed_file_ids:
+                return False
+            while len(self._processed_file_ids) >= MAX_PROCESSED_FILE_IDS:
+                self._processed_file_ids.popitem(last=False)
+            self._processed_file_ids[file_id] = None
+            return True
+
+    def _unmark_file_processed(self, file_id):
+        """Remove file_id from processed set (e.g. after processing failure)."""
+        with self._processed_file_ids_lock:
+            self._processed_file_ids.pop(file_id, None)
+
     def _register_handlers(self):
         """Register all event handlers."""
 
@@ -122,33 +142,41 @@ class SlackListener:
                         "Could not extract file ID from huddle AI note event"
                     )
                     return
-                if file_id in processed_file_ids:
+                if not self._mark_file_processed(file_id):
                     logger.debug("File %s already processed, skipping", file_id)
                     return
-                processed_file_ids.add(file_id)
-                logger.debug(
-                    "Huddle AI note for file_id: %s, waiting 30 seconds", file_id
-                )
-                time.sleep(30)
-                logger.debug(
-                    "Starting processing huddle canvas for file_id: %s", file_id
-                )
-                try:
-                    from .huddle_processor import process_huddle_canvas
 
-                    result = process_huddle_canvas(file_id)
-                    if result and result.get("success"):
-                        logger.debug("Successfully processed huddle canvas %s", file_id)
-                        if result.get("github_url"):
-                            logger.debug("GitHub URL: %s", result["github_url"])
-                    else:
-                        logger.error("Failed to process huddle canvas: %s", file_id)
-                        processed_file_ids.discard(file_id)
-                except Exception as e:
-                    logger.exception(
-                        "Error processing huddle canvas %s: %s", file_id, e
+                def _process_later(fid):
+                    time.sleep(30)
+                    logger.debug(
+                        "Starting processing huddle canvas for file_id: %s", fid
                     )
-                    processed_file_ids.discard(file_id)
+                    try:
+                        from .huddle_processor import process_huddle_canvas
+
+                        result = process_huddle_canvas(fid)
+                        if result and result.get("success"):
+                            logger.debug("Successfully processed huddle canvas %s", fid)
+                            if result.get("github_url"):
+                                logger.debug("GitHub URL: %s", result["github_url"])
+                        else:
+                            logger.error("Failed to process huddle canvas: %s", fid)
+                            self._unmark_file_processed(fid)
+                    except Exception as e:
+                        logger.exception(
+                            "Error processing huddle canvas %s: %s", fid, e
+                        )
+                        self._unmark_file_processed(fid)
+
+                threading.Thread(
+                    target=_process_later,
+                    args=(file_id,),
+                    daemon=True,
+                ).start()
+                logger.debug(
+                    "Huddle AI note for file_id: %s, waiting 30 seconds (background)",
+                    file_id,
+                )
                 return
             logger.debug("Regular message event received")
 

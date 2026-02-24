@@ -118,52 +118,53 @@ class SlackFetcher:
         for attempt in range(max_retries):
             try:
                 logger.debug("Downloading file from: %s...", file_url[:50])
-                response = requests.get(
+                with requests.get(
                     file_url,
                     headers=headers,
                     stream=True,
                     timeout=60,
-                )
-                if response.status_code != 200:
-                    if attempt < max_retries - 1:
-                        wait_time = retry_delay * (2**attempt)
-                        time.sleep(wait_time)
-                        continue
-                    logger.error(
-                        "Failed to download file: HTTP %s", response.status_code
-                    )
-                    return None
-                if filename is None:
-                    content_disposition = response.headers.get(
-                        "Content-Disposition", ""
-                    )
-                    if "filename*=" in content_disposition:
-                        match = re.search(
-                            r"filename\*=utf-8''(.+?)(?:;|$)",
-                            content_disposition,
-                            re.IGNORECASE,
+                ) as response:
+                    if response.status_code != 200:
+                        if attempt < max_retries - 1:
+                            wait_time = retry_delay * (2**attempt)
+                            time.sleep(wait_time)
+                            continue
+                        logger.error(
+                            "Failed to download file: HTTP %s", response.status_code
                         )
-                        filename = (
-                            urllib.parse.unquote(match.group(1))
-                            if match
-                            else file_url.split("/")[-1].split("?")[0]
+                        return None
+                    if filename is None:
+                        content_disposition = response.headers.get(
+                            "Content-Disposition", ""
                         )
-                    elif "filename=" in content_disposition:
-                        filename = (
-                            content_disposition.split("filename=")[1]
-                            .split(";")[0]
-                            .strip("\"'")
-                        )
-                    else:
-                        filename = (
-                            file_url.split("/")[-1].split("?")[0] or "downloaded_file"
-                        )
-                filename = sanitize_filename(filename)
-                file_path = os.path.join(save_path, filename)
-                with open(file_path, "wb") as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
+                        if "filename*=" in content_disposition:
+                            match = re.search(
+                                r"filename\*=utf-8''(.+?)(?:;|$)",
+                                content_disposition,
+                                re.IGNORECASE,
+                            )
+                            filename = (
+                                urllib.parse.unquote(match.group(1))
+                                if match
+                                else file_url.split("/")[-1].split("?")[0]
+                            )
+                        elif "filename=" in content_disposition:
+                            filename = (
+                                content_disposition.split("filename=")[1]
+                                .split(";")[0]
+                                .strip("\"'")
+                            )
+                        else:
+                            filename = (
+                                file_url.split("/")[-1].split("?")[0]
+                                or "downloaded_file"
+                            )
+                    filename = sanitize_filename(filename)
+                    file_path = os.path.join(save_path, filename)
+                    with open(file_path, "wb") as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            if chunk:
+                                f.write(chunk)
                 logger.debug("File downloaded: %s", file_path)
                 return file_path
             except (ConnectionError, Timeout, RequestException) as e:

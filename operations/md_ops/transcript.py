@@ -160,32 +160,39 @@ def generate_transcript_from_json(result_json: dict) -> list[dict]:
     try:
         file_data = result_json.get("file", {})
         transcription = file_data.get("huddle_transcription", {})
-        blocks = transcription.get("blocks", {})
-        elements = blocks.get("elements", [])
-        for element in elements:
-            if element.get("type") == "rich_text_section":
-                section_elements = element.get("elements", [])
-                user_id = None
-                time_str = ""
-                content_parts = []
-                for sub_elem in section_elements:
-                    if sub_elem.get("type") == "user":
-                        user_id = sub_elem.get("user_id")
-                    elif sub_elem.get("type") == "text":
-                        text = sub_elem.get("text", "")
-                        time_m = re.match(r"^\s*\[(\d+:\d+)\]:\s*$", text)
-                        if time_m:
-                            time_str = time_m.group(1)
-                        else:
-                            content_parts.append(text)
-                if user_id and (time_str or content_parts):
-                    transcript.append(
-                        {
-                            "user_id": user_id,
-                            "time": time_str,
-                            "content": "".join(content_parts).strip(),
-                        }
-                    )
+        blocks = transcription.get("blocks", [])
+        if isinstance(blocks, dict):
+            blocks = blocks.get("elements", [])
+        if not isinstance(blocks, list):
+            blocks = []
+        for block in blocks:
+            if not isinstance(block, dict):
+                continue
+            elements = block.get("elements", [])
+            for element in elements:
+                if element.get("type") == "rich_text_section":
+                    section_elements = element.get("elements", [])
+                    user_id = None
+                    time_str = ""
+                    content_parts = []
+                    for sub_elem in section_elements:
+                        if sub_elem.get("type") == "user":
+                            user_id = sub_elem.get("user_id")
+                        elif sub_elem.get("type") == "text":
+                            text = sub_elem.get("text", "")
+                            time_m = re.match(r"^\s*\[(\d+:\d+)\]:\s*$", text)
+                            if time_m:
+                                time_str = time_m.group(1)
+                            else:
+                                content_parts.append(text)
+                    if user_id and (time_str or content_parts):
+                        transcript.append(
+                            {
+                                "user_id": user_id,
+                                "time": time_str,
+                                "content": "".join(content_parts).strip(),
+                            }
+                        )
     except Exception as e:
         logger.debug("Error parsing transcript: %s", e)
     return transcript
@@ -211,6 +218,7 @@ def write_huddle_transcript_md(
     - summary_markdown: HTML converted to markdown, with @user/#channel replaced (caller does html_to_markdown + replace_*)
     """
     output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
     html_data = parse_html_summary(html_content)
     transcript = generate_transcript_from_json(result_json)
 
@@ -307,5 +315,5 @@ def write_huddle_transcript_md(
         logger.debug("Markdown file generated: %s", filepath)
         return filepath
     except Exception as e:
-        logger.error("Error writing markdown file: %s", e)
+        logger.exception("Error writing markdown file %s: %s", filepath, e)
         return None

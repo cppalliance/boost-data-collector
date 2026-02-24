@@ -38,11 +38,10 @@ def get_channel_messages(
         client = get_slack_client()
     messages = []
     cursor = None
-    remaining = limit
-    while remaining > 0:
+    while True:
         data = client.conversations_history(
             channel=channel_id,
-            limit=min(remaining, 1000),
+            limit=min(limit, 1000),
             oldest=oldest,
             latest=latest,
             cursor=cursor,
@@ -61,7 +60,4 @@ def get_channel_messages(
         cursor = (data.get("response_metadata") or {}).get("next_cursor")
         if not cursor:
             break
-        remaining -= len(batch)
-        if remaining <= 0:
-            break
-    return messages[:limit] if limit else messages
+    return messages

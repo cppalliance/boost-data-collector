@@ -14,13 +14,14 @@ def _patch_django_context_copy_py314():
 
         def __copy__(self):
             duplicate = object.__new__(type(self))
+            duplicate.__dict__ = self.__dict__.copy()
             duplicate.dicts = self.dicts[:]
             return duplicate
 
         BaseContext.__copy__ = __copy__
 
 
-def pytest_configure(config):
+def pytest_configure(config):  # noqa: F841 (pytest hook; name must match spec)
     _patch_django_context_copy_py314()
 
 

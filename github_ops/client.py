@@ -378,7 +378,19 @@ class GitHubAPIClient:
         branch: str = "main",
     ) -> Optional[dict]:
         """
-        Delete a file via Contents API. Returns response or None for 204.
+        Delete a file via Contents API.
+
+        Uses get_file_sha to resolve the blob SHA for the path, then rest_delete
+        to perform the delete. Returns the API JSON response on success.
+
+        Returns None in these cases:
+        - The target path does not exist or is a directory (get_file_sha
+          returns falsy).
+        - The Contents API responds with 204 No Content (rest_delete returns
+          None in that case).
+
+        Callers cannot distinguish "not found/directory" from "204 no content"
+        from the return value alone; both yield None.
         """
         sha = self.get_file_sha(owner, repo, path, ref=branch)
         if not sha:

@@ -143,30 +143,32 @@ def check_docker_selenium_connection():
         base_url = selenium_hub_url.replace("/wd/hub", "")
         status_url = f"{base_url}/status"
         try:
-            response = urllib.request.urlopen(status_url, timeout=10)
-            if response.status == 200:
-                logger.debug("Docker Selenium accessible at %s", selenium_hub_url)
-                return True
+            with urllib.request.urlopen(status_url, timeout=10) as response:
+                if response.status == 200:
+                    logger.debug("Docker Selenium accessible at %s", selenium_hub_url)
+                    return True
+            return False
         except socket.timeout:
             logger.warning(
-                "Connection to Docker Selenium timed out at %s", selenium_hub_url
+                "Connection to Docker Selenium timed out at %s",
+                selenium_hub_url,
             )
             return False
         except urllib.error.URLError as e:
-            logger.warning(
-                "Cannot connect to Docker Selenium at %s: %s", selenium_hub_url, e
+            logger.exception(
+                "Cannot connect to Docker Selenium at %s: %s",
+                selenium_hub_url,
+                e,
             )
             return False
-        return False
     except Exception as e:
-        logger.warning("Error checking Docker connection: %s", e)
-        return True
+        logger.exception("Error checking Docker connection: %s", e)
+        return False
 
 
 def open_chrome_browser():
     """Check if Docker Selenium container is running."""
-    check_docker_selenium_connection()
-    return True
+    return check_docker_selenium_connection()
 
 
 def connect_to_chrome():

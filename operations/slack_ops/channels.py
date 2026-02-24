@@ -28,12 +28,18 @@ def _parse_list_env(value: Optional[str]) -> set:
 
 def _get_channel_join_config() -> dict:
     """Load channel-join config from env (CHANNEL_JOIN_*, CHANNEL_ALLOWLIST, CHANNEL_BLOCKLIST)."""
-    interval_min = int(
-        os.environ.get(
-            "CHANNEL_JOIN_INTERVAL_MINUTES", str(DEFAULT_JOIN_INTERVAL_MINUTES)
-        )
-        or DEFAULT_JOIN_INTERVAL_MINUTES
+    raw_interval = os.environ.get("CHANNEL_JOIN_INTERVAL_MINUTES", "") or str(
+        DEFAULT_JOIN_INTERVAL_MINUTES
     )
+    try:
+        interval_min = int(raw_interval)
+    except (ValueError, TypeError):
+        logger.warning(
+            "CHANNEL_JOIN_INTERVAL_MINUTES env value %r is invalid; using default %s",
+            raw_interval,
+            DEFAULT_JOIN_INTERVAL_MINUTES,
+        )
+        interval_min = DEFAULT_JOIN_INTERVAL_MINUTES
     if interval_min < 1:
         interval_min = DEFAULT_JOIN_INTERVAL_MINUTES
     public_only_str = (
