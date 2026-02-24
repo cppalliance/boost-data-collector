@@ -54,8 +54,8 @@ def _parse_gitmodules_owner_repo(gitmodules_content: str) -> list[tuple[str, str
 def task_fetch_github_activity(
     self,
     dry_run: bool = False,
-    start_date: datetime = None,
-    end_date: datetime = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
     from_library: str | None = None,
 ) -> None:
     """Fetch GitHub activity for boostorg/boost and all its submodules.
