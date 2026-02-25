@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 COLLECTOR_COMMANDS = [
     "run_boost_library_tracker",
     "run_boost_library_usage_dashboard",
-    # Add more as apps are added: run_boost_usage_tracker, etc.
+    "run_discord_exporter",
 ]
 
 
@@ -69,9 +69,7 @@ class Command(BaseCommand):
             failed,
         )
         self.stdout.write(
-            self.style.WARNING(
-                f"Summary: {succeeded} succeeded, {failed} failed."
-            )
+            self.style.WARNING(f"Summary: {succeeded} succeeded, {failed} failed.")
         )
 
         if exit_code != 0:
