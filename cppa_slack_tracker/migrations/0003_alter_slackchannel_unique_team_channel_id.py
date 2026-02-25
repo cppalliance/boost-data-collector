@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('cppa_slack_tracker', '0002_alter_slackmessage_ts'),
+        ('cppa_slack_tracker', '0001_initial'),
     ]
 
     operations = [

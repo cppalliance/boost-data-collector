@@ -7,6 +7,7 @@ Layout (refer workspace/cppa_slack_tracker/Cpplang):
   (RAW_DIR defaults to workspace/raw when unset; see settings.RAW_DIR.)
 """
 
+from datetime import datetime
 from pathlib import Path
 
 from django.conf import settings
@@ -15,6 +16,19 @@ from config.workspace import get_workspace_path
 from operations.file_ops import sanitize_filename
 
 _APP_SLUG = "cppa_slack_tracker"
+
+
+def _validate_date_str(date_str: str) -> str:
+    """Ensure date_str is YYYY-MM-DD only; reject path separators and '..' to prevent path traversal."""
+    if "/" in date_str or ".." in date_str:
+        raise ValueError(
+            "date_str must be in YYYY-MM-DD format and must not contain path separators or '..'"
+        )
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError as err:
+        raise ValueError("date_str must be in YYYY-MM-DD format") from err
+    return date_str
 
 
 def get_workspace_root() -> Path:
@@ -65,7 +79,8 @@ def get_team_channel_dir(team_slug: str, channel_slug: str) -> Path:
 
 def get_message_json_path(team_slug: str, channel_slug: str, date_str: str) -> Path:
     """Return workspace path for messages on a given day: .../<team_slug>/<channel_slug>/YYYY-MM-DD.json."""
-    return get_team_channel_dir(team_slug, channel_slug) / f"{date_str}.json"
+    safe_date = _validate_date_str(date_str)
+    return get_team_channel_dir(team_slug, channel_slug) / f"{safe_date}.json"
 
 
 def get_raw_team_channel_dir(team_slug: str, channel_slug: str) -> Path:
@@ -77,7 +92,8 @@ def get_raw_team_channel_dir(team_slug: str, channel_slug: str) -> Path:
 
 def get_raw_message_json_path(team_slug: str, channel_slug: str, date_str: str) -> Path:
     """Return raw path for messages on a given day: RAW_DIR/.../<team_slug>/<channel_slug>/YYYY-MM-DD.json."""
-    return get_raw_team_channel_dir(team_slug, channel_slug) / f"{date_str}.json"
+    safe_date = _validate_date_str(date_str)
+    return get_raw_team_channel_dir(team_slug, channel_slug) / f"{safe_date}.json"
 
 
 def get_messages_dir() -> Path:

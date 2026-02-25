@@ -55,6 +55,12 @@ def sample_slack_team(db):
 
 
 @pytest.fixture
+def _sample_slack_team(sample_slack_team):
+    """Alias for tests that need DB state but do not use the fixture value (silences ARG002)."""
+    return sample_slack_team
+
+
+@pytest.fixture
 def sample_slack_channel(db, sample_slack_team, sample_slack_user):
     """Create a sample Slack channel."""
     return SlackChannel.objects.create(
@@ -68,6 +74,12 @@ def sample_slack_channel(db, sample_slack_team, sample_slack_user):
 
 
 @pytest.fixture
+def _sample_slack_channel(sample_slack_channel):
+    """Alias for tests that need DB state but do not use the fixture value (silences ARG002)."""
+    return sample_slack_channel
+
+
+@pytest.fixture
 def sample_slack_message(db, sample_slack_channel, sample_slack_user):
     """Create a sample Slack message."""
     return SlackMessage.objects.create(
@@ -78,6 +90,12 @@ def sample_slack_message(db, sample_slack_channel, sample_slack_user):
         slack_message_created_at=datetime.now(timezone.utc),
         slack_message_updated_at=datetime.now(timezone.utc),
     )
+
+
+@pytest.fixture
+def _sample_slack_message(sample_slack_message):
+    """Alias for tests that need DB state but do not use the fixture value (silences ARG002)."""
+    return sample_slack_message
 
 
 @pytest.fixture

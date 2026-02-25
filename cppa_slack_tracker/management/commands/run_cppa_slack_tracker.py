@@ -149,31 +149,34 @@ class Command(BaseCommand):
         channel_id = (options.get("channel_id") or "").strip() or None
         if channel_id:
             self.stdout.write(f"  Channel ID: {channel_id}")
+        printed = False
         if options.get("sync_users"):
-            self.stdout.write("  Would run: sync users only")
-            return
+            self.stdout.write("  Would run: sync users")
+            printed = True
         if options.get("sync_channels"):
             self.stdout.write(
-                "  Would run: sync channels only"
+                "  Would run: sync channels"
                 + (f" (channel_id={channel_id})" if channel_id else " (all channels)")
             )
-            return
+            printed = True
         if options.get("sync_channel_users"):
             self.stdout.write(
-                "  Would run: sync channel memberships only"
+                "  Would run: sync channel memberships"
                 + (f" (channel_id={channel_id})" if channel_id else " (all channels)")
             )
-            return
+            printed = True
         if options.get("sync_messages"):
             start_str = (options.get("start_date") or "").strip() or "from DB or today"
             end_str = (options.get("end_date") or "").strip() or "today"
             self.stdout.write(
-                f"  Would run: sync messages only (start={start_str}, end={end_str})"
+                f"  Would run: sync messages (start={start_str}, end={end_str})"
             )
             if options.get("messages_json"):
                 self.stdout.write(
                     f"  Would load legacy messages from: {options.get('messages_json')}"
                 )
+            printed = True
+        if printed:
             return
         self.stdout.write("  Would run: sync messages only (default)")
         if channel_id:

@@ -98,7 +98,15 @@ def sync_users(
             return success_count, error_count
 
     # No users.json or load failed: fetch from API
-    members = fetch_user_list(team_id or team_slug)
+    try:
+        members = fetch_user_list(team_id or team_slug)
+    except Exception:
+        logger.exception(
+            "Failed to fetch users for team_slug=%s team_id=%s",
+            team_slug,
+            team_id,
+        )
+        return success_count, error_count
     for user_data in members:
         try:
             if _process_user_info(user_data, include_bots=include_bots):

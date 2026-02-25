@@ -183,12 +183,15 @@ def add_channel_membership_change(
     except SlackUser.DoesNotExist:
         raise ValueError(f"User {slack_user_id} not found")
     created_at = _parse_slack_ts_string(ts)
-    change_log = SlackChannelMembershipChangeLog.objects.create(
+    change_log, _ = SlackChannelMembershipChangeLog.objects.get_or_create(
         channel=channel,
         user=user,
-        is_joined=is_joined,
         created_at=created_at,
+        defaults={"is_joined": is_joined},
     )
+    if change_log.is_joined != is_joined:
+        change_log.is_joined = is_joined
+        change_log.save(update_fields=["is_joined"])
     if is_joined:
         membership, _ = SlackChannelMembership.objects.get_or_create(
             channel=channel,

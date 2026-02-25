@@ -31,7 +31,7 @@ class TestSlackTeam:
         assert team.team_name == "Test Team"
         assert str(team) == "Test Team (T12345678)"
 
-    def test_slack_team_unique_constraint(self, sample_slack_team):
+    def test_slack_team_unique_constraint(self, _sample_slack_team):
         """Test that team_id must be unique."""
         with pytest.raises(IntegrityError):
             SlackTeam.objects.create(
@@ -73,7 +73,7 @@ class TestSlackChannel:
         assert channel.creator is None
 
     def test_slack_channel_unique_constraint(
-        self, sample_slack_channel, sample_slack_team
+        self, _sample_slack_channel, sample_slack_team
     ):
         """Test that channel_id must be unique."""
         with pytest.raises(IntegrityError):
@@ -122,7 +122,7 @@ class TestSlackMessage:
         assert message.thread_ts == "1234567890.123456"
 
     def test_slack_message_unique_ts(
-        self, sample_slack_message, sample_slack_channel, sample_slack_user
+        self, _sample_slack_message, sample_slack_channel, sample_slack_user
     ):
         """Test that ts must be unique."""
         with pytest.raises(IntegrityError):
