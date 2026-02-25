@@ -31,7 +31,7 @@ from boost_usage_tracker.post_process import process_single_repo
 from boost_usage_tracker.repo_searcher import (
     RepoSearchResult,
     search_repos_with_date_splitting,
-    CREATION_START_DEFAULT
+    CREATION_START_DEFAULT,
 )
 from cppa_user_tracker.services import get_or_create_owner_account
 from github_activity_tracker.services import (
@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Ensure GitHubRepository from a search result
 # ---------------------------------------------------------------------------
+
 
 def _ensure_github_repo(client, result: RepoSearchResult):
     """Ensure a GitHubRepository (and owner account) exist for *result*.
@@ -127,7 +128,11 @@ def _run_boost_search_stage(
 
         for repo_result in batch:
             file_results_for_repo = by_repo.get(repo_result.full_name, [])
-            logger.info("  [%s] Processing %s", log_label or "boost_search", repo_result.full_name)
+            logger.info(
+                "  [%s] Processing %s",
+                log_label or "boost_search",
+                repo_result.full_name,
+            )
             try:
                 stats = process_single_repo(
                     client,
@@ -172,6 +177,7 @@ def _run_boost_search_stage(
 # Task 1: monitor_content (daily)
 # ---------------------------------------------------------------------------
 
+
 def task_monitor_content(
     since: datetime,
     until: datetime,
@@ -188,7 +194,11 @@ def task_monitor_content(
     client = get_github_client(use="scraping")
 
     repo_results = search_repos_with_date_splitting(
-        client, since, until, date_field="pushed", min_stars=min_stars,
+        client,
+        since,
+        until,
+        date_field="pushed",
+        min_stars=min_stars,
     )
 
     logger.info("Found %d repos pushed in date range", len(repo_results))
@@ -222,6 +232,7 @@ def task_monitor_content(
 # Task 2: monitor_stars (monthly)
 # ---------------------------------------------------------------------------
 
+
 def task_monitor_stars(
     min_stars: int,
     dry_run: bool,
@@ -248,10 +259,16 @@ def task_monitor_stars(
         start_date = now - timedelta(days=30)
 
     new_repos: list[RepoSearchResult] = []
-    stars_to_update: dict[int, int] = {}  # {repo_pk: new_stars} for tracked repos whose stars changed
+    stars_to_update: dict[int, int] = (
+        {}
+    )  # {repo_pk: new_stars} for tracked repos whose stars changed
 
     results = search_repos_with_date_splitting(
-        client, start_date, now, date_field="created", min_stars=min_stars,
+        client,
+        start_date,
+        now,
+        date_field="created",
+        min_stars=min_stars,
     )
     for r in results:
         if r.full_name not in tracked_repos:
@@ -303,6 +320,7 @@ def task_monitor_stars(
 # ---------------------------------------------------------------------------
 # Command
 # ---------------------------------------------------------------------------
+
 
 class Command(BaseCommand):
     help = (

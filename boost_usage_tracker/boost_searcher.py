@@ -13,7 +13,12 @@ import logging
 import re
 import time
 from collections import defaultdict
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait  # pylint: disable=no-name-in-module
+from concurrent.futures import (
+    FIRST_COMPLETED,
+    ThreadPoolExecutor,
+    as_completed,
+    wait,
+)  # pylint: disable=no-name-in-module
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
@@ -67,7 +72,9 @@ GRAPHQL_BATCH_FILE_COUNT = 20
 
 # Producer-consumer: parallel file fetches per repo, bounded pending tasks
 MAX_CONCURRENT_FILE_FETCHES = 8
-MAX_PENDING_FUTURES = max(MAX_CONCURRENT_FILE_FETCHES * 6, MAX_CONCURRENT_FILE_FETCHES + 4)
+MAX_PENDING_FUTURES = max(
+    MAX_CONCURRENT_FILE_FETCHES * 6, MAX_CONCURRENT_FILE_FETCHES + 4
+)
 
 MAX_CODE_SEARCH_QUERY_LEN = 255
 BOOST_INCLUDE_SEARCH_BATCH_SIZE = 5
@@ -149,7 +156,7 @@ def get_file_content_with_commit_date(
     """Return {'content': str, 'commit_date': datetime|None} or None."""
     owner, repo_name = repo_full_name.split("/", 1)
     return _get_file_info_graphql(client, owner, repo_name, file_path)
-    
+
 
 def _get_file_info_graphql(
     client: GitHubAPIClient,
@@ -228,9 +235,7 @@ def _get_file_info_rest(
             return None
 
         if data.get("encoding") == "base64" and data.get("content"):
-            content = base64.b64decode(data["content"]).decode(
-                "utf-8", errors="ignore"
-            )
+            content = base64.b64decode(data["content"]).decode("utf-8", errors="ignore")
         else:
             content = data.get("content", "")
 
@@ -563,9 +568,13 @@ def detect_boost_version_in_repo(
 
     build_files = ["CMakeLists.txt", "conanfile.txt", "conanfile.py", "vcpkg.json"]
     for build_file in build_files:
-        file_info = get_file_content_with_commit_date(client, repo_full_name, build_file)
+        file_info = get_file_content_with_commit_date(
+            client, repo_full_name, build_file
+        )
         if file_info and file_info.get("content"):
-            version = extract_boost_version_from_content(file_info["content"], build_file)
+            version = extract_boost_version_from_content(
+                file_info["content"], build_file
+            )
             if version:
                 return False, version
     return False, None

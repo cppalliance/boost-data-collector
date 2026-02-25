@@ -85,7 +85,11 @@ def update_repository_table_from_csv(
     try:
         with path.open("r", encoding="utf-8", newline="") as f:
             reader = csv.DictReader(f)
-            if not reader.fieldnames or "owner" not in reader.fieldnames or "repo_name" not in reader.fieldnames:
+            if (
+                not reader.fieldnames
+                or "owner" not in reader.fieldnames
+                or "repo_name" not in reader.fieldnames
+            ):
                 result["errors"].append("CSV must have 'owner' and 'repo_name' columns")
                 return result
             for row in reader:
@@ -110,7 +114,9 @@ def update_repository_table_from_csv(
                         dt = _parse_datetime(row[key])
                         if dt is not None:
                             defaults[key] = dt
-                repo, repo_created = get_or_create_repository(account, repo_name, **defaults)
+                repo, repo_created = get_or_create_repository(
+                    account, repo_name, **defaults
+                )
                 if repo_created:
                     result["created_repos"] += 1
                 else:

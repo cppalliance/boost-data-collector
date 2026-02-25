@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 # BoostExternalRepository
 # ---------------------------------------------------------------------------
 
+
 def get_or_create_boost_external_repo(
     github_repository: "GitHubRepository",
     boost_version: str = "",
@@ -102,7 +103,10 @@ def update_boost_external_repo(
     if boost_version is not None and ext_repo.boost_version != boost_version:
         ext_repo.boost_version = boost_version
         update_fields.append("boost_version")
-    if is_boost_embedded is not None and ext_repo.is_boost_embedded != is_boost_embedded:
+    if (
+        is_boost_embedded is not None
+        and ext_repo.is_boost_embedded != is_boost_embedded
+    ):
         ext_repo.is_boost_embedded = is_boost_embedded
         update_fields.append("is_boost_embedded")
     if is_boost_used is not None and ext_repo.is_boost_used != is_boost_used:
@@ -116,6 +120,7 @@ def update_boost_external_repo(
 # ---------------------------------------------------------------------------
 # BoostUsage
 # ---------------------------------------------------------------------------
+
 
 def create_or_update_boost_usage(
     repo: BoostExternalRepository,
@@ -160,8 +165,9 @@ def get_active_usages_for_repo(
 ) -> list[BoostUsage]:
     """Return all active (non-excepted) BoostUsage records for *repo*."""
     return list(
-        BoostUsage.objects.filter(repo=repo, excepted_at__isnull=True)
-        .select_related("boost_header", "file_path")
+        BoostUsage.objects.filter(repo=repo, excepted_at__isnull=True).select_related(
+            "boost_header", "file_path"
+        )
     )
 
 
@@ -194,6 +200,7 @@ def get_or_create_missing_header_usage(
 # ---------------------------------------------------------------------------
 # Bulk operations (speed: fewer DB round-trips)
 # ---------------------------------------------------------------------------
+
 
 def bulk_create_or_update_boost_usage(
     repo: BoostExternalRepository,

@@ -54,21 +54,31 @@ def _format_boostusage(result):
 
 def _run_github_account(source):
     from boost_usage_tracker.update_git_account import update_git_account
+
     return update_git_account(source=source, table="github_account")
 
 
 def _run_repository(source):
-    from boost_usage_tracker.update_repository_from_csv import update_repository_table_from_csv
+    from boost_usage_tracker.update_repository_from_csv import (
+        update_repository_table_from_csv,
+    )
+
     return update_repository_table_from_csv(source=source)
 
 
 def _run_githubfile(source):
-    from boost_usage_tracker.update_githubfile_from_csv import update_githubfile_table_from_csv
+    from boost_usage_tracker.update_githubfile_from_csv import (
+        update_githubfile_table_from_csv,
+    )
+
     return update_githubfile_table_from_csv(source=source)
 
 
 def _run_boostusage(source):
-    from boost_usage_tracker.update_boostusage_from_csv import update_boostusage_table_from_csv
+    from boost_usage_tracker.update_boostusage_from_csv import (
+        update_boostusage_table_from_csv,
+    )
+
     return update_boostusage_table_from_csv(source=source)
 
 

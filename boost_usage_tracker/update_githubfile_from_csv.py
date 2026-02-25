@@ -66,8 +66,15 @@ def update_githubfile_table_from_csv(
     try:
         with path.open("r", encoding="utf-8", newline="") as f:
             reader = csv.DictReader(f)
-            if not reader.fieldnames or "owner" not in reader.fieldnames or "repo_name" not in reader.fieldnames or "file_path" not in reader.fieldnames:
-                result["errors"].append("CSV must have 'owner', 'repo_name', and 'file_path' columns")
+            if (
+                not reader.fieldnames
+                or "owner" not in reader.fieldnames
+                or "repo_name" not in reader.fieldnames
+                or "file_path" not in reader.fieldnames
+            ):
+                result["errors"].append(
+                    "CSV must have 'owner', 'repo_name', and 'file_path' columns"
+                )
                 return result
             for row in reader:
                 owner = (row.get("owner") or "").strip()
@@ -81,7 +88,11 @@ def update_githubfile_table_from_csv(
                 ).first()
                 if repo is None:
                     result["skipped_no_repo"] += 1
-                    logger.debug("Skipping row: no GitHubRepository for owner=%r repo_name=%r", owner, repo_name)
+                    logger.debug(
+                        "Skipping row: no GitHubRepository for owner=%r repo_name=%r",
+                        owner,
+                        repo_name,
+                    )
                     continue
                 is_deleted = _parse_bool(row.get("is_deleted", False))
                 _, created = create_or_update_github_file(

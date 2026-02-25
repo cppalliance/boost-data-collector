@@ -78,7 +78,9 @@ def _normalize_account_type(value: Any) -> str:
     return GitHubAccountType.USER
 
 
-def _update_github_account_from_records(records: list[dict[str, Any]]) -> tuple[int, int]:
+def _update_github_account_from_records(
+    records: list[dict[str, Any]],
+) -> tuple[int, int]:
     """Upsert GitHubAccount (and BaseProfile) for each record.
 
     Fields read from each record:

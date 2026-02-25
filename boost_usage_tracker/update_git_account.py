@@ -73,7 +73,9 @@ def _normalize_github_account_type(value: Any) -> str:
     return GitHubAccountType.USER
 
 
-def _update_github_account_from_records(records: list[dict[str, Any]]) -> tuple[int, int]:
+def _update_github_account_from_records(
+    records: list[dict[str, Any]],
+) -> tuple[int, int]:
     """Upsert GitHubAccount (and BaseProfile) for each record. Returns (created_count, updated_count)."""
     from cppa_user_tracker.services import get_or_create_github_account
 
@@ -90,7 +92,10 @@ def _update_github_account_from_records(records: list[dict[str, Any]]) -> tuple[
         try:
             gid = int(github_account_id_raw)
         except (TypeError, ValueError):
-            logger.warning("Skipping record with invalid github_account_id %r", github_account_id_raw)
+            logger.warning(
+                "Skipping record with invalid github_account_id %r",
+                github_account_id_raw,
+            )
             continue
         username = (owner.get("login") or "").strip() or ""
         display_name = (owner.get("name") or "").strip() or ""
@@ -158,4 +163,3 @@ def update_git_account(
         "updated": 0,
         "errors": [f"Unsupported table: {table}"],
     }
-

@@ -93,4 +93,3 @@ class Command(BaseCommand):
         )
 
         return 1 if result.get("errors") else 0
-

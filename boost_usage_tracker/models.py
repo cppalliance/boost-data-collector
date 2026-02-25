@@ -71,7 +71,9 @@ class BoostUsage(models.Model):
         db_column="file_path_id",
     )
     last_commit_date = models.DateTimeField(
-        null=True, blank=True, db_index=True,
+        null=True,
+        blank=True,
+        db_index=True,
     )
     excepted_at = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

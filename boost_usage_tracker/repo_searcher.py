@@ -19,6 +19,7 @@ CREATION_INTERVAL_DAYS = 360  # chunk size for "created" range generation
 
 PER_PAGE = 100
 
+
 @dataclass
 class RepoSearchResult:
     """Minimal metadata returned by a GitHub repository search."""
@@ -36,9 +37,7 @@ def _extract_repo_metadata(item: dict[str, Any]) -> RepoSearchResult:
     license_spdx = ""
     lic = item.get("license")
     if isinstance(lic, dict):
-        license_spdx = (
-            lic.get("spdx_id") or lic.get("key") or lic.get("name") or ""
-        )
+        license_spdx = lic.get("spdx_id") or lic.get("key") or lic.get("name") or ""
     return RepoSearchResult(
         full_name=item.get("full_name") or "",
         stars=item.get("stargazers_count") or 0,
@@ -171,20 +170,20 @@ def _process_date_range(
 
         if days_diff > 0 or second_diff > 0:
             repos1 = _process_date_range(
-                client = client,
-                first_range = first_range_1,
-                date_field = date_field,
-                language = language,
-                min_stars = min_stars,
-                second_range = second_range_1,
+                client=client,
+                first_range=first_range_1,
+                date_field=date_field,
+                language=language,
+                min_stars=min_stars,
+                second_range=second_range_1,
             )
             repos2 = _process_date_range(
-                client = client,
-                first_range = first_range_2,
-                date_field = date_field,
-                language = language,
-                min_stars = min_stars,
-                second_range = second_range_2,
+                client=client,
+                first_range=first_range_2,
+                date_field=date_field,
+                language=language,
+                min_stars=min_stars,
+                second_range=second_range_2,
             )
             seen = {r.full_name for r in repos1}
             for r in repos2:
@@ -226,10 +225,10 @@ def search_repos_with_date_splitting(
         chunk = _process_date_range(
             client,
             first_range=(range_start, range_end),
-            date_field = date_field,
-            language = language,
-            min_stars = min_stars,
-            second_range = second_created_range,
+            date_field=date_field,
+            language=language,
+            min_stars=min_stars,
+            second_range=second_created_range,
         )
         total_repos.extend(chunk)
 

@@ -15,7 +15,10 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from boost_library_tracker.models import BoostFile
-from boost_usage_tracker.boost_searcher import detect_boost_version_in_repo, extract_boost_includes
+from boost_usage_tracker.boost_searcher import (
+    detect_boost_version_in_repo,
+    extract_boost_includes,
+)
 from boost_usage_tracker.repo_searcher import RepoSearchResult
 from boost_usage_tracker.services import (
     bulk_create_or_update_boost_usage,
@@ -39,8 +42,9 @@ def _resolve_boost_header(header_path: str):
     for i in range(len(parts)):
         suffix = "/".join(parts[i:])
         boost_file = (
-            BoostFile.objects  # pylint: disable=no-member
-            .filter(github_file__filename__endswith=suffix)
+            BoostFile.objects.filter(  # pylint: disable=no-member
+                github_file__filename__endswith=suffix
+            )
             .select_related("github_file")
             .first()
         )  # pylint: disable=no-member
@@ -61,7 +65,9 @@ def _resolve_boost_headers_bulk(header_paths: set[str]) -> dict[str, object]:
 
     # Fast path: one bulk query for exact filename matches.
     exact_rows = (
-        BoostFile.objects.filter(github_file__filename__in=header_paths)  # pylint: disable=no-member
+        BoostFile.objects.filter(
+            github_file__filename__in=header_paths
+        )  # pylint: disable=no-member
         .select_related("github_file")
         .order_by("github_file_id")
     )
@@ -114,7 +120,9 @@ def process_single_repo(
         is_embedded = False
         boost_version = ""
         if file_results_for_repo:
-            is_embedded, boost_version = detect_boost_version_in_repo(client, repo_full_name)
+            is_embedded, boost_version = detect_boost_version_in_repo(
+                client, repo_full_name
+            )
             is_boost_used = True
 
         ext_repo, _ = get_or_create_boost_external_repo(
@@ -135,10 +143,12 @@ def process_single_repo(
         # --- Pass 1: collect file/header data without touching the DB ---
         # This mirrors old process_boost_usage_files which gathered all headers
         # first and then called get_or_set_header_ids_bulk in one shot.
-        file_header_map: list[tuple] = []   # (file_result, [header_path, ...])
+        file_header_map: list[tuple] = []  # (file_result, [header_path, ...])
         all_header_paths: set[str] = set()
         for file_result in file_results_for_repo:
-            source_file, created = create_or_update_github_file(github_repo, file_result.file_path)
+            source_file, created = create_or_update_github_file(
+                github_repo, file_result.file_path
+            )
             if (
                 not created
                 and file_result.commit_date
@@ -197,8 +207,10 @@ def process_single_repo(
 
         # Bulk mark usages that are no longer detected as excepted
         excepted_ids = [
-            u.pk for u in existing_usages
-            if (u.boost_header_id, u.file_path_id) not in seen_keys and u.file_path_id not in seen_file_paths
+            u.pk
+            for u in existing_usages
+            if (u.boost_header_id, u.file_path_id) not in seen_keys
+            and u.file_path_id not in seen_file_paths
         ]
         if excepted_ids:
             stats["usages_excepted"] += mark_usages_excepted_bulk(excepted_ids)

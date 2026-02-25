@@ -59,7 +59,9 @@ def update_created_repos_by_language(
             "created": 0,
             "updated": 0,
             "rows_processed": 0,
-            "errors": [f"Invalid year range: start_year({start_year}) > end_year({end_year})"],
+            "errors": [
+                f"Invalid year range: start_year({start_year}) > end_year({end_year})"
+            ],
         }
 
     source_csv = (languages_csv or os.getenv(LANGUAGES_ENV_KEY, "")).strip()
@@ -97,7 +99,9 @@ def update_created_repos_by_language(
             "errors": [f"Languages not found in Language table: {', '.join(missing)}"],
         }
     if missing:
-        logger.warning("Skipping languages not found in Language table: %s", ", ".join(missing))
+        logger.warning(
+            "Skipping languages not found in Language table: %s", ", ".join(missing)
+        )
 
     created_count = 0
     updated_count = 0
@@ -149,4 +153,3 @@ def update_created_repos_by_language(
         "rows_processed": rows_processed,
         "errors": errors,
     }
-

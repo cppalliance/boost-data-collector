@@ -74,7 +74,9 @@ def update_boostusage_table_from_csv(
         with path.open("r", encoding="utf-8", newline="") as f:
             reader = csv.DictReader(f)
             required = ("owner", "repo_name", "file_path", "boost_header_name")
-            if not reader.fieldnames or not all(col in reader.fieldnames for col in required):
+            if not reader.fieldnames or not all(
+                col in reader.fieldnames for col in required
+            ):
                 result["errors"].append(f"CSV must have columns: {', '.join(required)}")
                 return result
             for row in reader:
@@ -90,7 +92,9 @@ def update_boostusage_table_from_csv(
                 ).first()
                 if repo is None:
                     result["skipped_no_repo"] += 1
-                    logger.debug("Skipping: no repo for owner=%r repo_name=%r", owner, repo_name)
+                    logger.debug(
+                        "Skipping: no repo for owner=%r repo_name=%r", owner, repo_name
+                    )
                     continue
                 file_path_obj = GitHubFile.objects.filter(
                     repo_id=repo.pk,
@@ -98,17 +102,26 @@ def update_boostusage_table_from_csv(
                 ).first()
                 if file_path_obj is None:
                     result["skipped_no_file"] += 1
-                    logger.debug("Skipping: no GitHubFile for repo_id=%s file_path=%r", repo.pk, file_path)
+                    logger.debug(
+                        "Skipping: no GitHubFile for repo_id=%s file_path=%r",
+                        repo.pk,
+                        file_path,
+                    )
                     continue
                 boost_header = BoostFile.objects.filter(
                     github_file__filename=boost_header_name,
                 ).first()
                 if boost_header is None:
                     result["skipped_no_boost_header"] += 1
-                    logger.debug("Skipping: no BoostFile for boost_header_name=%r", boost_header_name)
+                    logger.debug(
+                        "Skipping: no BoostFile for boost_header_name=%r",
+                        boost_header_name,
+                    )
                     continue
                 last_commit_ts = row.get("last_commit_ts")
-                last_commit_date = _parse_datetime(last_commit_ts) if last_commit_ts else None
+                last_commit_date = (
+                    _parse_datetime(last_commit_ts) if last_commit_ts else None
+                )
                 _, created = create_or_update_boost_usage(
                     repo,
                     boost_header=boost_header,
