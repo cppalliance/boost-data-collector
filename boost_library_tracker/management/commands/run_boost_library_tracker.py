@@ -3,16 +3,16 @@ Management command: run_boost_library_tracker
 
 Runs several tasks in order:
   1. Fetch GitHub activity (main repo boostorg/boost + all submodules)
-  2. Library tracker (stub; to be implemented)
-  3. ...
-
-For now only task 1 (fetch GitHub activity) is implemented.
+  2. Collect all Boost libraries (from .gitmodules + meta/libraries.json; no doc extensions)
+  3. Library tracker (stub; to be implemented)
+  4. ...
 """
 
 import logging
 from datetime import datetime, timezone
 
 import requests
+from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
 from cppa_user_tracker.services import get_or_create_owner_account
@@ -32,7 +32,9 @@ MAIN_OWNER = "boostorg"
 MAIN_REPO = "boost"
 
 
-def _parse_gitmodules_owner_repo(gitmodules_content: str) -> list[tuple[str, str]]:
+def _parse_gitmodules_owner_repo(
+    gitmodules_content: str,
+) -> list[tuple[str, str]]:
     """Parse .gitmodules content and return list of (owner, repo) from each url."""
     result = []
     for line in gitmodules_content.split("\n"):
@@ -67,7 +69,9 @@ def task_fetch_github_activity(
         from_library: If set, start at this repo (including main when 'boost') and sync it and all after.
             Use 'boost' for main repo or a submodule name (e.g. 'build', 'algorithm'). Default: sync all.
     """
-    self.stdout.write("Task 1: Fetch GitHub activity (main repo + submodules)...")
+    self.stdout.write(
+        "Task 1: Fetch GitHub activity (main repo + submodules)..."
+    )
     if start_date:
         self.stdout.write(f"  From: {start_date.isoformat()}")
     if end_date:
@@ -90,7 +94,9 @@ def task_fetch_github_activity(
     repos_to_sync = [(MAIN_OWNER, MAIN_REPO)]
 
     try:
-        content, _ = client.get_file_content(MAIN_OWNER, MAIN_REPO, ".gitmodules")
+        content, _ = client.get_file_content(
+            MAIN_OWNER, MAIN_REPO, ".gitmodules"
+        )
         if content:
             text = content.decode("utf-8")
             submodules = _parse_gitmodules_owner_repo(text)
@@ -105,12 +111,16 @@ def task_fetch_github_activity(
     except requests.exceptions.HTTPError as e:
         if e.response is not None and e.response.status_code == 404:
             logger.debug(
-                "No .gitmodules in %s/%s; syncing main repo only", MAIN_OWNER, MAIN_REPO
+                "No .gitmodules in %s/%s; syncing main repo only",
+                MAIN_OWNER,
+                MAIN_REPO,
             )
         else:
             raise
     except Exception as e:
-        logger.warning("Could not fetch .gitmodules: %s; syncing main repo only", e)
+        logger.warning(
+            "Could not fetch .gitmodules: %s; syncing main repo only", e
+        )
 
     # If --from-library is set, start at this repo (including main if NAME is 'boost') and all after
     if from_library:
@@ -143,14 +153,18 @@ def task_fetch_github_activity(
         try:
             logger.debug("Syncing %s/%s", owner, repo_name)
             if owner not in owner_accounts:
-                owner_accounts[owner] = get_or_create_owner_account(client, owner)
+                owner_accounts[owner] = get_or_create_owner_account(
+                    client, owner
+                )
             acc = owner_accounts[owner]
             repo, _ = get_or_create_repository(acc, repo_name)
             ensure_repository_owner(repo, acc)
             boost_repo, _ = get_or_create_boost_library_repo(repo)
             sync_github(boost_repo, start_date=start_date, end_date=end_date)
             synced += 1
-            self.stdout.write(self.style.SUCCESS(f"  Synced {owner}/{repo_name}"))
+            self.stdout.write(
+                self.style.SUCCESS(f"  Synced {owner}/{repo_name}")
+            )
         except (ConnectionException, RateLimitException) as e:
             logger.exception("Sync failed for %s/%s: %s", owner, repo_name, e)
             raise
@@ -163,17 +177,37 @@ def task_fetch_github_activity(
     )
 
 
+def task_collect_libraries(self, ref: str, dry_run: bool = False) -> None:
+    """Collect all Boost libraries from .gitmodules + meta/libraries.json per lib submodule."""
+    self.stdout.write("Task 2: Collect all Boost libraries...")
+    if dry_run:
+        call_command(
+            "collect_boost_libraries",
+            ref=ref,
+            dry_run=True,
+            stdout=self.stdout,
+            stderr=self.stderr,
+        )
+        return
+    call_command(
+        "collect_boost_libraries",
+        ref=ref,
+        stdout=self.stdout,
+        stderr=self.stderr,
+    )
+
+
 def task_library_tracker(self, dry_run: bool = False) -> None:
     """Library tracker (versions, dependencies, etc.). Stub for now."""
-    self.stdout.write("Task 2: Library tracker (stub)...")
+    self.stdout.write("Task 3: Library tracker (stub)...")
     if not dry_run:
         pass  # TODO: implement
 
 
 class Command(BaseCommand):
     help = (
-        "Run Boost Library Tracker: GitHub activity (boostorg/boost + submodules), then library tracker, etc. "
-        "Currently only fetches GitHub activity."
+        "Run Boost Library Tracker: GitHub activity (boostorg/boost + submodules), "
+        "then collect all libraries, then library tracker, etc."
     )
 
     def add_arguments(self, parser):
@@ -181,6 +215,12 @@ class Command(BaseCommand):
             "--dry-run",
             action="store_true",
             help="Only show what would be done (e.g. repo list); do not sync.",
+        )
+        parser.add_argument(
+            "--ref",
+            type=str,
+            default="develop",
+            help="Ref for collect_boost_libraries (.gitmodules and meta/libraries.json). Default: develop.",
         )
         parser.add_argument(
             "--task",
@@ -211,6 +251,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
+        ref = (options.get("ref") or "develop").strip()
         task_filter = (options["task"] or "").strip().lower()
 
         # Parse date arguments
@@ -228,12 +269,16 @@ class Command(BaseCommand):
             try:
                 end_date = datetime.fromisoformat(options["to_date"])
             except ValueError as e:
-                self.stderr.write(self.style.WARNING(f"Invalid --to-date format: {e}"))
+                self.stderr.write(
+                    self.style.WARNING(f"Invalid --to-date format: {e}")
+                )
                 end_date = None
 
         # Normalize to UTC-naive so comparison never mixes aware and naive
         if start_date and start_date.tzinfo:
-            start_date = start_date.astimezone(timezone.utc).replace(tzinfo=None)
+            start_date = start_date.astimezone(timezone.utc).replace(
+                tzinfo=None
+            )
         if end_date and end_date.tzinfo:
             end_date = end_date.astimezone(timezone.utc).replace(tzinfo=None)
 
@@ -245,8 +290,9 @@ class Command(BaseCommand):
 
         from_library = (options.get("from_library") or "").strip() or None
         logger.debug(
-            "run_boost_library_tracker: starting (dry_run=%s, task=%s, from=%s, to=%s, from_library=%s)",
+            "run_boost_library_tracker: starting (dry_run=%s, ref=%s, task=%s, from=%s, to=%s, from_library=%s)",
             dry_run,
+            ref,
             task_filter or "all",
             start_date.isoformat() if start_date else "auto",
             end_date.isoformat() if end_date else "now",
@@ -262,11 +308,16 @@ class Command(BaseCommand):
                     end_date=end_date,
                     from_library=from_library,
                 )
+                task_fetch_github_activity(self, dry_run=dry_run)
+            if not task_filter or task_filter == "collect_libraries":
+                task_collect_libraries(self, ref=ref, dry_run=dry_run)
             if not task_filter or task_filter == "library_tracker":
                 task_library_tracker(self, dry_run=dry_run)
 
             self.stdout.write(
-                self.style.SUCCESS("run_boost_library_tracker: finished successfully")
+                self.style.SUCCESS(
+                    "run_boost_library_tracker: finished successfully"
+                )
             )
             logger.debug("run_boost_library_tracker: finished successfully")
         except Exception as e:
