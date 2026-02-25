@@ -5,7 +5,6 @@ from io import StringIO
 from unittest.mock import MagicMock, patch
 
 from django.core.management import call_command
-from django.core.management.base import CommandError
 
 
 CMD_NAME = "run_boost_library_tracker"
@@ -76,8 +75,10 @@ def test_run_boost_library_tracker_invalid_to_date_warns_and_continues_with_none
 
 
 @pytest.mark.django_db
-def test_run_boost_library_tracker_from_library_not_found_raises_command_error():
-    """With --from-library that is not in repo list, command raises CommandError."""
+def test_run_boost_library_tracker_from_library_not_found_warns_and_starts_from_first(
+    caplog,
+):
+    """With --from-library not in repo list, command logs warning and starts from first (idx=0)."""
     mock_client = MagicMock()
     mock_client.get_file_content.return_value = (
         b'[submodule "libs/build"]\npath = libs/build\nurl = ../build.git\n',
@@ -92,15 +93,20 @@ def test_run_boost_library_tracker_from_library_not_found_raises_command_error()
         "boost_library_tracker.management.commands.run_boost_library_tracker.get_or_create_owner_account",
         return_value=mock_account,
     ):
-        with pytest.raises(CommandError, match="not found in repo list"):
-            call_command(
-                CMD_NAME,
-                "--from-library=NonExistentLib",
-                "--task=github_activity",
-                "--dry-run",
-                stdout=StringIO(),
-                stderr=StringIO(),
-            )
+        call_command(
+            CMD_NAME,
+            "--from-library=NonExistentLib",
+            "--task=github_activity",
+            "--dry-run",
+            stdout=StringIO(),
+            stderr=StringIO(),
+        )
+    assert any(
+        "NonExistentLib" in r.getMessage()
+        and "starting from first" in r.getMessage().lower()
+        for r in caplog.records
+        if r.levelname == "WARNING"
+    )
 
 
 @pytest.mark.django_db

@@ -121,10 +121,11 @@ def task_fetch_github_activity(
                 idx = i
                 break
         if idx is None:
-            raise CommandError(
-                f"Library '{from_name}' not found in repo list (main + submodules). "
-                "Use main repo 'boost' or a submodule name (e.g. 'build', 'algorithm')."
+            logger.warning(
+                "No submodule/repo with name '%s' found in repo list; starting from first (idx=0).",
+                from_name,
             )
+            idx = 0
         repos_to_sync = repos_to_sync[idx:]
         self.stdout.write(
             f"  Starting from {repos_to_sync[0][0]}/{repos_to_sync[0][1]} ({len(repos_to_sync)} repo(s))"
