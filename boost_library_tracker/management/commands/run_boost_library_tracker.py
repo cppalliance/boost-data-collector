@@ -293,6 +293,22 @@ class Command(BaseCommand):
         ref = (options.get("ref") or "develop").strip()
         task_filter = (options["task"] or "").strip().lower()
 
+        valid_tasks = {
+            "",
+            "github_activity",
+            "collect_and_import_if_new",
+            "collect_libraries",
+            "library_tracker",
+        }
+        if task_filter not in valid_tasks:
+            self.stderr.write(
+                self.style.ERROR(
+                    "Invalid --task. Use one of: github_activity, "
+                    "collect_and_import_if_new, collect_libraries, library_tracker."
+                )
+            )
+            return
+
         # Parse date arguments
         start_date = None
         end_date = None

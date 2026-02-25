@@ -21,7 +21,12 @@ import requests
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from boost_library_tracker.models import BoostLibraryRepository, BoostVersion
+from boost_library_tracker.models import (
+    BoostLibrary,
+    BoostLibraryRepository,
+    BoostLibraryVersion,
+    BoostVersion,
+)
 from boost_library_tracker.parsing import (
     parse_gitmodules_lib_submodules,
     parse_libraries_json_full,
@@ -101,7 +106,8 @@ def _collect_libraries_for_version(
     fetch meta/libraries.json from raw URL and create BoostLibraryVersion records
     with full metadata (description, authors, maintainers, categories, cxxstd).
 
-    When dry_run is True, no DB writes; returns (would_process_count, submodules_processed).
+    When dry_run is True, no DB writes; returns (would_create_count, submodules_processed)
+    by checking existing BoostLibraryVersion rows. Otherwise returns (library_versions_created, submodules_processed).
 
     Returns (library_versions_created, submodules_processed).
     """
@@ -117,6 +123,7 @@ def _collect_libraries_for_version(
         return 0, 0
     lib_submodules = parse_gitmodules_lib_submodules(gitmodules_text)
 
+    version_obj = BoostVersion.objects.filter(version=ref).first() if dry_run else None
     created_total = 0
     for submodule_name, _path_in_boost in lib_submodules:
         boost_repo = BoostLibraryRepository.objects.filter(
@@ -139,7 +146,18 @@ def _collect_libraries_for_version(
 
         for lib_data in lib_data_list:
             if dry_run:
-                created_total += 1
+                lib_name = lib_data["name"]
+                library = BoostLibrary.objects.filter(
+                    repo=boost_repo, name=lib_name
+                ).first()
+                if version_obj is None:
+                    created_total += 1
+                elif library is None:
+                    created_total += 1
+                elif not BoostLibraryVersion.objects.filter(
+                    library=library, version=version_obj
+                ).exists():
+                    created_total += 1
                 continue
             lib_name = lib_data["name"]
             description = lib_data["description"]
@@ -315,7 +333,7 @@ class Command(BaseCommand):
                     total_versions_created += 1
                     self.stdout.write(f"Would create BoostVersion: {tag_name}")
                 self.stdout.write(
-                    f"  {tag_name}: {lib_created} library versions from {submodules} submodules"
+                    f"  {tag_name}: {lib_created} library version(s) would be created from {submodules} submodules"
                 )
                 continue
             try:
@@ -347,7 +365,10 @@ class Command(BaseCommand):
             f"{total_lib_versions_created} library versions created."
         )
         if dry_run:
-            summary = summary.replace("created.", "would be created (dry run).")
+            summary = (
+                f"\nDone (dry run): {total_versions_created} version row(s) would be created, "
+                f"{total_lib_versions_created} library version(s) would be created."
+            )
         self.stdout.write(self.style.SUCCESS(summary))
 
     def _process_refs(self, refs_list: list[str], *, dry_run: bool = False) -> None:
@@ -369,7 +390,7 @@ class Command(BaseCommand):
                     total_versions_created += 1
                     self.stdout.write(f"Would create BoostVersion: {ref}")
                 self.stdout.write(
-                    f"  {ref}: {lib_created} library versions from {submodules} submodules"
+                    f"  {ref}: {lib_created} library version(s) would be created from {submodules} submodules"
                 )
                 continue
             try:
@@ -398,5 +419,8 @@ class Command(BaseCommand):
             f"{total_lib_versions_created} library versions created."
         )
         if dry_run:
-            summary = summary.replace("created.", "would be created (dry run).")
+            summary = (
+                f"\nDone (dry run): {total_versions_created} version row(s) would be created, "
+                f"{total_lib_versions_created} library version(s) would be created."
+            )
         self.stdout.write(self.style.SUCCESS(summary))
