@@ -245,7 +245,7 @@ class Command(BaseCommand):
             help="Fetch and report what would be done; no DB writes.",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *_args, **options):
         try:
             token = get_github_token(use="scraping")
         except ValueError as e:
