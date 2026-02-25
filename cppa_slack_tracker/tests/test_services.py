@@ -11,7 +11,6 @@ from cppa_slack_tracker.services import (
     add_channel_membership_change,
     save_slack_message,
     sync_channel_memberships,
-    _parse_slack_timestamp,
     _parse_slack_ts_string,
 )
 from cppa_slack_tracker.models import (
@@ -146,7 +145,10 @@ class TestSlackService:
         assert membership.is_deleted
 
     def test_save_slack_message(
-        self, sample_slack_channel, sample_slack_user, sample_slack_message_data
+        self,
+        sample_slack_channel,
+        sample_slack_user,
+        sample_slack_message_data,
     ):
         """Test saving a Slack message."""
         message = save_slack_message(
@@ -180,7 +182,9 @@ class TestSlackService:
 
         # But should create membership change log
         logs = SlackChannelMembershipChangeLog.objects.filter(
-            channel=sample_slack_channel, user=sample_slack_user, is_joined=True
+            channel=sample_slack_channel,
+            user=sample_slack_user,
+            is_joined=True,
         )
         assert logs.exists()
 
@@ -251,14 +255,6 @@ class TestSlackService:
             channel=sample_slack_channel, user=user2
         )
         assert not membership2.is_deleted
-
-    def test_parse_slack_timestamp(self):
-        """Test parsing Slack timestamps."""
-        timestamp = 1609459200.0  # 2021-01-01 00:00:00 UTC
-        dt = _parse_slack_timestamp(timestamp)
-        assert dt.year == 2021
-        assert dt.month == 1
-        assert dt.day == 1
 
     def test_parse_slack_ts_string(self):
         """Test parsing Slack timestamp strings."""

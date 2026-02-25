@@ -308,17 +308,24 @@ class Command(BaseCommand):
                         continue
                     ch_id = msg.get("channel")
                     channel = channel_by_id.get(ch_id) if ch_id else None
-                    if channel:
-                        try:
-                            save_slack_message(channel, msg)
-                        except Exception:
-                            msg_ts = msg.get("ts", msg.get("client_msg_id", "?"))
-                            logger.exception(
-                                "Failed to save message from --messages-json: channel_id=%s ts=%s",
-                                ch_id,
-                                msg_ts,
-                            )
-                            load_failures += 1
+                    if not channel:
+                        load_failures += 1
+                        logger.warning(
+                            "Skipping message from --messages-json with unknown channel_id=%s ts=%s",
+                            ch_id,
+                            msg.get("ts", msg.get("client_msg_id", "?")),
+                        )
+                        continue
+                    try:
+                        save_slack_message(channel, msg)
+                    except Exception:
+                        msg_ts = msg.get("ts", msg.get("client_msg_id", "?"))
+                        logger.exception(
+                            "Failed to save message from --messages-json: channel_id=%s ts=%s",
+                            ch_id,
+                            msg_ts,
+                        )
+                        load_failures += 1
                 if load_failures:
                     self.stdout.write(
                         self.style.WARNING(

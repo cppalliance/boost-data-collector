@@ -27,7 +27,11 @@ def sync_team(team_id: str, team_name: Optional[str] = None) -> SlackTeam:
     """Get or create a SlackTeam by team_id. Fetches real team name from API when missing or same as team_id."""
     name = (team_name or "").strip() or None
     if not name or name == team_id:
-        team_data = fetch_team_info(team_id)
+        try:
+            team_data = fetch_team_info(team_id)
+        except Exception:
+            logger.exception("Failed to fetch team info for team_id=%s", team_id)
+            team_data = None
         if team_data:
             fetched_id = team_data.get("id") or team_id
             if fetched_id == team_id:

@@ -55,17 +55,6 @@ SUBTYPE_IGNORE = [
 ]
 
 
-# --- Helpers ---
-def _parse_slack_timestamp(timestamp: Optional[float]) -> datetime:
-    """Convert Slack timestamp to datetime."""
-    if timestamp:
-        try:
-            return datetime.fromtimestamp(timestamp, tz=timezone.utc)
-        except (ValueError, TypeError, OSError):
-            pass
-    return datetime.now(timezone.utc)
-
-
 def _parse_slack_ts_string(ts: str) -> datetime:
     """Convert Slack timestamp string to datetime."""
     try:
