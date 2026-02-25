@@ -3,7 +3,7 @@ Management command: run_boost_library_tracker
 
 Runs several tasks in order:
   1. Fetch GitHub activity (main repo boostorg/boost + all submodules)
-  2. Collect all Boost libraries (from .gitmodules + meta/libraries.json; no doc extensions)
+  2. If new version releases exist: collect_boost_libraries (--new-only) and import_boost_dependencies for each new version
   3. Library tracker (stub; to be implemented)
   4. ...
 """
@@ -22,6 +22,7 @@ from github_activity_tracker.services import (
 )
 from github_activity_tracker.sync import sync_github
 
+from boost_library_tracker.models import BoostVersion
 from boost_library_tracker.services import get_or_create_boost_library_repo
 from github_ops import get_github_client
 from github_ops.client import ConnectionException, RateLimitException
@@ -197,6 +198,59 @@ def task_collect_libraries(self, ref: str, dry_run: bool = False) -> None:
     )
 
 
+def task_collect_and_import_if_new_releases(
+    self, dry_run: bool = False
+) -> None:
+    """
+    If there are new releases (not in BoostVersion): run collect_boost_libraries --new-only,
+    then import_boost_dependencies for each new version.
+    """
+    self.stdout.write(
+        "Checking for new releases and running collect + import if any..."
+    )
+    if dry_run:
+        self.stdout.write(
+            "  Would run collect_boost_libraries (new-only) then import_boost_dependencies for new versions."
+        )
+        return
+
+    existing_versions = set(
+        BoostVersion.objects.values_list("version", flat=True)
+    )
+    call_command(
+        "collect_boost_libraries",
+        new_only=True,
+        stdout=self.stdout,
+        stderr=self.stderr,
+    )
+    current_versions = set(
+        BoostVersion.objects.values_list("version", flat=True)
+    )
+    new_versions = sorted(current_versions - existing_versions)
+
+    if not new_versions:
+        self.stdout.write(
+            self.style.SUCCESS(
+                "No new releases; skipping import_boost_dependencies."
+            )
+        )
+        return
+
+    self.stdout.write(
+        self.style.SUCCESS(
+            f"New version(s): {len(new_versions)}. Running import_boost_dependencies for each."
+        )
+    )
+    for tag in new_versions:
+        self.stdout.write(f"  Importing dependencies for {tag}...")
+        call_command(
+            "import_boost_dependencies",
+            boost_version=tag,
+            stdout=self.stdout,
+            stderr=self.stderr,
+        )
+
+
 def task_library_tracker(self, dry_run: bool = False) -> None:
     """Library tracker (versions, dependencies, etc.). Stub for now."""
     self.stdout.write("Task 3: Library tracker (stub)...")
@@ -206,8 +260,9 @@ def task_library_tracker(self, dry_run: bool = False) -> None:
 
 class Command(BaseCommand):
     help = (
-        "Run Boost Library Tracker: GitHub activity (boostorg/boost + submodules), "
-        "then collect all libraries, then library tracker, etc."
+        "Run Boost Library Tracker: (1) GitHub activity for boostorg/boost + submodules; "
+        "(2) if new releases exist, collect_boost_libraries and import_boost_dependencies; "
+        "(3) library tracker stub, etc."
     )
 
     def add_arguments(self, parser):
@@ -220,12 +275,13 @@ class Command(BaseCommand):
             "--ref",
             type=str,
             default="develop",
-            help="Ref for collect_boost_libraries (.gitmodules and meta/libraries.json). Default: develop.",
+            help="Ref for task collect_libraries (.gitmodules and meta/libraries.json). Default: develop.",
         )
         parser.add_argument(
             "--task",
             type=str,
             default=None,
+            help="Run only this task: 'github_activity', 'collect_and_import_if_new', 'collect_libraries', or 'library_tracker'. Default: run all.",
             help="Run only this task: 'github_activity' or 'library_tracker'. Default: run all.",
         )
         parser.add_argument(
@@ -309,6 +365,8 @@ class Command(BaseCommand):
                     from_library=from_library,
                 )
                 task_fetch_github_activity(self, dry_run=dry_run)
+            if not task_filter or task_filter == "collect_and_import_if_new":
+                task_collect_and_import_if_new_releases(self, dry_run=dry_run)
             if not task_filter or task_filter == "collect_libraries":
                 task_collect_libraries(self, ref=ref, dry_run=dry_run)
             if not task_filter or task_filter == "library_tracker":
