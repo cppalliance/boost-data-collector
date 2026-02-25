@@ -125,7 +125,7 @@ WORKSPACE_DIR = Path(
     env("WORKSPACE_DIR", default=str(BASE_DIR / "workspace"))
 ).resolve()
 # Raw: unprocessed fetch output (e.g. raw/cppa_slack_tracker/<team_id>/<channel_id>/YYYY-MM-DD.json)
-RAW_DIR = Path(env("RAW_DIR", default=str(BASE_DIR / "raw"))).resolve()
+RAW_DIR = Path(env("RAW_DIR", default=str(WORKSPACE_DIR / "raw"))).resolve()
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 _WORKSPACE_APP_SLUGS = (
     "github_activity_tracker",

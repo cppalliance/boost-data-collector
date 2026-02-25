@@ -106,7 +106,7 @@ def get_or_create_slack_team(
     if not team_data.get("team_id"):
         raise ValueError("Slack team ID is required")
     team_id = team_data["team_id"]
-    team_name = team_data.get("team_name", team_id)
+    team_name = team_data.get("team_name") or team_id
     team, created = SlackTeam.objects.get_or_create(
         team_id=team_id,
         defaults={"team_name": team_name},
@@ -131,11 +131,13 @@ def get_or_create_slack_channel(
     if creator_user_id:
         creator = _get_or_fetch_slack_user(creator_user_id)
     description = ""
-    if slack_channel.get("purpose"):
-        description = slack_channel["purpose"].get("value") or ""
-    elif slack_channel.get("topic"):
-        description = slack_channel["topic"].get("value") or ""
-    channel_name = slack_channel.get("name", slack_channel["id"])
+    purpose = slack_channel.get("purpose")
+    topic = slack_channel.get("topic")
+    if isinstance(purpose, dict):
+        description = purpose.get("value") or ""
+    elif isinstance(topic, dict):
+        description = topic.get("value") or ""
+    channel_name = (slack_channel.get("name") or slack_channel.get("id") or "").strip()
     if slack_channel.get("is_im"):
         channel_type = "im"
     elif slack_channel.get("is_mpim"):

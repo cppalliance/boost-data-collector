@@ -81,7 +81,11 @@ def sync_channels(
     if channel_id:
         from operations.slack_ops.tokens import get_slack_client
 
-        data = get_slack_client().conversations_info(channel_id)
+        try:
+            data = get_slack_client().conversations_info(channel_id)
+        except Exception:
+            logger.exception("conversations.info raised for channel_id=%s", channel_id)
+            return 0, 1
         if not data.get("ok"):
             logger.warning(
                 "conversations.info failed: %s", data.get("error", "unknown")
@@ -136,11 +140,17 @@ def sync_channels(
             return success_count, error_count
 
     # No channels.json or load failed: fetch from API
-    channels = fetch_channel_list(
-        team_id or team.team_id,
-        types=types,
-        exclude_archived=exclude_archived,
-    )
+    try:
+        channels = fetch_channel_list(
+            team_id or team.team_id,
+            types=types,
+            exclude_archived=exclude_archived,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to fetch channels for team_id=%s", team_id or team.team_id
+        )
+        return success_count, error_count + 1
     for ch in channels:
         try:
             if _process_channel_info(ch, team):

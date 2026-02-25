@@ -243,22 +243,32 @@ class Command(BaseCommand):
     def _load_messages_from_json_path(self, path: str) -> list[dict]:
         """Load message dicts from a JSON file or from JSON files in a directory."""
         messages = []
-        if os.path.isfile(path):
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+
+        def _append_payload(data):
             if isinstance(data, list):
                 messages.extend(data)
             else:
                 messages.append(data)
+
+        if os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                _append_payload(data)
+            except (OSError, json.JSONDecodeError):
+                logger.exception("Failed to load legacy messages JSON: %s", path)
         elif os.path.isdir(path):
             for name in sorted(os.listdir(path)):
                 if name.endswith(".json"):
-                    with open(os.path.join(path, name), "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    if isinstance(data, list):
-                        messages.extend(data)
-                    else:
-                        messages.append(data)
+                    file_path = os.path.join(path, name)
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        _append_payload(data)
+                    except (OSError, json.JSONDecodeError):
+                        logger.exception(
+                            "Skipping invalid legacy messages JSON: %s", file_path
+                        )
         return messages
 
     def sync_messages(self, options, team: SlackTeam):

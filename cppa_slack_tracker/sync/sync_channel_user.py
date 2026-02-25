@@ -111,7 +111,7 @@ def sync_channel_users(
             channels = [SlackChannel.objects.get(team=team, channel_id=channel_id)]
         except SlackChannel.DoesNotExist:
             logger.warning("Channel %s not found in team %s", channel_id, team.team_id)
-            return 0, 1
+            channels = list(SlackChannel.objects.filter(team=team))
     else:
         channels = list(SlackChannel.objects.filter(team=team))
     success_count = 0

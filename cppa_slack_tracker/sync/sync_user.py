@@ -78,8 +78,12 @@ def sync_users(
                 logger.warning("Failed to remove %s: %s", users_path, unlink_e)
 
         if members_from_file is not None:
+            has_invalid_entry = False
             for user_data in members_from_file:
                 if not isinstance(user_data, dict):
+                    has_invalid_entry = True
+                    error_count += 1
+                    logger.warning("Skipping malformed user payload: %r", user_data)
                     continue
                 try:
                     if _process_user_info(user_data, include_bots=include_bots):
@@ -91,11 +95,13 @@ def sync_users(
                         e,
                     )
                     error_count += 1
-            try:
-                users_path.unlink()
-            except OSError as e:
-                logger.warning("Failed to remove %s: %s", users_path, e)
-            return success_count, error_count
+            if not has_invalid_entry:
+                try:
+                    users_path.unlink()
+                except OSError as e:
+                    logger.warning("Failed to remove %s: %s", users_path, e)
+                return success_count, error_count
+            # Fall through to API fetch to recover from malformed file content
 
     # No users.json or load failed: fetch from API
     try:
@@ -108,13 +114,18 @@ def sync_users(
         )
         return success_count, error_count
     for user_data in members:
+        if not isinstance(user_data, dict):
+            logger.warning("Skipping malformed user payload: %r", user_data)
+            error_count += 1
+            continue
         try:
             if _process_user_info(user_data, include_bots=include_bots):
                 success_count += 1
         except Exception as e:
+            user_id = user_data.get("id") if isinstance(user_data, dict) else None
             logger.warning(
                 "Failed to sync user %s: %s",
-                user_data.get("id"),
+                user_id,
                 e,
             )
             error_count += 1
