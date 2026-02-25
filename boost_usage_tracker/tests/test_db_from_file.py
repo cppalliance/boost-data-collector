@@ -38,19 +38,27 @@ def test_update_db_from_file_unsupported_table_returns_errors():
 def test_update_db_from_file_github_account_from_dir(tmp_path):
     """update_db_from_file loads JSON from dir and creates/updates GitHubAccount and BaseProfile."""
     (tmp_path / "a.json").write_text(
-        json.dumps({
-            "github_account_id": 1001,
-            "username": "alice",
-            "display_name": "Alice",
-            "account_type": "user",
-        }),
+        json.dumps(
+            {
+                "github_account_id": 1001,
+                "username": "alice",
+                "display_name": "Alice",
+                "account_type": "user",
+            }
+        ),
         encoding="utf-8",
     )
     (tmp_path / "b.json").write_text(
-        json.dumps([
-            {"github_account_id": 1002, "username": "bob", "account_type": "user"},
-            {"github_account_id": 1003, "username": "org1", "account_type": "organization"},
-        ]),
+        json.dumps(
+            [
+                {"github_account_id": 1002, "username": "bob", "account_type": "user"},
+                {
+                    "github_account_id": 1003,
+                    "username": "org1",
+                    "account_type": "organization",
+                },
+            ]
+        ),
         encoding="utf-8",
     )
     result = update_db_from_file(source=tmp_path, table="github_account")
@@ -75,7 +83,9 @@ def test_update_db_from_file_github_account_from_single_json_file(tmp_path):
         json.dumps({"github_account_id": 2001, "username": "single"}),
         encoding="utf-8",
     )
-    result = update_db_from_file(source=tmp_path / "single.json", table="github_account")
+    result = update_db_from_file(
+        source=tmp_path / "single.json", table="github_account"
+    )
     assert result["created"] == 1
     assert GitHubAccount.objects.get(github_account_id=2001).username == "single"
 
@@ -84,11 +94,13 @@ def test_update_db_from_file_github_account_from_single_json_file(tmp_path):
 def test_update_db_from_file_github_account_skips_invalid_records(tmp_path):
     """Records missing github_account_id or with invalid id are skipped."""
     (tmp_path / "mixed.json").write_text(
-        json.dumps([
-            {"github_account_id": 3001, "username": "ok"},
-            {"username": "no_id"},
-            {"github_account_id": "not_a_number", "username": "bad"},
-        ]),
+        json.dumps(
+            [
+                {"github_account_id": 3001, "username": "ok"},
+                {"username": "no_id"},
+                {"github_account_id": "not_a_number", "username": "bad"},
+            ]
+        ),
         encoding="utf-8",
     )
     result = update_db_from_file(source=tmp_path, table="github_account")

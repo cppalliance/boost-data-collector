@@ -14,7 +14,6 @@ from boost_usage_tracker.models import (
     BoostUsage,
 )
 
-
 # --- BoostExternalRepository ---
 
 
@@ -99,14 +98,20 @@ def test_boost_external_repository_default_bools(external_github_repository):
 @pytest.mark.django_db
 def test_boost_external_repository_meta_db_table():
     """BoostExternalRepository uses correct db_table."""
-    assert BoostExternalRepository._meta.db_table == "boost_usage_tracker_boostexternalrepository"
+    assert (
+        BoostExternalRepository._meta.db_table
+        == "boost_usage_tracker_boostexternalrepository"
+    )
 
 
 @pytest.mark.django_db
 def test_boost_external_repository_meta_verbose_names():
     """BoostExternalRepository has correct verbose_name and verbose_name_plural."""
     assert BoostExternalRepository._meta.verbose_name == "Boost External Repository"
-    assert BoostExternalRepository._meta.verbose_name_plural == "Boost External Repositories"
+    assert (
+        BoostExternalRepository._meta.verbose_name_plural
+        == "Boost External Repositories"
+    )
 
 
 @pytest.mark.django_db
@@ -197,11 +202,14 @@ def test_boost_usage_unique_repo_header_file(
         external_github_file,
     )
     assert created2 is False
-    assert BoostUsage.objects.filter(
-        repo=ext_repo,
-        boost_header=boost_file,
-        file_path=external_github_file,
-    ).count() == 1
+    assert (
+        BoostUsage.objects.filter(
+            repo=ext_repo,
+            boost_header=boost_file,
+            file_path=external_github_file,
+        ).count()
+        == 1
+    )
 
 
 # --- BoostUsage: edge cases and boundaries ---
@@ -263,7 +271,12 @@ def test_boost_usage_unique_repo_file_path_when_boost_header_null(
         "boost/header_b.hpp",
     )
     assert usage1.pk == usage2.pk
-    assert BoostUsage.objects.filter(repo=ext_repo, file_path=external_github_file, boost_header__isnull=True).count() == 1
+    assert (
+        BoostUsage.objects.filter(
+            repo=ext_repo, file_path=external_github_file, boost_header__isnull=True
+        ).count()
+        == 1
+    )
     assert BoostMissingHeaderTmp.objects.filter(usage=usage1).count() == 2
 
 
@@ -376,10 +389,13 @@ def test_boost_missing_header_tmp_unique_usage_header(
         "boost/unique.hpp",
     )
     assert created2 is False
-    assert BoostMissingHeaderTmp.objects.filter(
-        usage__repo=ext_repo,
-        header_name="boost/unique.hpp",
-    ).count() == 1
+    assert (
+        BoostMissingHeaderTmp.objects.filter(
+            usage__repo=ext_repo,
+            header_name="boost/unique.hpp",
+        ).count()
+        == 1
+    )
 
 
 @pytest.mark.django_db
@@ -441,7 +457,11 @@ def test_boost_missing_header_tmp_multiple_headers_same_usage(
     )
     assert usage.pk == tmp1.usage_id == tmp2.usage_id
     assert BoostMissingHeaderTmp.objects.filter(usage=usage).count() == 2
-    assert set(BoostMissingHeaderTmp.objects.filter(usage=usage).values_list("header_name", flat=True)) == {
+    assert set(
+        BoostMissingHeaderTmp.objects.filter(usage=usage).values_list(
+            "header_name", flat=True
+        )
+    ) == {
         "boost/one.hpp",
         "boost/two.hpp",
     }
@@ -471,7 +491,10 @@ def test_boost_missing_header_tmp_duplicate_usage_header_raises_integrity_error(
 @pytest.mark.django_db
 def test_boost_missing_header_tmp_meta_db_table():
     """BoostMissingHeaderTmp uses correct db_table."""
-    assert BoostMissingHeaderTmp._meta.db_table == "boost_usage_tracker_boostmissingheadertmp"
+    assert (
+        BoostMissingHeaderTmp._meta.db_table
+        == "boost_usage_tracker_boostmissingheadertmp"
+    )
 
 
 @pytest.mark.django_db

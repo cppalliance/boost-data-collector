@@ -16,7 +16,6 @@ from boost_usage_tracker.models import (
     BoostUsage,
 )
 
-
 # --- get_or_create_boost_external_repo ---
 
 
@@ -37,7 +36,9 @@ def test_get_or_create_boost_external_repo_creates_new(external_github_repositor
 
 
 @pytest.mark.django_db
-def test_get_or_create_boost_external_repo_gets_existing(ext_repo, external_github_repository):
+def test_get_or_create_boost_external_repo_gets_existing(
+    ext_repo, external_github_repository
+):
     """get_or_create_boost_external_repo returns existing and (repo, False)."""
     repo, created = services.get_or_create_boost_external_repo(
         external_github_repository,
@@ -75,7 +76,9 @@ def test_get_or_create_boost_external_repo_updates_flags(
 
 
 @pytest.mark.django_db
-def test_get_or_create_boost_external_repo_empty_boost_version(external_github_repository):
+def test_get_or_create_boost_external_repo_empty_boost_version(
+    external_github_repository,
+):
     """get_or_create_boost_external_repo accepts empty boost_version."""
     repo, created = services.get_or_create_boost_external_repo(
         external_github_repository,
@@ -87,7 +90,9 @@ def test_get_or_create_boost_external_repo_empty_boost_version(external_github_r
 
 
 @pytest.mark.django_db
-def test_get_or_create_boost_external_repo_boost_version_max_length(external_github_repository):
+def test_get_or_create_boost_external_repo_boost_version_max_length(
+    external_github_repository,
+):
     """get_or_create_boost_external_repo accepts boost_version at max 64 chars."""
     max_ver = "1." + "9" * 62
     assert len(max_ver) == 64
@@ -103,7 +108,9 @@ def test_get_or_create_boost_external_repo_boost_version_max_length(external_git
 @pytest.mark.django_db
 def test_get_or_create_boost_external_repo_defaults_only(external_github_repository):
     """get_or_create_boost_external_repo with only required arg uses defaults."""
-    repo, created = services.get_or_create_boost_external_repo(external_github_repository)
+    repo, created = services.get_or_create_boost_external_repo(
+        external_github_repository
+    )
     assert created is True
     assert repo.boost_version == ""
     assert repo.is_boost_embedded is False
@@ -265,11 +272,14 @@ def test_create_or_update_boost_usage_idempotent(
         external_github_file,
     )
     assert created2 is False
-    assert BoostUsage.objects.filter(
-        repo=ext_repo,
-        boost_header=boost_file,
-        file_path=external_github_file,
-    ).count() == 1
+    assert (
+        BoostUsage.objects.filter(
+            repo=ext_repo,
+            boost_header=boost_file,
+            file_path=external_github_file,
+        ).count()
+        == 1
+    )
 
 
 # --- create_or_update_boost_usage: edge cases ---
@@ -523,10 +533,13 @@ def test_get_or_create_missing_header_usage_gets_existing_tmp(
         "boost/same.hpp",
     )
     assert created2 is False
-    assert BoostMissingHeaderTmp.objects.filter(
-        usage=usage2,
-        header_name="boost/same.hpp",
-    ).count() == 1
+    assert (
+        BoostMissingHeaderTmp.objects.filter(
+            usage=usage2,
+            header_name="boost/same.hpp",
+        ).count()
+        == 1
+    )
 
 
 @pytest.mark.django_db
@@ -621,7 +634,9 @@ def test_bulk_create_or_update_boost_usage_creates_many(
     created, updated = services.bulk_create_or_update_boost_usage(ext_repo, items)
     assert created == 2
     assert updated == 0
-    assert BoostUsage.objects.filter(repo=ext_repo, excepted_at__isnull=True).count() == 2
+    assert (
+        BoostUsage.objects.filter(repo=ext_repo, excepted_at__isnull=True).count() == 2
+    )
 
 
 @pytest.mark.django_db
