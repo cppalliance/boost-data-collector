@@ -79,8 +79,12 @@ def test_preprocesser_incremental_by_created_at(
     )
 
     now = timezone.now()
-    MailingListMessage.objects.filter(pk=old_msg.pk).update(created_at=now - timedelta(days=2))
-    MailingListMessage.objects.filter(pk=new_msg.pk).update(created_at=now - timedelta(hours=1))
+    MailingListMessage.objects.filter(pk=old_msg.pk).update(
+        created_at=now - timedelta(days=2)
+    )
+    MailingListMessage.objects.filter(pk=new_msg.pk).update(
+        created_at=now - timedelta(hours=1)
+    )
 
     docs, _ = preprocess_mailing_list_for_pinecone([], now - timedelta(days=1))
     assert len(docs) == 1
@@ -106,7 +110,9 @@ def test_preprocesser_retries_failed_ids_even_if_old(
         list_name=default_list_name,
     )
     now = timezone.now()
-    MailingListMessage.objects.filter(pk=retry_msg.pk).update(created_at=now - timedelta(days=10))
+    MailingListMessage.objects.filter(pk=retry_msg.pk).update(
+        created_at=now - timedelta(days=10)
+    )
 
     docs, _ = preprocess_mailing_list_for_pinecone(
         failed_ids=["<retry@example.com>"],
@@ -211,7 +217,8 @@ def test_preprocesser_handles_empty_body_with_metadata_fallback_content(
     )
 
     docs, _ = preprocess_mailing_list_for_pinecone([], None)
-    target = next(d for d in docs if d["metadata"]["doc_id"] == "<empty-body@example.com>")
+    target = next(
+        d for d in docs if d["metadata"]["doc_id"] == "<empty-body@example.com>"
+    )
     assert "List: " in target["content"]
     assert "Sent At: " in target["content"]
-

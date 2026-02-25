@@ -114,7 +114,9 @@ def test_filter_by_date_all_before_start():
 def test_format_email_minimal_item():
     """format_email handles minimal item with only required keys."""
     item = {}
-    source_url = "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    source_url = (
+        "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    )
     out = fetcher.format_email(item, source_url)
     assert out["msg_id"] == ""
     assert out["parent_id"] == ""
@@ -139,7 +141,9 @@ def test_format_email_full_item():
         "sender": {"address": "user (a) example.com", "other": "ignored"},
         "sender_name": "Test User",
     }
-    source_url = "https://lists.boost.org/archives/api/list/boost-users@lists.boost.org/emails/"
+    source_url = (
+        "https://lists.boost.org/archives/api/list/boost-users@lists.boost.org/emails/"
+    )
     out = fetcher.format_email(item, source_url)
     assert out["msg_id"] == "<msg-123@lists.boost.org>"
     assert out["parent_id"] == "456"
@@ -155,7 +159,9 @@ def test_format_email_full_item():
 def test_format_email_sender_none():
     """format_email handles missing or None sender."""
     item = {"message_id_hash": "<x@y>", "sender": None}
-    source_url = "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    source_url = (
+        "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    )
     out = fetcher.format_email(item, source_url)
     assert out["sender_address"] == ""
     assert out["sender_name"] == ""
@@ -164,7 +170,9 @@ def test_format_email_sender_none():
 def test_format_email_sender_missing_address():
     """format_email handles sender dict without address key."""
     item = {"message_id_hash": "<x@y>", "sender": {}}
-    source_url = "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    source_url = (
+        "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    )
     out = fetcher.format_email(item, source_url)
     assert out["sender_address"] == ""
 
@@ -176,7 +184,9 @@ def test_format_email_parent_thread_with_trailing_slash():
         "parent": "https://example.com/thread/123/",
         "thread": "https://example.com/thread/456/",
     }
-    source_url = "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    source_url = (
+        "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    )
     out = fetcher.format_email(item, source_url)
     assert out["parent_id"] == "123"
     assert out["thread_id"] == "456"
@@ -185,7 +195,9 @@ def test_format_email_parent_thread_with_trailing_slash():
 def test_format_email_parent_thread_empty_string():
     """format_email handles empty parent/thread (split gives empty or single segment)."""
     item = {"message_id_hash": "<id>", "parent": "", "thread": ""}
-    source_url = "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    source_url = (
+        "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    )
     out = fetcher.format_email(item, source_url)
     assert out["parent_id"] == ""
     assert out["thread_id"] == ""
@@ -290,7 +302,9 @@ def test_fetch_email_list_returns_none_on_fetch_failure():
 
 def test_fetch_email_list_returns_none_when_no_results():
     """fetch_email_list returns None when API returns empty results."""
-    with patch.object(fetcher, "_fetch_page", return_value={"results": [], "next": None}):
+    with patch.object(
+        fetcher, "_fetch_page", return_value={"results": [], "next": None}
+    ):
         result = fetcher.fetch_email_list(
             "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/",
         )
@@ -303,7 +317,9 @@ def test_fetch_email_list_returns_filtered_results():
         fetcher,
         "_fetch_page",
         return_value={
-            "results": [{"date": "2024-06-15T12:00:00Z", "url": "https://example.com/1"}],
+            "results": [
+                {"date": "2024-06-15T12:00:00Z", "url": "https://example.com/1"}
+            ],
             "next": None,
         },
     ):

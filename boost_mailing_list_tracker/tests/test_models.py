@@ -46,7 +46,9 @@ def test_mailing_list_name_labels():
 
 
 @pytest.mark.django_db
-def test_mailing_list_message_links_sender(mailing_list_profile, default_list_name, sample_sent_at):
+def test_mailing_list_message_links_sender(
+    mailing_list_profile, default_list_name, sample_sent_at
+):
     """MailingListMessage is linked to MailingListProfile as sender."""
     from boost_mailing_list_tracker import services
 
@@ -369,7 +371,10 @@ def test_mailing_list_message_empty_msg_id_rejected_by_db(
 @pytest.mark.django_db
 def test_mailing_list_message_meta():
     """MailingListMessage Meta: db_table, ordering, verbose_name."""
-    assert MailingListMessage._meta.db_table == "boost_mailing_list_tracker_mailinglistmessage"
+    assert (
+        MailingListMessage._meta.db_table
+        == "boost_mailing_list_tracker_mailinglistmessage"
+    )
     assert MailingListMessage._meta.ordering == ["-sent_at"]
     assert MailingListMessage._meta.verbose_name == "Mailing list message"
     assert MailingListMessage._meta.verbose_name_plural == "Mailing list messages"

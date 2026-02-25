@@ -9,6 +9,7 @@ Flow (like github_activity_tracker):
 1. Process existing JSONs → load, persist to DB, remove file.
 2. Fetch from API → save raw to workspace/raw/boost_mailing_list_app/<list_name>/, save formatted to messages/, persist to DB, remove formatted file.
 """
+
 import re
 from pathlib import Path
 

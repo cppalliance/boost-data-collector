@@ -229,7 +229,11 @@ def fetch_all_emails(
             logger.warning("No email index data for %s", list_name)
             continue
 
-        logger.info("  Found %d email entries for %s; fetching content...", len(url_list), list_name)
+        logger.info(
+            "  Found %d email entries for %s; fetching content...",
+            len(url_list),
+            list_name,
+        )
 
         for item in url_list:
             url = item.get("url")

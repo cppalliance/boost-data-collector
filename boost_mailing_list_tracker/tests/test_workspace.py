@@ -4,7 +4,6 @@ Covers paths for messages and raw dirs (workspace/raw/boost_mailing_list_app/<li
 edge cases: empty list_name, unsafe msg_id chars, long ids, iterators.
 """
 
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -25,12 +24,15 @@ from boost_mailing_list_tracker.workspace import (
 @pytest.fixture
 def mock_workspace_path(tmp_path):
     """Patch get_workspace_path so app slug returns tmp_path subdir; creates dirs like real impl."""
+
     def _get_path(app_slug):
         p = tmp_path / app_slug
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    with patch("boost_mailing_list_tracker.workspace.get_workspace_path", side_effect=_get_path):
+    with patch(
+        "boost_mailing_list_tracker.workspace.get_workspace_path", side_effect=_get_path
+    ):
         yield tmp_path
 
 
@@ -56,7 +58,10 @@ def test_get_workspace_root_creates_dir(mock_workspace_path):
 def test_get_list_dir_returns_list_subdir(mock_workspace_path):
     """get_list_dir returns workspace/boost_mailing_list_tracker/<list_name>/."""
     path = get_list_dir("boost@lists.boost.org")
-    assert path == mock_workspace_path / "boost_mailing_list_tracker" / "boost@lists.boost.org"
+    assert (
+        path
+        == mock_workspace_path / "boost_mailing_list_tracker" / "boost@lists.boost.org"
+    )
     assert path.is_dir()
 
 
@@ -70,6 +75,7 @@ def test_get_list_dir_creates_parents(mock_workspace_path):
 def test_get_list_dir_sanitizes_unsafe_list_name(mock_workspace_path):
     """get_list_dir uses _safe_msg_id for list_name (replaces / \\ : * ? etc.)."""
     from boost_mailing_list_tracker.workspace import _safe_msg_id
+
     path = get_list_dir("list/with:bad*chars")
     safe = _safe_msg_id("list/with:bad*chars")
     assert path.name == safe
@@ -82,7 +88,13 @@ def test_get_list_dir_sanitizes_unsafe_list_name(mock_workspace_path):
 def test_get_raw_dir_returns_raw_app_list_path(mock_workspace_path):
     """get_raw_dir returns workspace/raw/boost_mailing_list_app/<list_name>/."""
     path = get_raw_dir("boost@lists.boost.org")
-    assert path == mock_workspace_path / "raw" / "boost_mailing_list_app" / "boost@lists.boost.org"
+    assert (
+        path
+        == mock_workspace_path
+        / "raw"
+        / "boost_mailing_list_app"
+        / "boost@lists.boost.org"
+    )
     assert "raw" in str(path)
     assert "boost_mailing_list_app" in str(path)
     assert path.is_dir()
@@ -116,7 +128,7 @@ def test_get_raw_json_path_returns_raw_list_msg_json(mock_workspace_path):
 
 def test_get_raw_json_path_sanitizes_msg_id(mock_workspace_path):
     """get_raw_json_path uses filesystem-safe filename for msg_id."""
-    path = get_raw_json_path("list", '<msg/with\\:bad*chars?')
+    path = get_raw_json_path("list", "<msg/with\\:bad*chars?")
     assert path.parent.is_dir() or path.parent == get_raw_dir("list")
     assert " " not in path.name or path.name == "unknown.json"
 
@@ -127,7 +139,13 @@ def test_get_raw_json_path_sanitizes_msg_id(mock_workspace_path):
 def test_get_messages_dir_returns_messages_subdir(mock_workspace_path):
     """get_messages_dir returns .../boost_mailing_list_tracker/<list_name>/messages/."""
     path = get_messages_dir("boost@lists.boost.org")
-    assert path == mock_workspace_path / "boost_mailing_list_tracker" / "boost@lists.boost.org" / "messages"
+    assert (
+        path
+        == mock_workspace_path
+        / "boost_mailing_list_tracker"
+        / "boost@lists.boost.org"
+        / "messages"
+    )
     assert path.is_dir()
 
 
@@ -147,18 +165,21 @@ def test_get_message_json_path_returns_messages_msg_json(mock_workspace_path):
 def test_safe_msg_id_empty_returns_unknown():
     """_safe_msg_id('') returns 'unknown' (used in path)."""
     from boost_mailing_list_tracker.workspace import _safe_msg_id
+
     assert _safe_msg_id("") == "unknown"
 
 
 def test_safe_msg_id_whitespace_only_returns_empty_after_strip():
     """_safe_msg_id with whitespace-only returns '' (strip gives empty; only literal '' returns 'unknown')."""
     from boost_mailing_list_tracker.workspace import _safe_msg_id
+
     assert _safe_msg_id("   ") == ""
 
 
 def test_safe_msg_id_replaces_unsafe_chars():
     """_safe_msg_id replaces / \\ : * ? " < > | with underscore."""
     from boost_mailing_list_tracker.workspace import _safe_msg_id
+
     out = _safe_msg_id("<msg/with\\:bad*chars?>")
     assert "/" not in out
     assert "\\" not in out
@@ -174,6 +195,7 @@ def test_safe_msg_id_replaces_unsafe_chars():
 def test_safe_msg_id_truncates_over_200():
     """_safe_msg_id truncates to 200 chars."""
     from boost_mailing_list_tracker.workspace import _safe_msg_id
+
     long_id = "a" * 250
     out = _safe_msg_id(long_id)
     assert len(out) == 200
@@ -190,7 +212,9 @@ def test_iter_existing_message_jsons_empty_when_no_dir(mock_workspace_path):
 
 def test_iter_existing_message_jsons_yields_json_files(mock_workspace_path):
     """iter_existing_message_jsons yields Path for each *.json in messages/."""
-    messages_dir = mock_workspace_path / "boost_mailing_list_tracker" / "some-list" / "messages"
+    messages_dir = (
+        mock_workspace_path / "boost_mailing_list_tracker" / "some-list" / "messages"
+    )
     messages_dir.mkdir(parents=True)
     (messages_dir / "a.json").write_text("{}")
     (messages_dir / "b.json").write_text("{}")
@@ -201,7 +225,9 @@ def test_iter_existing_message_jsons_yields_json_files(mock_workspace_path):
 
 def test_iter_existing_message_jsons_ignores_non_json(mock_workspace_path):
     """iter_existing_message_jsons only yields *.json files."""
-    messages_dir = mock_workspace_path / "boost_mailing_list_tracker" / "list" / "messages"
+    messages_dir = (
+        mock_workspace_path / "boost_mailing_list_tracker" / "list" / "messages"
+    )
     messages_dir.mkdir(parents=True)
     (messages_dir / "x.json").write_text("{}")
     (messages_dir / "x.txt").write_text("")
@@ -222,11 +248,24 @@ def test_iter_all_list_dirs_empty_when_no_root(mock_workspace_path):
 
 def test_iter_all_list_dirs_yields_lists_with_messages(mock_workspace_path):
     """iter_all_list_dirs yields (list_name, messages_dir) for each list with messages/."""
-    (mock_workspace_path / "boost_mailing_list_tracker" / "list1" / "messages").mkdir(parents=True)
-    (mock_workspace_path / "boost_mailing_list_tracker" / "list2" / "messages").mkdir(parents=True)
-    (mock_workspace_path / "boost_mailing_list_tracker" / "list2" / "messages" / "1.json").write_text("{}")
+    (mock_workspace_path / "boost_mailing_list_tracker" / "list1" / "messages").mkdir(
+        parents=True
+    )
+    (mock_workspace_path / "boost_mailing_list_tracker" / "list2" / "messages").mkdir(
+        parents=True
+    )
+    (
+        mock_workspace_path
+        / "boost_mailing_list_tracker"
+        / "list2"
+        / "messages"
+        / "1.json"
+    ).write_text("{}")
     # get_workspace_root() is patched to return tmp_path / "boost_mailing_list_tracker"
-    with patch("boost_mailing_list_tracker.workspace.get_workspace_path", return_value=mock_workspace_path / "boost_mailing_list_tracker"):
+    with patch(
+        "boost_mailing_list_tracker.workspace.get_workspace_path",
+        return_value=mock_workspace_path / "boost_mailing_list_tracker",
+    ):
         pairs = list(iter_all_list_dirs())
     assert len(pairs) == 2
     names = {p[0] for p in pairs}
@@ -243,7 +282,9 @@ def test_iter_all_existing_message_jsons_yields_list_and_path(mock_workspace_pat
     root.mkdir(parents=True)
     (root / "listA" / "messages").mkdir(parents=True)
     (root / "listA" / "messages" / "m1.json").write_text("{}")
-    with patch("boost_mailing_list_tracker.workspace.get_workspace_path", return_value=root):
+    with patch(
+        "boost_mailing_list_tracker.workspace.get_workspace_path", return_value=root
+    ):
         items = list(iter_all_existing_message_jsons())
     assert len(items) == 1
     assert items[0][0] == "listA"

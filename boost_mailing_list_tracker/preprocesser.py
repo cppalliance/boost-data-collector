@@ -41,10 +41,9 @@ def _build_document_content(message: MailingListMessage) -> str:
     if message.subject:
         parts.append(f"Subject: {message.subject.strip()}")
 
-    sender_name = (
-        (getattr(message.sender, "display_name", "") or "").strip()
-        or (getattr(getattr(message.sender, "identity", None), "display_name", "") or "").strip()
-    )
+    sender_name = (getattr(message.sender, "display_name", "") or "").strip() or (
+        getattr(getattr(message.sender, "identity", None), "display_name", "") or ""
+    ).strip()
     if sender_name:
         parts.append(f"Sender: {sender_name}")
 
@@ -52,7 +51,7 @@ def _build_document_content(message: MailingListMessage) -> str:
         parts.append(f"List: {message.list_name}")
     if message.sent_at:
         parts.append(f"Sent At: {message.sent_at.isoformat()}")
-    
+
     body = (message.content or "").strip()
     if body:
         parts.append("")
@@ -105,10 +104,9 @@ def preprocess_mailing_list_for_pinecone(
             # Skip unusable empty docs; pipeline also validates chunks.
             continue
 
-        sender_name = (
-            (getattr(message.sender, "display_name", "") or "").strip()
-            or (getattr(getattr(message.sender, "identity", None), "display_name", "") or "").strip()
-        )
+        sender_name = (getattr(message.sender, "display_name", "") or "").strip() or (
+            getattr(getattr(message.sender, "identity", None), "display_name", "") or ""
+        ).strip()
 
         metadata: dict[str, Any] = {
             "doc_id": msg_id,
@@ -126,4 +124,3 @@ def preprocess_mailing_list_for_pinecone(
         docs.append({"content": content, "metadata": metadata})
 
     return docs, False
-

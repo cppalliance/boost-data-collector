@@ -29,7 +29,9 @@ from typing import Any
 
 
 def _to_text(value: Any) -> str:
-    return value if isinstance(value, str) else (str(value) if value is not None else "")
+    return (
+        value if isinstance(value, str) else (str(value) if value is not None else "")
+    )
 
 
 def _extract_url_tail_id(value: Any) -> str:
@@ -102,7 +104,9 @@ def _normalize_sent_at(raw: dict[str, Any]) -> str | None:
         return date_value
 
 
-def _normalize_one(raw: dict[str, Any], thread_info: dict[str, Any] | None = None) -> dict[str, Any]:
+def _normalize_one(
+    raw: dict[str, Any], thread_info: dict[str, Any] | None = None
+) -> dict[str, Any]:
     thread_info = thread_info or {}
 
     msg_id = (
@@ -111,9 +115,8 @@ def _normalize_one(raw: dict[str, Any], thread_info: dict[str, Any] | None = Non
         or _extract_url_tail_id(raw.get("url"))
         or _to_text(raw.get("message_id")).strip()
     )
-    parent_id = (
-        _to_text(raw.get("parent_id")).strip()
-        or _extract_url_tail_id(raw.get("parent"))
+    parent_id = _to_text(raw.get("parent_id")).strip() or _extract_url_tail_id(
+        raw.get("parent")
     )
     thread_id = (
         _to_text(raw.get("thread_id")).strip()
@@ -121,15 +124,12 @@ def _normalize_one(raw: dict[str, Any], thread_info: dict[str, Any] | None = Non
         or _extract_url_tail_id(raw.get("thread_url"))
         or _to_text(thread_info.get("thread_id")).strip()
     )
-    list_name = (
-        _to_text(raw.get("list_name")).strip()
-        or _extract_list_name(
-            raw.get("url"),
-            raw.get("thread_url"),
-            thread_info.get("url"),
-            thread_info.get("emails_url"),
-            raw.get("to"),
-        )
+    list_name = _to_text(raw.get("list_name")).strip() or _extract_list_name(
+        raw.get("url"),
+        raw.get("thread_url"),
+        thread_info.get("url"),
+        thread_info.get("emails_url"),
+        raw.get("to"),
     )
     sender_address, sender_name = _extract_sender(raw)
 

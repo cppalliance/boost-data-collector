@@ -8,7 +8,7 @@ See docs/Contributing.md.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from .models import MailingListMessage, MailingListName
 
@@ -41,13 +41,15 @@ def get_or_create_mailing_list_message(
     """
     if not (msg_id and msg_id.strip()):
         raise ValueError("msg_id must not be empty.")
-    
+
     list_value = (list_name or "").strip()
     valid_values = [m.value for m in MailingListName]
-    
+
     if list_value not in valid_values:
-        raise ValueError(f"list_name must be one of {valid_values}, got {list_value!r}.")
-    
+        raise ValueError(
+            f"list_name must be one of {valid_values}, got {list_value!r}."
+        )
+
     return MailingListMessage.objects.get_or_create(
         msg_id=msg_id.strip(),
         defaults={
