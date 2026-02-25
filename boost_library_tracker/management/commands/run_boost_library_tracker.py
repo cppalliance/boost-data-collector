@@ -70,9 +70,7 @@ def task_fetch_github_activity(
         from_library: If set, start at this repo (including main when 'boost') and sync it and all after.
             Use 'boost' for main repo or a submodule name (e.g. 'build', 'algorithm'). Default: sync all.
     """
-    self.stdout.write(
-        "Task 1: Fetch GitHub activity (main repo + submodules)..."
-    )
+    self.stdout.write("Task 1: Fetch GitHub activity (main repo + submodules)...")
     if start_date:
         self.stdout.write(f"  From: {start_date.isoformat()}")
     if end_date:
@@ -95,9 +93,7 @@ def task_fetch_github_activity(
     repos_to_sync = [(MAIN_OWNER, MAIN_REPO)]
 
     try:
-        content, _ = client.get_file_content(
-            MAIN_OWNER, MAIN_REPO, ".gitmodules"
-        )
+        content, _ = client.get_file_content(MAIN_OWNER, MAIN_REPO, ".gitmodules")
         if content:
             text = content.decode("utf-8")
             submodules = _parse_gitmodules_owner_repo(text)
@@ -119,9 +115,7 @@ def task_fetch_github_activity(
         else:
             raise
     except Exception as e:
-        logger.warning(
-            "Could not fetch .gitmodules: %s; syncing main repo only", e
-        )
+        logger.warning("Could not fetch .gitmodules: %s; syncing main repo only", e)
 
     # If --from-library is set, start at this repo (including main if NAME is 'boost') and all after
     if from_library:
@@ -154,18 +148,14 @@ def task_fetch_github_activity(
         try:
             logger.debug("Syncing %s/%s", owner, repo_name)
             if owner not in owner_accounts:
-                owner_accounts[owner] = get_or_create_owner_account(
-                    client, owner
-                )
+                owner_accounts[owner] = get_or_create_owner_account(client, owner)
             acc = owner_accounts[owner]
             repo, _ = get_or_create_repository(acc, repo_name)
             ensure_repository_owner(repo, acc)
             boost_repo, _ = get_or_create_boost_library_repo(repo)
             sync_github(boost_repo, start_date=start_date, end_date=end_date)
             synced += 1
-            self.stdout.write(
-                self.style.SUCCESS(f"  Synced {owner}/{repo_name}")
-            )
+            self.stdout.write(self.style.SUCCESS(f"  Synced {owner}/{repo_name}"))
         except (ConnectionException, RateLimitException) as e:
             logger.exception("Sync failed for %s/%s: %s", owner, repo_name, e)
             raise
@@ -198,9 +188,7 @@ def task_collect_libraries(self, ref: str, dry_run: bool = False) -> None:
     )
 
 
-def task_collect_and_import_if_new_releases(
-    self, dry_run: bool = False
-) -> None:
+def task_collect_and_import_if_new_releases(self, dry_run: bool = False) -> None:
     """
     If there are new releases (not in BoostVersion): run collect_boost_libraries --new-only,
     then import_boost_dependencies for each new version.
@@ -214,25 +202,19 @@ def task_collect_and_import_if_new_releases(
         )
         return
 
-    existing_versions = set(
-        BoostVersion.objects.values_list("version", flat=True)
-    )
+    existing_versions = set(BoostVersion.objects.values_list("version", flat=True))
     call_command(
         "collect_boost_libraries",
         new_only=True,
         stdout=self.stdout,
         stderr=self.stderr,
     )
-    current_versions = set(
-        BoostVersion.objects.values_list("version", flat=True)
-    )
+    current_versions = set(BoostVersion.objects.values_list("version", flat=True))
     new_versions = sorted(current_versions - existing_versions)
 
     if not new_versions:
         self.stdout.write(
-            self.style.SUCCESS(
-                "No new releases; skipping import_boost_dependencies."
-            )
+            self.style.SUCCESS("No new releases; skipping import_boost_dependencies.")
         )
         return
 
@@ -282,7 +264,6 @@ class Command(BaseCommand):
             type=str,
             default=None,
             help="Run only this task: 'github_activity', 'collect_and_import_if_new', 'collect_libraries', or 'library_tracker'. Default: run all.",
-            help="Run only this task: 'github_activity' or 'library_tracker'. Default: run all.",
         )
         parser.add_argument(
             "--from-date",
@@ -325,16 +306,12 @@ class Command(BaseCommand):
             try:
                 end_date = datetime.fromisoformat(options["to_date"])
             except ValueError as e:
-                self.stderr.write(
-                    self.style.WARNING(f"Invalid --to-date format: {e}")
-                )
+                self.stderr.write(self.style.WARNING(f"Invalid --to-date format: {e}"))
                 end_date = None
 
         # Normalize to UTC-naive so comparison never mixes aware and naive
         if start_date and start_date.tzinfo:
-            start_date = start_date.astimezone(timezone.utc).replace(
-                tzinfo=None
-            )
+            start_date = start_date.astimezone(timezone.utc).replace(tzinfo=None)
         if end_date and end_date.tzinfo:
             end_date = end_date.astimezone(timezone.utc).replace(tzinfo=None)
 
@@ -364,7 +341,6 @@ class Command(BaseCommand):
                     end_date=end_date,
                     from_library=from_library,
                 )
-                task_fetch_github_activity(self, dry_run=dry_run)
             if not task_filter or task_filter == "collect_and_import_if_new":
                 task_collect_and_import_if_new_releases(self, dry_run=dry_run)
             if not task_filter or task_filter == "collect_libraries":
@@ -373,9 +349,7 @@ class Command(BaseCommand):
                 task_library_tracker(self, dry_run=dry_run)
 
             self.stdout.write(
-                self.style.SUCCESS(
-                    "run_boost_library_tracker: finished successfully"
-                )
+                self.style.SUCCESS("run_boost_library_tracker: finished successfully")
             )
             logger.debug("run_boost_library_tracker: finished successfully")
         except Exception as e:

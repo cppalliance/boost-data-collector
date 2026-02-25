@@ -70,7 +70,9 @@ class Command(BaseCommand):
                 # Only for math repo: many libraries → use the one whose name matches "math"
                 if repo_key != "math":
                     continue
-                matching = [lib for lib in libraries if _normalize_name(lib.name) == "math"]
+                matching = [
+                    lib for lib in libraries if _normalize_name(lib.name) == "math"
+                ]
                 if not matching:
                     continue
                 library = matching[0]

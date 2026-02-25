@@ -3,6 +3,7 @@ Workspace paths for boost_library_tracker: raw clones, output files, etc.
 
 Layout: workspace/raw/<app>/  (e.g. clone of boostorg/boost for running get_deps.sh)
 """
+
 from pathlib import Path
 
 from django.conf import settings

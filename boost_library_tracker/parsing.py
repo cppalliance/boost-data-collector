@@ -69,9 +69,7 @@ def parse_libraries_json_library_names(
     return names
 
 
-def parse_libraries_json_full(
-    content: str | bytes, submodule_name: str
-) -> list[dict]:
+def parse_libraries_json_full(content: str | bytes, submodule_name: str) -> list[dict]:
     """
     Parse meta/libraries.json content and return full library data.
     Returns list of dicts with keys: name, key, description, documentation,
@@ -89,7 +87,7 @@ def parse_libraries_json_full(
         libs = [raw]
     else:
         return []
-    
+
     results: list[dict] = []
     for obj in libs:
         if not isinstance(obj, dict):
@@ -108,23 +106,25 @@ def parse_libraries_json_full(
         maintainers = obj.get("maintainers", [])
         category = obj.get("category", [])
         cxxstd = obj.get("cxxstd", "")
-        
+
         if not isinstance(authors, list):
             authors = [authors] if authors else []
         if not isinstance(maintainers, list):
             maintainers = [maintainers] if maintainers else []
         if not isinstance(category, list):
             category = [category] if category else []
-        
-        results.append({
-            "name": lib_name,
-            "key": key,
-            "description": description,
-            "documentation": documentation,
-            "authors": authors,
-            "maintainers": maintainers,
-            "category": category,
-            "cxxstd": cxxstd,
-        })
-    
+
+        results.append(
+            {
+                "name": lib_name,
+                "key": key,
+                "description": description,
+                "documentation": documentation,
+                "authors": authors,
+                "maintainers": maintainers,
+                "category": category,
+                "cxxstd": cxxstd,
+            }
+        )
+
     return results

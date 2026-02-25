@@ -24,9 +24,7 @@ logger = logging.getLogger(__name__)
 
 BOOST_REPO_URL = "https://github.com/boostorg/boost"
 BOOST_TAG_RE = re.compile(r"^boost-([0-9]+)\.([0-9]+)\.0$")
-MIN_BOOST_MINOR_VERSION = (
-    81  # Ignore tags with minor version <= 80 (e.g. boost-1.80.0)
-)
+MIN_BOOST_MINOR_VERSION = 81  # Ignore tags with minor version <= 80 (e.g. boost-1.80.0)
 DEPS_LINE_RE = re.compile(r"^([^\s]+)\s+->\s+(.*)$")
 
 
@@ -94,7 +92,16 @@ def _enable_git_long_paths(clone_dir: Path) -> None:
             text=True,
         )
         subprocess.run(
-            ["git", "submodule", "foreach", "--recursive", "git", "config", "core.longpaths", "true"],
+            [
+                "git",
+                "submodule",
+                "foreach",
+                "--recursive",
+                "git",
+                "config",
+                "core.longpaths",
+                "true",
+            ],
             cwd=clone_dir,
             capture_output=True,
             text=True,
@@ -141,9 +148,7 @@ def _get_git_boost_tags(clone_dir: Path) -> list[str]:
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []
     return [
-        t.strip()
-        for t in result.stdout.splitlines()
-        if BOOST_TAG_RE.match(t.strip())
+        t.strip() for t in result.stdout.splitlines() if BOOST_TAG_RE.match(t.strip())
     ]
 
 
@@ -155,9 +160,7 @@ def _boost_tag_minor_version(tag: str) -> int | None:
     return int(m.group(2))
 
 
-def _get_tags_to_process(
-    clone_dir: Path, version_arg: str | None
-) -> list[str]:
+def _get_tags_to_process(clone_dir: Path, version_arg: str | None) -> list[str]:
     """
     Return list of tags to run boostdep for.
     - version_arg empty/None: only tags that exist in git but NOT in BoostVersion (new tags).
@@ -296,9 +299,7 @@ def _generate_deps_output(
                 text=True,
             )
         except subprocess.CalledProcessError as e:
-            logger.warning(
-                "git checkout/update/clean failed for %s: %s", tag, e
-            )
+            logger.warning("git checkout/update/clean failed for %s: %s", tag, e)
             continue
 
         try:
@@ -419,9 +420,7 @@ class Command(BaseCommand):
             return
         self.stdout.write(self.style.SUCCESS("Submodules ready."))
 
-        self.stdout.write(
-            "Building boostdep (skip if dist/bin/boostdep exists)..."
-        )
+        self.stdout.write("Building boostdep (skip if dist/bin/boostdep exists)...")
         if not _build_boostdep(clone_dir):
             self.stdout.write(self.style.ERROR("Build boostdep failed."))
             return
@@ -445,9 +444,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("Dependencies parsed."))
 
         if not sections:
-            self.stdout.write(
-                self.style.WARNING("No dependency sections parsed.")
-            )
+            self.stdout.write(self.style.WARNING("No dependency sections parsed."))
             return
 
         if dry_run:
@@ -479,9 +476,7 @@ class Command(BaseCommand):
                         stats["skipped_no_library"] += 1
                         missing_library_names.add(dep_name)
                         continue
-                    _, created = add_boost_dependency(
-                        client_lib, version_obj, dep_lib
-                    )
+                    _, created = add_boost_dependency(client_lib, version_obj, dep_lib)
                     if created:
                         stats["dependencies_added"] += 1
 

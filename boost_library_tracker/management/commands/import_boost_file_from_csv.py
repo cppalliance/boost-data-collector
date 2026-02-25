@@ -66,9 +66,7 @@ def _read_csv_rows(csv_path: Path):
     with open(csv_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            row_lower = {
-                k.strip().lower().replace(" ", "_"): v for k, v in row.items()
-            }
+            row_lower = {k.strip().lower().replace(" ", "_"): v for k, v in row.items()}
             library_name = _norm(row_lower.get("library_name"))
             file_name = _norm(row_lower.get("file_name"))
             if not library_name:
@@ -206,9 +204,7 @@ class Command(BaseCommand):
                 continue
 
             if file_name:
-                _link_file_for_path(
-                    repo, library, file_name, stats, error_rows, row
-                )
+                _link_file_for_path(repo, library, file_name, stats, error_rows, row)
 
         if error_rows:
             with open(errors_path, "w", newline="", encoding="utf-8") as f:

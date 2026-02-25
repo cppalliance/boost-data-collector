@@ -219,21 +219,20 @@ def add_library_version_role(
 
 def get_or_create_account_from_name(name: str) -> GitHubAccount:
     """Get or create a GitHubAccount for a contributor name string (from libraries.json).
-    
+
     Looks up by username first. If not found, creates an unknown account with negative ID.
     """
     from cppa_user_tracker.services import (
-        get_or_create_github_account,
         get_or_create_unknown_github_account,
     )
     from cppa_user_tracker.models import GitHubAccount
-    
+
     name = (name or "").strip()
     if not name:
         return get_or_create_unknown_github_account()[0]
-    
+
     existing = GitHubAccount.objects.filter(username=name).first()
     if existing:
         return existing
-    
+
     return get_or_create_unknown_github_account(name=name)[0]

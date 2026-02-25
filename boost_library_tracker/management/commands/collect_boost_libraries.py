@@ -13,6 +13,7 @@ Creates:
 - BoostLibraryRoleRelationship for authors/maintainers
 - BoostLibraryCategoryRelationship for categories
 """
+
 import logging
 from datetime import datetime
 
@@ -42,10 +43,10 @@ logger = logging.getLogger(__name__)
 MAIN_OWNER = "boostorg"
 MAIN_REPO = "boost"
 
-RAW_GITMODULES_URL = "https://raw.githubusercontent.com/boostorg/boost/{ref}/.gitmodules"
-RAW_LIBS_JSON_URL = (
-    "https://raw.githubusercontent.com/boostorg/{submodule_name}/{ref}/meta/libraries.json"
+RAW_GITMODULES_URL = (
+    "https://raw.githubusercontent.com/boostorg/boost/{ref}/.gitmodules"
 )
+RAW_LIBS_JSON_URL = "https://raw.githubusercontent.com/boostorg/{submodule_name}/{ref}/meta/libraries.json"
 FETCH_TIMEOUT = 30
 
 
@@ -72,12 +73,12 @@ def _fetch_releases(client: GitHubAPIClient) -> list[dict]:
     releases = []
     page = 1
     per_page = 100
-    
+
     while True:
         try:
             page_releases = client.rest_request(
                 f"/repos/{MAIN_OWNER}/{MAIN_REPO}/releases",
-                params={"per_page": per_page, "page": page}
+                params={"per_page": per_page, "page": page},
             )
             if not page_releases:
                 break
@@ -88,7 +89,7 @@ def _fetch_releases(client: GitHubAPIClient) -> list[dict]:
         except Exception as e:
             logger.error(f"Failed to fetch releases page {page}: {e}")
             break
-    
+
     return releases
 
 
@@ -110,28 +111,23 @@ def _collect_libraries_for_version(boost_version, ref: str) -> tuple[int, int]:
 
     created_total = 0
     for submodule_name, _path_in_boost in lib_submodules:
-        boost_repo = (
-            BoostLibraryRepository.objects.filter(
-                owner_account__username=MAIN_OWNER,
-                repo_name=submodule_name,
-            )
-            .first()
-        )
+        boost_repo = BoostLibraryRepository.objects.filter(
+            owner_account__username=MAIN_OWNER,
+            repo_name=submodule_name,
+        ).first()
         if not boost_repo:
             logger.debug(
                 "Skipping submodule %s: no BoostLibraryRepository", submodule_name
             )
             continue
 
-        libs_json_url = RAW_LIBS_JSON_URL.format(
-            submodule_name=submodule_name, ref=ref
-        )
+        libs_json_url = RAW_LIBS_JSON_URL.format(submodule_name=submodule_name, ref=ref)
         raw = _fetch_raw_url(libs_json_url)
         if not raw:
             continue
-        
+
         lib_data_list = parse_libraries_json_full(raw, submodule_name)
-        
+
         for lib_data in lib_data_list:
             lib_name = lib_data["name"]
             description = lib_data["description"]
@@ -154,7 +150,7 @@ def _collect_libraries_for_version(boost_version, ref: str) -> tuple[int, int]:
             )
             if created:
                 created_total += 1
-            
+
             for author_name in authors:
                 account = get_or_create_account_from_name(author_name)
                 add_library_version_role(
@@ -162,7 +158,7 @@ def _collect_libraries_for_version(boost_version, ref: str) -> tuple[int, int]:
                     account=account,
                     is_author=True,
                 )
-            
+
             for maintainer_name in maintainers:
                 account = get_or_create_account_from_name(maintainer_name)
                 add_library_version_role(
@@ -170,7 +166,7 @@ def _collect_libraries_for_version(boost_version, ref: str) -> tuple[int, int]:
                     account=account,
                     is_maintainer=True,
                 )
-            
+
             for category_name in categories:
                 category, _ = get_or_create_boost_library_category(category_name)
                 add_library_category(boost_library, category)
@@ -233,9 +229,7 @@ class Command(BaseCommand):
         refs_list = None
         if refs_arg:
             refs_list = [
-                _normalize_ref(r.strip())
-                for r in refs_arg.split(",")
-                if r.strip()
+                _normalize_ref(r.strip()) for r in refs_arg.split(",") if r.strip()
             ]
         elif ref_arg:
             refs_list = [_normalize_ref(ref_arg.strip())]
@@ -255,7 +249,9 @@ class Command(BaseCommand):
             existing_versions = set(
                 BoostVersion.objects.values_list("version", flat=True)
             )
-            releases = [r for r in releases if r.get("tag_name") not in existing_versions]
+            releases = [
+                r for r in releases if r.get("tag_name") not in existing_versions
+            ]
             self.stdout.write(
                 f"Processing {len(releases)} new release(s) (not in BoostVersion)"
             )
@@ -338,7 +334,9 @@ class Command(BaseCommand):
             except Exception as e:
                 logger.exception("Failed to process ref %s", ref)
                 self.stdout.write(
-                    self.style.ERROR(f"Failed ref {ref} (rolled back, retry later): {e}")
+                    self.style.ERROR(
+                        f"Failed ref {ref} (rolled back, retry later): {e}"
+                    )
                 )
                 raise
         self.stdout.write(
