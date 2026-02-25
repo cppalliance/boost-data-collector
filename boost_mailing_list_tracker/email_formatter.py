@@ -124,8 +124,8 @@ def _normalize_one(raw: dict[str, Any], thread_info: dict[str, Any] | None = Non
     list_name = (
         _to_text(raw.get("list_name")).strip()
         or _extract_list_name(
-            raw.get("thread_url"),
             raw.get("url"),
+            raw.get("thread_url"),
             thread_info.get("url"),
             thread_info.get("emails_url"),
             raw.get("to"),
