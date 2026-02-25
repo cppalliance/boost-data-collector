@@ -89,7 +89,10 @@ def _write_json(path: Path, data: dict) -> None:
 
 def save_commit_raw_source(owner: str, repo: str, commit_data: dict) -> None:
     """Save commit JSON to raw/github_activity_tracker (no merge; overwrite)."""
-    path = get_raw_source_commit_path(owner, repo, commit_data.get("sha", ""))
+    sha = commit_data.get("sha")
+    if not isinstance(sha, str) or not sha.strip():
+        return
+    path = get_raw_source_commit_path(owner, repo, sha.strip())
     if not path.name or path.name == ".json":
         return
     _write_json(path, commit_data)
