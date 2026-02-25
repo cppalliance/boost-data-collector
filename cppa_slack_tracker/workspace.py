@@ -50,7 +50,7 @@ def get_workspace_root() -> Path:
 def get_raw_root() -> Path:
     """Return raw root for this app (e.g. RAW_DIR/cppa_slack_tracker/ or workspace/raw/cppa_slack_tracker/)."""
     raw_base = getattr(settings, "RAW_DIR", None)
-    if raw_base is None:
+    if not raw_base:
         raw_base = Path(settings.WORKSPACE_DIR) / "raw"
     path = Path(raw_base) / _APP_SLUG
     path.mkdir(parents=True, exist_ok=True)

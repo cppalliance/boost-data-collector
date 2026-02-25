@@ -44,7 +44,7 @@ def _ts_to_date(ts: Optional[str]) -> Optional[date]:
         return None
     try:
         return datetime.fromtimestamp(float(ts), tz=timezone.utc).date()
-    except (ValueError, TypeError, OSError):
+    except (ValueError, TypeError, OSError, OverflowError):
         return None
 
 

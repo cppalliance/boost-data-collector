@@ -51,7 +51,7 @@ def pre_migrate_dedupe_slack_user_ids(apps, _schema_editor):
                 .first()
             )
             if fallback_identity_id is not None:
-                SlackUser.objects.filter(pk=canonical.pk).update(
+                BaseProfile.objects.filter(pk=canonical.pk).update(
                     identity_id=fallback_identity_id
                 )
         Email.objects.filter(base_profile_id__in=duplicate_pks).update(

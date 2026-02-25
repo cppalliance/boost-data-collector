@@ -37,9 +37,10 @@ def _parse_date(date_str: Optional[str]) -> Optional[datetime]:
     date_str = date_str.strip()
     try:
         if "T" in date_str or " " in date_str:
-            return datetime.fromisoformat(date_str.replace("Z", "+00:00")).astimezone(
-                timezone.utc
-            )
+            dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
         return datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     except ValueError:
         return None

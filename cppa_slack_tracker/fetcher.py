@@ -147,7 +147,7 @@ def _ts_to_utc_date(ts: Optional[str]) -> Optional[date]:
     try:
         dt = datetime.fromtimestamp(float(ts), tz=timezone.utc)
         return dt.date()
-    except (ValueError, TypeError, OSError):
+    except (ValueError, TypeError, OSError, OverflowError):
         return None
 
 
