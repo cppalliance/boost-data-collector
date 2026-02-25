@@ -54,10 +54,15 @@ def _messages_by_day(
     """Group messages by day: a message appears on each day it was created or edited (within range)."""
     by_day: dict[date, list[dict]] = defaultdict(list)
     for msg in messages:
+        if not isinstance(msg, dict):
+            logger.debug("Skip non-dict message payload: %r", msg)
+            continue
         created_d = _ts_to_date(msg.get("ts"))
         if created_d and start_date <= created_d <= end_date:
             by_day[created_d].append(msg)
-        edited = msg.get("edited") or {}
+        edited = msg.get("edited")
+        if not isinstance(edited, dict):
+            edited = {}
         edited_d = _ts_to_date(edited.get("ts"))
         if edited_d and edited_d != created_d and start_date <= edited_d <= end_date:
             by_day[edited_d].append(msg)

@@ -109,7 +109,7 @@ class SlackMessage(models.Model):
         related_name="messages",
         db_column="slack_user_id",
     )
-    message = models.TextField()
+    message = models.TextField(blank=True)
     thread_ts = models.CharField(
         max_length=50,
         null=True,
