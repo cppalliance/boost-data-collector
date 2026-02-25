@@ -105,7 +105,7 @@ class Command(BaseCommand):
             help="Print what would be synced without making changes.",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *_args, **options):
         team_id = (options.get("team_id") or "").strip()
         if not team_id:
             team_id = (getattr(settings, "SLACK_TEAM_ID", "") or "").strip()
@@ -185,7 +185,7 @@ class Command(BaseCommand):
         end_str = (options.get("end_date") or "").strip() or "today"
         self.stdout.write(f"    start={start_str}, end={end_str}")
 
-    def sync_users(self, options, team: SlackTeam):
+    def sync_users(self, _options, team: SlackTeam):
         """Sync users via sync.sync_users (workspace users.json or fetch_user_list)."""
         team_slug = team.team_name
         self.stdout.write(

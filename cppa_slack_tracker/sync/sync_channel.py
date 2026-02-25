@@ -124,8 +124,12 @@ def sync_channels(
                 logger.warning("Failed to remove %s: %s", channels_path, unlink_e)
 
         if channels_from_file is not None:
+            has_invalid_entry = False
             for ch in channels_from_file:
                 if not isinstance(ch, dict):
+                    has_invalid_entry = True
+                    error_count += 1
+                    logger.warning("Skipping malformed channel payload: %r", ch)
                     continue
                 try:
                     if _process_channel_info(ch, team):
@@ -133,11 +137,13 @@ def sync_channels(
                 except Exception as e:
                     logger.warning("Failed to sync channel %s: %s", ch.get("id"), e)
                     error_count += 1
-            try:
-                channels_path.unlink()
-            except OSError as e:
-                logger.warning("Failed to remove %s: %s", channels_path, e)
-            return success_count, error_count
+            if not has_invalid_entry:
+                try:
+                    channels_path.unlink()
+                except OSError as e:
+                    logger.warning("Failed to remove %s: %s", channels_path, e)
+                return success_count, error_count
+            # Fall through to API fetch to recover from malformed file content
 
     # No channels.json or load failed: fetch from API
     try:

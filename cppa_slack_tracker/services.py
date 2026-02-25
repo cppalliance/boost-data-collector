@@ -318,7 +318,9 @@ def save_slack_message(
     if not ts:
         raise ValueError("Message timestamp (ts) is required")
     created_at = _parse_slack_ts_string(ts)
-    edited = slack_message.get("edited", {})
+    edited = slack_message.get("edited")
+    if not isinstance(edited, dict):
+        edited = {}
     updated_at = _parse_slack_ts_string(edited.get("ts", ts)) if edited else created_at
 
     message, created = SlackMessage.objects.get_or_create(

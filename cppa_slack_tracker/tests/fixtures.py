@@ -16,6 +16,7 @@ from cppa_slack_tracker.models import (
 @pytest.fixture
 def sample_identity(db):
     """Create a sample identity."""
+    _ = db
     return Identity.objects.create(
         display_name="Test User",
         description="Test identity",
@@ -25,6 +26,7 @@ def sample_identity(db):
 @pytest.fixture
 def sample_email(db, sample_slack_user):
     """Create a sample email linked to the sample Slack user."""
+    _ = db
     return Email.objects.create(
         base_profile=sample_slack_user,
         email="test@example.com",
@@ -36,6 +38,7 @@ def sample_email(db, sample_slack_user):
 @pytest.fixture
 def sample_slack_user(db, sample_identity):
     """Create a sample Slack user (SlackUser is from cppa_user_tracker)."""
+    _ = db
     return SlackUser.objects.create(
         identity=sample_identity,
         slack_user_id="U12345678",
@@ -48,6 +51,7 @@ def sample_slack_user(db, sample_identity):
 @pytest.fixture
 def sample_slack_team(db):
     """Create a sample Slack team."""
+    _ = db
     return SlackTeam.objects.create(
         team_id="T12345678",
         team_name="Test Team",
@@ -63,6 +67,7 @@ def _sample_slack_team(sample_slack_team):
 @pytest.fixture
 def sample_slack_channel(db, sample_slack_team, sample_slack_user):
     """Create a sample Slack channel."""
+    _ = db
     return SlackChannel.objects.create(
         team=sample_slack_team,
         channel_id="C12345678",
@@ -82,6 +87,7 @@ def _sample_slack_channel(sample_slack_channel):
 @pytest.fixture
 def sample_slack_message(db, sample_slack_channel, sample_slack_user):
     """Create a sample Slack message."""
+    _ = db
     return SlackMessage.objects.create(
         channel=sample_slack_channel,
         ts="1234567890.123456",
@@ -101,6 +107,7 @@ def _sample_slack_message(sample_slack_message):
 @pytest.fixture
 def sample_slack_membership(db, sample_slack_channel, sample_slack_user):
     """Create a sample channel membership."""
+    _ = db
     return SlackChannelMembership.objects.create(
         channel=sample_slack_channel,
         user=sample_slack_user,

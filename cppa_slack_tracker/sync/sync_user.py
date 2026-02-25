@@ -107,6 +107,7 @@ def sync_users(
     try:
         members = fetch_user_list(team_id or team_slug)
     except Exception:
+        error_count += 1
         logger.exception(
             "Failed to fetch users for team_slug=%s team_id=%s",
             team_slug,
