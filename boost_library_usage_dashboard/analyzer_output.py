@@ -6,20 +6,7 @@ import json
 from typing import Any
 
 from .analyzer_libraries import collect_libraries_page_data
-
-
-def _version_key(version: str) -> tuple[int, ...]:
-    """Parse dotted numeric version (e.g. 1.84.0) for sorting/filtering."""
-    if not version:
-        return (0, 0, 0)
-    parts = str(version).split(".")
-    out: list[int] = []
-    for part in parts[:3]:
-        number = "".join(c for c in part if c.isdigit())
-        out.append(int(number) if number else 0)
-    while len(out) < 3:
-        out.append(0)
-    return tuple(out)
+from .utils import _version_tuple
 
 
 def _created_at_key(created_at: str) -> tuple[int, str]:
@@ -71,7 +58,7 @@ def collect_dashboard_data(analyzer: Any, stats: dict[str, Any]) -> None:
     version_counts = stats["version_related_stats"]["distribution_by_version"]
     min_chart_version = "1.34.0"
     repos_by_version_rows: list[tuple[str, str, int]] = []
-    min_key = _version_key(min_chart_version)
+    min_key = _version_tuple(min_chart_version)
     for row in version_counts:
         if not isinstance(row, (list, tuple)) or len(row) < 4:
             continue
@@ -79,11 +66,11 @@ def collect_dashboard_data(analyzer: Any, stats: dict[str, Any]) -> None:
         created_at = str(row[1] or "")
         confirmed = int(row[2] or 0)
         guessed = int(row[3] or 0)
-        if _version_key(version) >= min_key:
+        if _version_tuple(version) >= min_key:
             repos_by_version_rows.append((version, created_at, confirmed + guessed))
 
     repos_by_version_rows.sort(
-        key=lambda x: (_created_at_key(x[1]), _version_key(x[0]))
+        key=lambda x: (_created_at_key(x[1]), _version_tuple(x[0]))
     )
     dashboard_data["repos_by_version"] = [
         (version, count) for version, _, count in repos_by_version_rows

@@ -2,14 +2,15 @@
 
 from pathlib import Path
 from unittest.mock import patch
+import tempfile
 
 from boost_library_usage_dashboard.analyzer import BoostUsageDashboardAnalyzer
 
 
 def _make_analyzer() -> BoostUsageDashboardAnalyzer:
     analyzer = BoostUsageDashboardAnalyzer.__new__(BoostUsageDashboardAnalyzer)
-    analyzer.base_dir = Path("/tmp/non-existent-base")
-    analyzer.output_dir = Path("/tmp/non-existent-output")
+    analyzer.base_dir = Path(tempfile.gettempdir()) / "boost-dashboard-test-base"
+    analyzer.output_dir = Path(tempfile.gettempdir()) / "boost-dashboard-test-output"
     analyzer.version_name_list = ["1.50.0", "1.51.0", "1.52.0", "1.53.0", "1.54.0"]
     analyzer.repo_info = []
     analyzer.library_info = []

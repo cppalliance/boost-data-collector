@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 
 from django.conf import settings
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from boost_library_usage_dashboard.analyzer import BoostUsageDashboardAnalyzer
 from boost_library_usage_dashboard.renderer import render_dashboard_html
@@ -77,7 +77,7 @@ class Command(BaseCommand):
         if options["publish"]:
             target_repo = (options["target_repo"] or "").strip()
             if not target_repo:
-                raise ValueError("--publish requires --target-repo")
+                raise CommandError("--publish requires --target-repo")
             self._publish(
                 output_dir=output_dir,
                 target_repo=target_repo,

@@ -6,10 +6,10 @@ from collections import defaultdict, deque
 from datetime import datetime
 from typing import Any
 
-from cppa_user_tracker.models import Email
 from github_activity_tracker.models import GitCommitFileChange
 
 from boost_library_tracker.models import BoostDependency
+from boost_library_usage_dashboard.utils import _version_tuple
 
 
 def collect_dependents_data(analyzer: Any) -> dict[int, dict[str, Any]]:
@@ -119,16 +119,10 @@ def collect_commit_info_by_library(analyzer: Any) -> dict[str, Any]:
         .exclude(commit__repo__owner_account__username="")
         .iterator()
     )
-    email_map = {
-        row["base_profile_id"]: row["email"]
-        for row in Email.objects.filter(is_primary=True).values(
-            "base_profile_id", "email"
-        )  # pylint: disable=no-member
-    }
 
-    # Count by distinct (library, version, commit_id) and (library, version, email, commit_id)
+    # Count by distinct (library, version, commit_id) and (library, version, account_id, commit_id)
     version_commits: dict[tuple[str, str], set[int]] = defaultdict(set)
-    person_commits: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(
+    person_commits: dict[tuple[str, str], dict[int, dict[str, Any]]] = defaultdict(
         lambda: defaultdict(lambda: {"identity_name": "", "commit_ids": set()})
     )
 
@@ -143,32 +137,30 @@ def collect_commit_info_by_library(analyzer: Any) -> dict[str, Any]:
             continue
 
         commit_id = change.commit_id
-        email = email_map.get(change.commit.account_id, "")
+        account_id = change.commit.account_id
         identity_name = (
             change.commit.account.identity.display_name
             if change.commit.account.identity_id
             else (
                 change.commit.account.display_name
                 or change.commit.account.username
-                or email
                 or "unknown"
             )
         )
-        if not email:
-            email = f"{change.commit.account.username or 'unknown'}@unknown"
 
         key = (library, version)
         version_commits[key].add(commit_id)
-        person_commits[key][email]["identity_name"] = (
-            person_commits[key][email]["identity_name"] or identity_name
+        person_commits[key][account_id]["identity_name"] = (
+            person_commits[key][account_id]["identity_name"] or identity_name
         )
-        person_commits[key][email]["commit_ids"].add(commit_id)
+        person_commits[key][account_id]["commit_ids"].add(commit_id)
 
     for (library, version), commit_ids in version_commits.items():
         default[library][version]["count"] = len(commit_ids)
-    for (library, version), by_email in person_commits.items():
-        for email, data in by_email.items():
-            default[library][version]["persons"][email] = {
+    for (library, version), by_account in person_commits.items():
+        for account_id, data in by_account.items():
+            # Key by account_id to keep contributors distinct; no email in output
+            default[library][version]["persons"][str(account_id)] = {
                 "identity_name": data["identity_name"],
                 "commit_count": len(data["commit_ids"]),
             }
@@ -235,25 +227,26 @@ def get_contribution_data(lib: dict[str, Any]) -> dict[str, Any]:
             key=lambda x: x[1].get("commit_count", 0),
             reverse=True,
         )
-        for email, person_data in persons:
+        for _account_key, person_data in persons:
             table_data.append(
                 {
                     "version": version,
                     "person": person_data.get("identity_name", ""),
-                    "email_address": email,
                     "commit_count": person_data.get("commit_count", 0),
                 }
             )
-        if version >= (lib.get("created_version") or ""):
+        if _version_tuple(version) >= _version_tuple(lib.get("created_version") or ""):
             chart_data[version] = data.get("count", 0)
-    table_data.sort(key=lambda x: (x["version"], x["commit_count"]), reverse=True)
+    table_data.sort(
+        key=lambda x: (_version_tuple(x["version"]), x["commit_count"]), reverse=True
+    )
     return {"table_data": table_data, "chart_data": chart_data}
 
 
 def get_last_updated_version(contribute_data: dict[str, Any]) -> str:
     """Return latest version key where contributions exist."""
     versions = [k for k, v in contribute_data.items() if v.get("count", 0) > 0]
-    return max(versions) if versions else ""
+    return max(versions, key=_version_tuple) if versions else ""
 
 
 def build_library_overview_data(

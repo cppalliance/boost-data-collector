@@ -4,18 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
-def _version_tuple(version: str) -> tuple[int, int, int]:
-    if not version:
-        return (0, 0, 0)
-    parts = version.split(".")
-    out: list[int] = []
-    for part in parts[:3]:
-        number = "".join(c for c in part if c.isdigit())
-        out.append(int(number) if number else 0)
-    while len(out) < 3:
-        out.append(0)
-    return tuple(out[:3])
+from boost_library_usage_dashboard.utils import _version_tuple
 
 
 def write_summary_report(

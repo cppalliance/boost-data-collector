@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from django.core.management import call_command, get_commands
+from django.core.management.base import CommandError
 
 
 @pytest.mark.django_db
@@ -66,6 +67,13 @@ def test_dashboard_command_publish_requires_target_repo(dashboard_cmd_name, tmp_
         "boost_library_usage_dashboard.management.commands.run_boost_library_usage_dashboard.render_dashboard_html"
     ):
         with pytest.raises(ValueError, match="--publish requires --target-repo"):
+            call_command(
+                dashboard_cmd_name,
+                "--publish",
+                "--output-dir",
+                str(tmp_path),
+            )
+        with pytest.raises(CommandError, match="--publish requires --target-repo"):
             call_command(
                 dashboard_cmd_name,
                 "--publish",

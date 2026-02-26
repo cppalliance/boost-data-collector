@@ -18,6 +18,7 @@ def generate_dashboard_html(
     if not dashboard_data_file.is_file():
         raise FileNotFoundError(f"Dashboard data file not found: {dashboard_data_file}")
 
+    output_dir.mkdir(parents=True, exist_ok=True)
     lib_dir = libraries_dir if libraries_dir is not None else output_dir / "libraries"
     lib_dir.mkdir(parents=True, exist_ok=True)
 

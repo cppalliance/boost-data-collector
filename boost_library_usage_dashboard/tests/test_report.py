@@ -1,6 +1,7 @@
 """Tests for boost_library_usage_dashboard.report."""
 
-from boost_library_usage_dashboard.report import _version_tuple, write_summary_report
+from boost_library_usage_dashboard.report import write_summary_report
+from boost_library_usage_dashboard.utils import _version_tuple
 
 
 def test_version_tuple_handles_empty_and_non_numeric():

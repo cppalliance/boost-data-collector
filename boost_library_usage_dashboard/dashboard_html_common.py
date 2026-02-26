@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import json
 from typing import Any
 
 CHARTJS_VERSION = "4.4.0"
@@ -13,17 +14,22 @@ def e(value: Any) -> str:
     return html.escape(str(value), quote=True)
 
 
+def json_for_script(value: Any) -> str:
+    """Serialize value to JSON safe for embedding inside a <script> element.
+
+    Escapes </ so that string content cannot break out of the script tag.
+    """
+    raw = json.dumps(value, ensure_ascii=False)
+    return raw.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029").replace(
+        "</", r"\u003c/"
+    )
+
+
 def version_key(version: str) -> tuple[int, int, int]:
-    """Sort key for semantic-ish versions like '1.85.0'."""
-    if not version:
-        return (0, 0, 0)
-    nums = []
-    for part in version.split(".")[:3]:
-        digits = "".join(ch for ch in part if ch.isdigit())
-        nums.append(int(digits) if digits else 0)
-    while len(nums) < 3:
-        nums.append(0)
-    return tuple(nums[:3])
+    """Sort key for semantic-ish versions like '1.85.0'. Delegates to utils._version_tuple."""
+    from boost_library_usage_dashboard.utils import _version_tuple
+
+    return _version_tuple(version)
 
 
 def base_css() -> str:
@@ -73,7 +79,7 @@ def table_container(
 ) -> str:
     """Render generic table controls + sortable table skeleton."""
     headers_html = "".join(
-        f"<th class='sortable' data-key='{e(key)}'>{e(label)} <span class='sort-indicator'>↕</span></th>"
+        f"<th><button type='button' class='sortable' data-key='{e(key)}' aria-label='Sort by {e(label)}'>{e(label)} <span class='sort-indicator'>↕</span></button></th>"
         for label, key in headers
     )
     return f"""
@@ -96,6 +102,7 @@ def table_js() -> str:
 function toNumber(v){ if (v === null || v === undefined || v === '') return 0; const n = Number(v); return Number.isFinite(n) ? n : 0; }
 function toText(v){ return (v ?? '').toString().toLowerCase(); }
 function toDate(v){ if(!v) return 0; const t = Date.parse(v); return Number.isFinite(t) ? t : 0; }
+function esc(s){ if (s == null || s === undefined) return ''; const t = String(s); return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 function initDataTable(cfg){
   const pageSize = 10;
@@ -133,7 +140,7 @@ function initDataTable(cfg){
     });
   }
   function updateIndicators(){
-    table.querySelectorAll('th.sortable').forEach(th => {
+    table.querySelectorAll('.sortable').forEach(th => {
       const indicator = th.querySelector('.sort-indicator');
       if(!indicator) return;
       if(th.dataset.key === sortKey) indicator.textContent = sortAsc ? '↑' : '↓';
@@ -155,7 +162,7 @@ function initDataTable(cfg){
     updateIndicators();
   }
 
-  table.querySelectorAll('th.sortable').forEach(th => {
+  table.querySelectorAll('.sortable').forEach(th => {
     th.addEventListener('click', () => {
       const key = th.dataset.key;
       if(sortKey === key) sortAsc = !sortAsc;

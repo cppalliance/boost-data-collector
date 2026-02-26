@@ -96,7 +96,11 @@ def calculate_trend_metrics(
             "past_usage": 0,
         }
 
-    to_last_year_data = year_data[:-1] if len(year_data) > 1 else year_data
+    current_year = datetime.now().year
+    # Exclude only the in-progress current year when present.
+    to_last_year_data = [(y, v) for y, v in year_data if y < current_year]
+    if not to_last_year_data:
+        to_last_year_data = year_data
     recent_usage = sum(
         v["created_count"] for y, v in to_last_year_data if y >= recent_year_threshold
     )

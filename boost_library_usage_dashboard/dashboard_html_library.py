@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +9,7 @@ from boost_library_usage_dashboard.dashboard_html_common import (
     CHARTJS_VERSION,
     base_css,
     e,
+    json_for_script,
     table_container,
     table_js,
     version_key,
@@ -172,7 +172,7 @@ def build_library_page(
           info_id="info-contrib",
           prev_id="prev-contrib",
           next_id="next-contrib",
-          headers=[("Version", "version"), ("Contributor", "person"), ("Email", "email_address"), ("Commit Count", "commit_count")],
+          headers=[("Version", "version"), ("Contributor", "person"), ("Commit Count", "commit_count")],
         )}
       </div>
       <div class="chart-container"><canvas id="commitChart"></canvas></div>
@@ -181,47 +181,47 @@ def build_library_page(
 
   <script>
     {table_js()}
-    const headersRows = {json.dumps(headers_rows)};
-    const internalRows = {json.dumps(dependents)};
-    const externalRows = {json.dumps(ext)};
-    const contribRows = {json.dumps(contrib)};
-    const depVersions = {json.dumps(versions)};
-    const depFirst = {json.dumps(dep_first)};
-    const depAll = {json.dumps(dep_all)};
-    const usageYears = {json.dumps(years)};
-    const byCreated = {json.dumps(by_created)};
-    const byUpdated = {json.dumps(by_updated)};
-    const repoCounts = {json.dumps(repo_counts)};
-    const commitVersions = {json.dumps(commit_versions)};
-    const commitCounts = {json.dumps(commit_counts)};
+    const headersRows = {json_for_script(headers_rows)};
+    const internalRows = {json_for_script(dependents)};
+    const externalRows = {json_for_script(ext)};
+    const contribRows = {json_for_script(contrib)};
+    const depVersions = {json_for_script(versions)};
+    const depFirst = {json_for_script(dep_first)};
+    const depAll = {json_for_script(dep_all)};
+    const usageYears = {json_for_script(years)};
+    const byCreated = {json_for_script(by_created)};
+    const byUpdated = {json_for_script(by_updated)};
+    const repoCounts = {json_for_script(repo_counts)};
+    const commitVersions = {json_for_script(commit_versions)};
+    const commitCounts = {json_for_script(commit_counts)};
 
     initDataTable({{
       data: headersRows, tableId:'table-headers', searchId:'search-headers',
       infoId:'info-headers', prevId:'prev-headers', nextId:'next-headers',
       defaultSortKey:'count', defaultSortAsc:false,
       columns:[{{key:'name',type:'text'}},{{key:'count',type:'number'}}],
-      rowHtml:(r)=>`<tr><td>${{r.name || ''}}</td><td>${{toNumber(r.count).toLocaleString()}}</td></tr>`
+      rowHtml:(r)=>`<tr><td>${{esc(r.name || '')}}</td><td>${{toNumber(r.count).toLocaleString()}}</td></tr>`
     }});
     initDataTable({{
       data: internalRows, tableId:'table-internal', searchId:'search-internal',
       infoId:'info-internal', prevId:'prev-internal', nextId:'next-internal',
       defaultSortKey:'depth', defaultSortAsc:true,
       columns:[{{key:'name',type:'text'}},{{key:'depth',type:'number'}}],
-      rowHtml:(r)=>`<tr><td><a href="${{(r.name || '').replace(/[^\\w\\-.]/g,'_')}}.html">${{r.name || ''}}</a></td><td>${{toNumber(r.depth)}}</td></tr>`
+      rowHtml:(r)=>`<tr><td><a href="${{esc((r.name || '').replace(/[^\\w\\-.]/g,'_'))}}.html">${{esc(r.name || '')}}</a></td><td>${{toNumber(r.depth)}}</td></tr>`
     }});
     initDataTable({{
       data: externalRows, tableId:'table-external', searchId:'search-external',
       infoId:'info-external', prevId:'prev-external', nextId:'next-external',
       defaultSortKey:'stars', defaultSortAsc:false,
       columns:[{{key:'name',type:'text'}},{{key:'stars',type:'number'}},{{key:'usage_count',type:'number'}},{{key:'created_at',type:'date'}},{{key:'updated_at',type:'date'}}],
-      rowHtml:(r)=>`<tr><td><a href="https://github.com/${{r.name || ''}}" target="_blank">${{r.name || ''}}</a></td><td>${{toNumber(r.stars).toLocaleString()}}</td><td>${{toNumber(r.usage_count).toLocaleString()}}</td><td>${{(r.created_at || '').toString().slice(0,10) || 'N/A'}}</td><td>${{(r.updated_at || '').toString().slice(0,10) || 'N/A'}}</td></tr>`
+      rowHtml:(r)=>`<tr><td><a href="https://github.com/${{esc(r.name || '')}}" target="_blank">${{esc(r.name || '')}}</a></td><td>${{toNumber(r.stars).toLocaleString()}}</td><td>${{toNumber(r.usage_count).toLocaleString()}}</td><td>${{esc((r.created_at || '').toString().slice(0,10) || 'N/A')}}</td><td>${{esc((r.updated_at || '').toString().slice(0,10) || 'N/A')}}</td></tr>`
     }});
     initDataTable({{
       data: contribRows, tableId:'table-contrib', searchId:'search-contrib',
       infoId:'info-contrib', prevId:'prev-contrib', nextId:'next-contrib',
       defaultSortKey:'commit_count', defaultSortAsc:false,
-      columns:[{{key:'version',type:'text'}},{{key:'person',type:'text'}},{{key:'email_address',type:'text'}},{{key:'commit_count',type:'number'}}],
-      rowHtml:(r)=>`<tr><td>${{r.version || ''}}</td><td>${{r.person || ''}}</td><td>${{r.email_address || ''}}</td><td>${{toNumber(r.commit_count).toLocaleString()}}</td></tr>`
+      columns:[{{key:'version',type:'text'}},{{key:'person',type:'text'}},{{key:'commit_count',type:'number'}}],
+      rowHtml:(r)=>`<tr><td>${{esc(r.version || '')}}</td><td>${{esc(r.person || '')}}</td><td>${{toNumber(r.commit_count).toLocaleString()}}</td></tr>`
     }});
 
     new Chart(document.getElementById('dependentsChart'), {{
