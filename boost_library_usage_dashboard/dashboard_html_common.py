@@ -20,8 +20,10 @@ def json_for_script(value: Any) -> str:
     Escapes </ so that string content cannot break out of the script tag.
     """
     raw = json.dumps(value, ensure_ascii=False)
-    return raw.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029").replace(
-        "</", r"\u003c/"
+    return (
+        raw.replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+        .replace("</", r"\u003c/")
     )
 
 
