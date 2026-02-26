@@ -1,6 +1,6 @@
 """Tests for boost_mailing_list_tracker.workspace.
 
-Covers paths for messages and raw dirs (workspace/raw/boost_mailing_list_app/<list_name>),
+Covers paths for messages and raw dirs (workspace/raw/boost_mailing_list_tracker/<list_name>),
 edge cases: empty list_name, unsafe msg_id chars, long ids, iterators.
 """
 
@@ -82,29 +82,29 @@ def test_get_list_dir_sanitizes_unsafe_list_name(mock_workspace_path):
     assert "/" not in path.name and ":" not in path.name and "*" not in path.name
 
 
-# --- get_raw_dir (workspace/raw/boost_mailing_list_app/<list_name>) ---
+# --- get_raw_dir (workspace/raw/boost_mailing_list_tracker/<list_name>) ---
 
 
 def test_get_raw_dir_returns_raw_app_list_path(mock_workspace_path):
-    """get_raw_dir returns workspace/raw/boost_mailing_list_app/<list_name>/."""
+    """get_raw_dir returns workspace/raw/boost_mailing_list_tracker/<list_name>/."""
     path = get_raw_dir("boost@lists.boost.org")
     assert (
         path
         == mock_workspace_path
         / "raw"
-        / "boost_mailing_list_app"
+        / "boost_mailing_list_tracker"
         / "boost@lists.boost.org"
     )
     assert "raw" in str(path)
-    assert "boost_mailing_list_app" in str(path)
+    assert "boost_mailing_list_tracker" in str(path)
     assert path.is_dir()
 
 
 def test_get_raw_dir_creates_parents(mock_workspace_path):
-    """get_raw_dir creates raw/boost_mailing_list_app/<list_name>."""
+    """get_raw_dir creates raw/boost_mailing_list_tracker/<list_name>."""
     path = get_raw_dir("boost-announce@lists.boost.org")
     assert path.exists()
-    assert (mock_workspace_path / "raw" / "boost_mailing_list_app").exists()
+    assert (mock_workspace_path / "raw" / "boost_mailing_list_tracker").exists()
 
 
 def test_get_raw_dir_idempotent(mock_workspace_path):
@@ -118,12 +118,12 @@ def test_get_raw_dir_idempotent(mock_workspace_path):
 
 
 def test_get_raw_json_path_returns_raw_list_msg_json(mock_workspace_path):
-    """get_raw_json_path returns .../raw/boost_mailing_list_app/<list_name>/<msg_id_safe>.json."""
+    """get_raw_json_path returns .../raw/boost_mailing_list_tracker/<list_name>/<msg_id_safe>.json."""
     path = get_raw_json_path("boost@lists.boost.org", "<msg-123@example.com>")
     assert path.parent == get_raw_dir("boost@lists.boost.org")
     assert path.suffix == ".json"
     assert "raw" in str(path)
-    assert "boost_mailing_list_app" in str(path)
+    assert "boost_mailing_list_tracker" in str(path)
 
 
 def test_get_raw_json_path_sanitizes_msg_id(mock_workspace_path):
