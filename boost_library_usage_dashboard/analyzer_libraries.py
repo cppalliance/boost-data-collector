@@ -138,12 +138,13 @@ def collect_commit_info_by_library(analyzer: Any) -> dict[str, Any]:
 
         commit_id = change.commit_id
         account_id = change.commit.account_id
+        account = change.commit.account
         identity_name = (
-            change.commit.account.identity.display_name
-            if change.commit.account.identity_id
+            account.identity.display_name
+            if account and account.identity_id
             else (
-                change.commit.account.display_name
-                or change.commit.account.username
+                (account.display_name if account else None)
+                or (account.username if account else None)
                 or "unknown"
             )
         )

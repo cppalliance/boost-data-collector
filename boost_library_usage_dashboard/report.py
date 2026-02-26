@@ -40,8 +40,11 @@ def write_summary_report(
     for lib in stats.get("top_libraries", []):
         earliest = lib.get("earliest_commit", "") or "N/A"
         latest = lib.get("latest_commit", "") or "N/A"
+        name = lib.get("name", "Unknown")
+        repo_count = lib.get("repo_count", 0)
+        total_usage = lib.get("total_usage", 0)
         report_lines.append(
-            f"| {lib['name']} | {lib['repo_count']:,} | {lib['total_usage']:,} | {earliest} | {latest} |"
+            f"| {name} | {repo_count:,} | {total_usage:,} | {earliest} | {latest} |"
         )
 
     if stats.get("never_used_libraries"):
