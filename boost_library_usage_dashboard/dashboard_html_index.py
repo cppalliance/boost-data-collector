@@ -11,7 +11,6 @@ from boost_library_usage_dashboard.dashboard_html_common import (
     CHARTJS_VERSION,
     base_css,
     e,
-    json_for_script,
     table_container,
     table_js,
 )
