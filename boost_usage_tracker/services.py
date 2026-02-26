@@ -113,7 +113,7 @@ def update_boost_external_repo(
         ext_repo.is_boost_used = is_boost_used
         update_fields.append("is_boost_used")
     if update_fields:
-        ext_repo.save(update_fields=update_fields + ["updated_at"])
+        ext_repo.save(update_fields=[*update_fields, "updated_at"])
     return ext_repo
 
 
@@ -189,7 +189,11 @@ def get_or_create_missing_header_usage(
     )
     if not _ and last_commit_date and usage.last_commit_date != last_commit_date:
         usage.last_commit_date = last_commit_date
-        usage.save(update_fields=["last_commit_date", "updated_at"])
+        update_fields = ["last_commit_date", "updated_at"]
+        if usage.excepted_at is not None:
+            usage.excepted_at = None
+            update_fields.append("excepted_at")
+        usage.save(update_fields=update_fields)
     tmp, created_tmp = BoostMissingHeaderTmp.objects.get_or_create(
         usage=usage,
         header_name=header_name,

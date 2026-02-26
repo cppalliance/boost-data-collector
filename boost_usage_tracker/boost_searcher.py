@@ -248,8 +248,13 @@ def _get_file_info_rest(
             if isinstance(commits, list) and commits:
                 date_str = commits[0]["commit"]["committer"]["date"]
                 commit_date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(
+                "Failed to fetch commit date for %s/%s: %s",
+                repo_full_name,
+                file_path,
+                e,
+            )
 
         return {"content": content, "commit_date": commit_date}
     except Exception as e:
@@ -263,12 +268,23 @@ def _get_file_info_rest(
 
 
 def _build_boost_include_query(repo_full_names: list[str]) -> tuple[str, list[str]]:
+    """Build a code search query for Boost includes, respecting MAX_CODE_SEARCH_QUERY_LEN.
+
+    Returns (query, remaining_repos). Callers should issue the query, then call again
+    with remaining_repos for further batches if non-empty.
+    """
     base = '"#include <boost/" language:C++ '
     if not repo_full_names:
         return base, []
-    parts = [f"repo:{name}" for name in repo_full_names]
-    query = base + " ".join(parts)
-    return query, repo_full_names
+    query = base
+    remaining: list[str] = []
+    for name in repo_full_names:
+        part = " " + f"repo:{name}"
+        if len(query) + len(part) <= MAX_CODE_SEARCH_QUERY_LEN:
+            query += part
+        else:
+            remaining.append(name)
+    return query, remaining
 
 
 def _chunked(items: list[str], size: int) -> list[list[str]]:
@@ -492,8 +508,9 @@ def search_boost_include_files_batch(
     if len(repo_full_names) == 1:
         return search_boost_include_files(client, repo_full_names[0])
 
-    query, repo_list = _build_boost_include_query(repo_full_names)
-    if not repo_list:
+    query, remaining = _build_boost_include_query(repo_full_names)
+    repos_in_query = repo_full_names[: len(repo_full_names) - len(remaining)]
+    if not repos_in_query:
         return []
 
     time.sleep(SEARCH_DELAY)
@@ -508,15 +525,17 @@ def search_boost_include_files_batch(
 
     total_count = probe.get("total_count", 0)
     if total_count == 0:
-        return []
-    if total_count > 1000 and len(repo_list) > 1:
-        mid = len(repo_list) // 2
-        part1 = search_boost_include_files_batch(client, repo_list[:mid])
-        part2 = search_boost_include_files_batch(client, repo_list[mid:])
+        found = []
+    elif total_count > 1000 and len(repos_in_query) > 1:
+        mid = len(repos_in_query) // 2
+        part1 = search_boost_include_files_batch(client, repos_in_query[:mid])
+        part2 = search_boost_include_files_batch(client, repos_in_query[mid:])
         found = part1 + part2
     else:
         found = _search_boost_include_by_query(client, query)
 
+    if remaining:
+        found = found + search_boost_include_files_batch(client, remaining)
     return found
 
 

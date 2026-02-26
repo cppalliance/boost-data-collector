@@ -106,7 +106,7 @@ def _run_boost_search_stage(
         try:
             batch_file_results = search_boost_include_files_batch(client, batch_names)
         except (ConnectionException, RateLimitException) as e:
-            logger.error("Rate limit / connection error during batch search: %s", e)
+            logger.exception("Rate limit / connection error during batch search: %s", e)
             raise
 
         files_in_batch = len(batch_file_results)
@@ -150,8 +150,10 @@ def _run_boost_search_stage(
                 batch_usages_excepted += stats["usages_excepted"]
                 batch_missing_headers += stats.get("missing_header_recorded", 0)
             except (ConnectionException, RateLimitException) as e:
-                logger.error(
-                    "Rate limit / connection error at %s: %s", repo_result.full_name, e
+                logger.exception(
+                    "Rate limit / connection error at %s: %s",
+                    repo_result.full_name,
+                    e,
                 )
                 raise
             except Exception as e:

@@ -16,7 +16,7 @@ from typing import Any
 from github_activity_tracker.models import Language
 from github_activity_tracker.services import create_or_update_created_repos_by_language
 from github_ops import get_github_client
-from github_ops.client import ConnectionException, RateLimitException
+from github_ops.client import ConnectionException, GitHubAPIClient, RateLimitException
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +27,7 @@ def _parse_languages_csv(value: str) -> list[str]:
     return [item.strip() for item in (value or "").split(",") if item.strip()]
 
 
-def _count_items_from_git(query: str) -> int:
-    client = get_github_client(use="scraping")
+def _count_items_from_git(client: GitHubAPIClient, query: str) -> int:
     data = client.rest_request(
         "/search/repositories",
         params={"q": query, "per_page": 1},
@@ -109,6 +108,7 @@ def update_created_repos_by_language(
     rows_processed = 0
     errors: list[str] = []
     processed_languages: list[str] = []
+    client = get_github_client(use="scraping")
 
     for language_name in ordered_language_names:
         language_obj = language_map.get(language_name)
@@ -120,8 +120,8 @@ def update_created_repos_by_language(
             q_all = f"language:{language_name} created:{year}-01-01..{year}-12-31"
             q_sig = f"language:{language_name} created:{year}-01-01..{year}-12-31 stars:>{stars_min}"
             try:
-                all_repos = _count_items_from_git(q_all)
-                significant_repos = _count_items_from_git(q_sig)
+                all_repos = _count_items_from_git(client, q_all)
+                significant_repos = _count_items_from_git(client, q_sig)
                 _, created = create_or_update_created_repos_by_language(
                     language=language_obj,
                     year=year,
