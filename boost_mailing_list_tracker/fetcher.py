@@ -11,7 +11,7 @@ Ported from old_project_files/fetch_boost_emails.py and adapted for Django
 import json
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import requests
@@ -39,7 +39,10 @@ def _parse_datetime(s: str) -> Optional[datetime]:
         return None
     raw = str(s).strip()
     try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
     except (ValueError, TypeError):
         return None
 
