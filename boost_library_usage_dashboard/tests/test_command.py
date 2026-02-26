@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from django.conf import settings
 from django.core.management import call_command, get_commands
 from django.core.management.base import CommandError
 
@@ -48,7 +49,11 @@ def test_dashboard_command_runs_generation_only(dashboard_cmd_name, tmp_path):
         {"total_repositories": 0},
         stars_min_threshold=10,
     )
-    render_html.assert_called_once()
+    expected_output_dir = Path(str(tmp_path)).resolve()
+    render_html.assert_called_once_with(
+        base_dir=settings.BASE_DIR,
+        output_dir=expected_output_dir,
+    )
 
 
 @pytest.mark.django_db

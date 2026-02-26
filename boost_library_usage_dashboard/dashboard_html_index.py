@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -11,6 +10,7 @@ from boost_library_usage_dashboard.dashboard_html_common import (
     CHARTJS_VERSION,
     base_css,
     e,
+    json_for_script,
     table_container,
     table_js,
 )
@@ -201,22 +201,22 @@ def build_index_page(data: dict[str, Any], output_dir: Path) -> None:
 
   <script>
     {table_js()}
-    const yearLabels = {json.dumps(year_labels)};
-    const yearCounts = {json.dumps(year_counts)};
-    const yearCum = {json.dumps(year_cumulative)};
-    const versionLabels = {json.dumps(version_labels)};
-    const versionCounts = {json.dumps(version_counts)};
-    const versionCum = {json.dumps(version_cumulative)};
-    const boostLabels = {json.dumps(boost_labels)};
-    const boostOver10 = {json.dumps(boost_over_10)};
-    const nonBoostOver10 = {json.dumps(non_boost_over_10)};
-    const boostRate = {json.dumps(boost_rate)};
-    const languageData = {json.dumps(language_data)};
-    const allLanguages = {json.dumps(languages)};
-    const tableLibraryOverview = {json.dumps(library_overview_rows)};
-    const tableTopStars = {json.dumps(top20_by_stars)};
-    const tableTopUsage = {json.dumps(top20_by_usage)};
-    const tableTopCreated = {json.dumps(top20_by_created)};
+    const yearLabels = {json_for_script(year_labels)};
+    const yearCounts = {json_for_script(year_counts)};
+    const yearCum = {json_for_script(year_cumulative)};
+    const versionLabels = {json_for_script(version_labels)};
+    const versionCounts = {json_for_script(version_counts)};
+    const versionCum = {json_for_script(version_cumulative)};
+    const boostLabels = {json_for_script(boost_labels)};
+    const boostOver10 = {json_for_script(boost_over_10)};
+    const nonBoostOver10 = {json_for_script(non_boost_over_10)};
+    const boostRate = {json_for_script(boost_rate)};
+    const languageData = {json_for_script(language_data)};
+    const allLanguages = {json_for_script(languages)};
+    const tableLibraryOverview = {json_for_script(library_overview_rows)};
+    const tableTopStars = {json_for_script(top20_by_stars)};
+    const tableTopUsage = {json_for_script(top20_by_usage)};
+    const tableTopCreated = {json_for_script(top20_by_created)};
 
     function dualChart(id, labels, bars, lines, barLabel, lineLabel) {{
       new Chart(document.getElementById(id), {{
@@ -279,11 +279,11 @@ def build_index_page(data: dict[str, Any], output_dir: Path) -> None:
         {{key:'recent_usage', type:'number'}}, {{key:'activity_score', type:'number'}},
         {{key:'average_stars', type:'number'}}
       ],
-      rowHtml: (r) => `<tr><td><a href="libraries/${{esc(r.safe_name)}}.html">${{esc(r.name || '')}}</a></td><td>${{r.created_version || ''}}</td><td>${{toNumber(r.repo_count).toLocaleString()}}</td><td>${{toNumber(r.total_usage).toLocaleString()}}</td><td>${{toNumber(r.recent_usage).toLocaleString()}}</td><td>${{Number(r.activity_score || 0).toFixed(3)}}</td><td>${{toNumber(r.average_stars).toLocaleString()}}</td></tr>`
+      rowHtml: (r) => `<tr><td><a href="libraries/${{esc(r.safe_name)}}.html">${{esc(r.name || '')}}</a></td><td>${{esc(r.created_version || '')}}</td><td>${{toNumber(r.repo_count).toLocaleString()}}</td><td>${{toNumber(r.total_usage).toLocaleString()}}</td><td>${{toNumber(r.recent_usage).toLocaleString()}}</td><td>${{esc(Number(r.activity_score || 0).toFixed(3))}}</td><td>${{toNumber(r.average_stars).toLocaleString()}}</td></tr>`
     }});
 
     const topColumns = [{{key:'repo_name', type:'text'}}, {{key:'stars', type:'number'}}, {{key:'usage_count', type:'number'}}, {{key:'created_at', type:'date'}}];
-    const topRow = (r) => `<tr><td><a href="https://github.com/${{esc(r.repo_name || '')}}" target="_blank">${{esc(r.repo_name || '')}}</a></td><td>${{toNumber(r.stars).toLocaleString()}}</td><td>${{toNumber(r.usage_count).toLocaleString()}}</td><td>${{(r.created_at || '').toString().slice(0,10) || 'N/A'}}</td></tr>`;
+    const topRow = (r) => `<tr><td><a href="https://github.com/${{esc(r.repo_name || '')}}" target="_blank">${{esc(r.repo_name || '')}}</a></td><td>${{toNumber(r.stars).toLocaleString()}}</td><td>${{toNumber(r.usage_count).toLocaleString()}}</td><td>${{esc((r.created_at || '').toString().slice(0,10) || 'N/A')}}</td></tr>`;
     initDataTable({{ data: tableTopStars, tableId:'table-top-stars', searchId:'search-top-stars', infoId:'info-top-stars', prevId:'prev-top-stars', nextId:'next-top-stars', defaultSortKey:'stars', defaultSortAsc:false, columns: topColumns, rowHtml: topRow }});
     initDataTable({{ data: tableTopUsage, tableId:'table-top-usage', searchId:'search-top-usage', infoId:'info-top-usage', prevId:'prev-top-usage', nextId:'next-top-usage', defaultSortKey:'usage_count', defaultSortAsc:false, columns: topColumns, rowHtml: topRow }});
     initDataTable({{ data: tableTopCreated, tableId:'table-top-created', searchId:'search-top-created', infoId:'info-top-created', prevId:'prev-top-created', nextId:'next-top-created', defaultSortKey:'created_at', defaultSortAsc:false, columns: topColumns, rowHtml: topRow }});

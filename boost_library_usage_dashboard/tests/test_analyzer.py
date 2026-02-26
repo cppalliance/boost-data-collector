@@ -82,7 +82,7 @@ def test_filter_and_sort_libraries_with_conditions_and_limit():
         {"name": "b", "repo_count": 2, "activity_score": 1.5, "total_usage": 10},
         {"name": "c", "repo_count": 5, "activity_score": 0.2, "total_usage": 20},
     ]
-    result = analyzer._filter_and_sort_libraries(
+    result = analyzer.filter_and_sort_libraries(
         fields=["name", "repo_count", "activity_score"],
         sort_field="repo_count",
         sort_order="DESC",

@@ -198,7 +198,7 @@ class BoostUsageDashboardAnalyzer:
         )
 
         stats["version_related_stats"] = self.get_version_distribution()
-        stats["top_libraries"] = self._filter_and_sort_libraries(
+        stats["top_libraries"] = self.filter_and_sort_libraries(
             fields=[
                 "name",
                 "repo_count",
@@ -210,7 +210,7 @@ class BoostUsageDashboardAnalyzer:
             sort_order="DESC",
             limit=20,
         )
-        stats["never_used_libraries"] = self._filter_and_sort_libraries(
+        stats["never_used_libraries"] = self.filter_and_sort_libraries(
             fields=["name", "created_version", "last_updated_version"],
             sort_field="created_version",
             sort_order="ASC",
@@ -218,7 +218,7 @@ class BoostUsageDashboardAnalyzer:
             condition_value=0,
             condition_signal=0,
         )
-        stats["top_active_libraries"] = self._filter_and_sort_libraries(
+        stats["top_active_libraries"] = self.filter_and_sort_libraries(
             fields=[
                 "name",
                 "total_usage",
@@ -230,7 +230,7 @@ class BoostUsageDashboardAnalyzer:
             sort_order="DESC",
             limit=20,
         )
-        stats["bottom_active_libraries"] = self._filter_and_sort_libraries(
+        stats["bottom_active_libraries"] = self.filter_and_sort_libraries(
             fields=[
                 "name",
                 "total_usage",
@@ -392,7 +392,7 @@ class BoostUsageDashboardAnalyzer:
             "language_comparison_data": dict(language_data),
         }
 
-    def _filter_and_sort_libraries(
+    def filter_and_sort_libraries(
         self,
         fields: list[str] | None = None,
         sort_field: str = "name",

@@ -133,7 +133,7 @@ def calculate_trend_metrics(
     if n >= 2:
         sum_x = sum(x_values)
         sum_y = sum(ratios)
-        sum_xy = sum(x * y for x, y in zip(x_values, ratios))
+        sum_xy = sum(x * y for x, y in zip(x_values, ratios, strict=True))
         sum_x2 = sum(x * x for x in x_values)
         denom = n * sum_x2 - sum_x * sum_x
         if denom:

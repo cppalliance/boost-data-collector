@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from .analyzer_libraries import collect_libraries_page_data
 from .utils import _version_tuple
@@ -60,12 +63,22 @@ def collect_dashboard_data(analyzer: Any, stats: dict[str, Any]) -> None:
     repos_by_version_rows: list[tuple[str, str, int]] = []
     min_key = _version_tuple(min_chart_version)
     for row in version_counts:
-        if not isinstance(row, (list, tuple)) or len(row) < 4:
+        if isinstance(row, dict):
+            version = str(row.get("version", row.get(0, "")) or "")
+            created_at = str(row.get("created_at", row.get(1, "")) or "")
+            confirmed = int(row.get("confirmed", row.get(2, 0)) or 0)
+            guessed = int(row.get("guessed", row.get(3, 0)) or 0)
+        elif isinstance(row, (list, tuple)) and len(row) >= 4:
+            version = str(row[0] or "")
+            created_at = str(row[1] or "")
+            confirmed = int(row[2] or 0)
+            guessed = int(row[3] or 0)
+        else:
+            logger.debug(
+                "Skipping malformed version row (expected dict or sequence of length >= 4): %s",
+                row,
+            )
             continue
-        version = str(row[0] or "")
-        created_at = str(row[1] or "")
-        confirmed = int(row[2] or 0)
-        guessed = int(row[3] or 0)
         if _version_tuple(version) >= min_key:
             repos_by_version_rows.append((version, created_at, confirmed + guessed))
 
@@ -78,7 +91,7 @@ def collect_dashboard_data(analyzer: Any, stats: dict[str, Any]) -> None:
     dashboard_data["repos_by_year_boost_rate"] = stats["repos_by_year_boost_rate"]
     dashboard_data["language_comparison_data"] = stats["language_comparison_data"]
     dashboard_data["metrics_by_library"] = (
-        analyzer._filter_and_sort_libraries(  # noqa: SLF001  # pylint: disable=protected-access
+        analyzer.filter_and_sort_libraries(
             fields=[
                 "name",
                 "created_version",
