@@ -107,4 +107,3 @@ def test_dashboard_command_calls_publish_when_enabled(dashboard_cmd_name, tmp_pa
         target_repo="org/repo",
         branch="gh-pages",
     )
-

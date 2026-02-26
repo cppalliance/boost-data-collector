@@ -9,7 +9,10 @@ from boost_library_usage_dashboard.models import BoostExternalRepository, BoostU
 
 
 def test_boost_external_repository_meta_contract():
-    assert BoostExternalRepository._meta.db_table == "boost_usage_tracker_boostexternalrepository"
+    assert (
+        BoostExternalRepository._meta.db_table
+        == "boost_usage_tracker_boostexternalrepository"
+    )
     assert BoostExternalRepository._meta.managed is False
 
 
@@ -45,5 +48,6 @@ def test_boost_usage_optional_fields_allow_null():
 
 def test_boost_usage_excepted_at_accepts_valid_date():
     obj = BoostUsage(excepted_at=date(2026, 1, 1))
-    obj.full_clean(exclude=["repo", "file_path", "created_at", "updated_at", "boost_header"])
-
+    obj.full_clean(
+        exclude=["repo", "file_path", "created_at", "updated_at", "boost_header"]
+    )

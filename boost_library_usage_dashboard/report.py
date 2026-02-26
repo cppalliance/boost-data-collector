@@ -83,14 +83,20 @@ def write_summary_report(
                 "|---------|----------------------------|------------------------------|------------------------------|",
             ]
         )
-        for version, created_at, confirmed_count, no_confirmed_count in version_stats["distribution_by_version"]:
+        for version, created_at, confirmed_count, no_confirmed_count in version_stats[
+            "distribution_by_version"
+        ]:
             report_lines.append(
                 f"| {version} | {created_at} | {confirmed_count:,} | {no_confirmed_count:,} |"
             )
 
     if version_stats.get("distribution_by_year_version"):
         by_year_version = version_stats["distribution_by_year_version"]
-        versions = [v for v in by_year_version.keys() if v and _version_tuple(v) >= _version_tuple("1.53.0")]
+        versions = [
+            v
+            for v in by_year_version.keys()
+            if v and _version_tuple(v) >= _version_tuple("1.53.0")
+        ]
         versions = sorted(versions, key=_version_tuple, reverse=True)
         all_years = sorted(
             {
@@ -119,4 +125,3 @@ def write_summary_report(
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text("\n".join(report_lines), encoding="utf-8")
-

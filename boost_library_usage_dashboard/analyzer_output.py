@@ -28,7 +28,9 @@ def _created_at_key(created_at: str) -> tuple[int, str]:
     return (1, "") if not value else (0, value)
 
 
-def collect_top_repositories_for_dashboard(repo_info: list[dict[str, Any]]) -> dict[str, Any]:
+def collect_top_repositories_for_dashboard(
+    repo_info: list[dict[str, Any]]
+) -> dict[str, Any]:
     """Return top repositories by stars/usage/created date."""
 
     def _numeric_key(row: dict[str, Any], feature: str) -> int:
@@ -83,23 +85,27 @@ def collect_dashboard_data(analyzer: Any, stats: dict[str, Any]) -> None:
     repos_by_version_rows.sort(
         key=lambda x: (_created_at_key(x[1]), _version_key(x[0]))
     )
-    dashboard_data["repos_by_version"] = [(version, count) for version, _, count in repos_by_version_rows]
+    dashboard_data["repos_by_version"] = [
+        (version, count) for version, _, count in repos_by_version_rows
+    ]
     dashboard_data["repos_by_year_boost_rate"] = stats["repos_by_year_boost_rate"]
     dashboard_data["language_comparison_data"] = stats["language_comparison_data"]
-    dashboard_data["metrics_by_library"] = analyzer._filter_and_sort_libraries(  # noqa: SLF001  # pylint: disable=protected-access
-        fields=[
-            "name",
-            "created_version",
-            "removed_version",
-            "total_usage",
-            "recent_usage",
-            "past_usage",
-            "activity_score",
-            "repo_count",
-            "earliest_commit",
-            "latest_commit",
-            "average_stars",
-        ]
+    dashboard_data["metrics_by_library"] = (
+        analyzer._filter_and_sort_libraries(  # noqa: SLF001  # pylint: disable=protected-access
+            fields=[
+                "name",
+                "created_version",
+                "removed_version",
+                "total_usage",
+                "recent_usage",
+                "past_usage",
+                "activity_score",
+                "repo_count",
+                "earliest_commit",
+                "latest_commit",
+                "average_stars",
+            ]
+        )
     )
     dashboard_data["top_repositories"] = collect_top_repositories_for_dashboard(
         analyzer.repo_info
@@ -112,4 +118,3 @@ def collect_dashboard_data(analyzer: Any, stats: dict[str, Any]) -> None:
         json.dumps(dashboard_data, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-

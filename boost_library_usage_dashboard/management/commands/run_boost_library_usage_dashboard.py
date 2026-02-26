@@ -55,16 +55,24 @@ class Command(BaseCommand):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         self.stdout.write("Step 1: Collecting dashboard data from PostgreSQL...")
-        analyzer = BoostUsageDashboardAnalyzer(base_dir=settings.BASE_DIR, output_dir=output_dir)
+        analyzer = BoostUsageDashboardAnalyzer(
+            base_dir=settings.BASE_DIR, output_dir=output_dir
+        )
         stats = analyzer.run()
 
         self.stdout.write("Step 2: Writing Markdown report...")
-        write_summary_report(analyzer.report_file, stats, stars_min_threshold=analyzer.stars_min_threshold)
+        write_summary_report(
+            analyzer.report_file,
+            stats,
+            stars_min_threshold=analyzer.stars_min_threshold,
+        )
 
         self.stdout.write("Step 3: Rendering HTML files...")
         render_dashboard_html(base_dir=settings.BASE_DIR, output_dir=output_dir)
 
-        self.stdout.write(self.style.SUCCESS(f"Dashboard artifacts generated at: {output_dir}"))
+        self.stdout.write(
+            self.style.SUCCESS(f"Dashboard artifacts generated at: {output_dir}")
+        )
 
         if options["publish"]:
             target_repo = (options["target_repo"] or "").strip()
@@ -77,8 +85,12 @@ class Command(BaseCommand):
             )
 
     def _publish(self, output_dir: Path, target_repo: str, branch: str) -> None:
-        self.stdout.write(f"Publishing dashboard artifacts to {target_repo} ({branch})...")
-        publish_root = get_workspace_path("shared") / "boost_library_usage_dashboard_publish"
+        self.stdout.write(
+            f"Publishing dashboard artifacts to {target_repo} ({branch})..."
+        )
+        publish_root = (
+            get_workspace_path("shared") / "boost_library_usage_dashboard_publish"
+        )
         if publish_root.exists():
             shutil.rmtree(publish_root)
         clone_repo(target_repo, publish_root)
@@ -118,5 +130,6 @@ class Command(BaseCommand):
             check=True,
         )
         push(publish_root, branch=branch)
-        self.stdout.write(self.style.SUCCESS("Dashboard artifacts published successfully."))
-
+        self.stdout.write(
+            self.style.SUCCESS("Dashboard artifacts published successfully.")
+        )

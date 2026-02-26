@@ -55,4 +55,3 @@ class BoostUsage(models.Model):
     class Meta:
         db_table = "boost_usage_tracker_boostusage"
         managed = False
-

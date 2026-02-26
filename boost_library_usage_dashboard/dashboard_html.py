@@ -23,6 +23,5 @@ def generate_dashboard_html(
 
     data = json.loads(dashboard_data_file.read_text(encoding="utf-8"))
     build_index_page(data, output_dir)
-    for library_name in (data.get("libraries_page_data", {}) or {}):
+    for library_name in data.get("libraries_page_data", {}) or {}:
         build_library_page(data, library_name, lib_dir)
-

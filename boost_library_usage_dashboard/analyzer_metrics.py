@@ -89,14 +89,28 @@ def calculate_trend_metrics(
 ) -> dict[str, float]:
     """Compute activity score using derivative/trend/momentum blend."""
     if not year_data:
-        return {"total_usage": 0, "activity_score": -10.0, "recent_usage": 0, "past_usage": 0}
+        return {
+            "total_usage": 0,
+            "activity_score": -10.0,
+            "recent_usage": 0,
+            "past_usage": 0,
+        }
 
     to_last_year_data = year_data[:-1] if len(year_data) > 1 else year_data
-    recent_usage = sum(v["created_count"] for y, v in to_last_year_data if y >= recent_year_threshold)
-    past_usage = sum(v["created_count"] for y, v in to_last_year_data if y < recent_year_threshold)
+    recent_usage = sum(
+        v["created_count"] for y, v in to_last_year_data if y >= recent_year_threshold
+    )
+    past_usage = sum(
+        v["created_count"] for y, v in to_last_year_data if y < recent_year_threshold
+    )
     total_usage = recent_usage + past_usage
     if total_usage == 0:
-        return {"total_usage": 0, "activity_score": -10.0, "recent_usage": 0, "past_usage": 0}
+        return {
+            "total_usage": 0,
+            "activity_score": -10.0,
+            "recent_usage": 0,
+            "past_usage": 0,
+        }
 
     years = [y for y, _ in to_last_year_data]
     counts = [v["created_count"] for _, v in to_last_year_data]
@@ -137,7 +151,9 @@ def calculate_trend_metrics(
 
     return {
         "total_usage": total_usage,
-        "activity_score": derivation_score * 0.4 + trend_score * 0.3 + momentum_score * 0.3,
+        "activity_score": derivation_score * 0.4
+        + trend_score * 0.3
+        + momentum_score * 0.3,
         "recent_usage": recent_usage,
         "past_usage": past_usage,
     }
@@ -176,4 +192,3 @@ def calculate_library_metrics_by_repository(analyzer: Any) -> dict[str, dict[str
             "average_stars": int(row["average_stars"] or 0),
         }
     return metrics
-

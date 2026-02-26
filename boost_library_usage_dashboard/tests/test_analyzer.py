@@ -1,7 +1,7 @@
-from unittest.mock import patch
 """Unit tests for boost_library_usage_dashboard.analyzer core logic."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 from boost_library_usage_dashboard.analyzer import BoostUsageDashboardAnalyzer
 
@@ -97,8 +97,8 @@ def test_filter_and_sort_libraries_with_conditions_and_limit():
 def test_get_repository_count_by_year_handles_empty_or_missing_values():
     analyzer = _make_analyzer()
     analyzer.repo_info = [
-        {"created_at": "2020-01-02T00:00:00"},
-        {"created_at": "2020-05-02"},
+        {"created_at": "2020-01-02T00:00:00", "affect_from_boost": True},
+        {"created_at": "2020-05-02", "affect_from_boost": True},
         {"created_at": ""},
         {},
     ]
@@ -109,9 +109,19 @@ def test_get_repository_count_by_year_handles_empty_or_missing_values():
 def test_collect_top_repositories_handles_mixed_value_types():
     analyzer = _make_analyzer()
     analyzer.repo_info = [
-        {"repo_name": "a/b", "stars": 10, "usage_count": 3, "created_at": "2024-01-01T00:00:00"},
+        {
+            "repo_name": "a/b",
+            "stars": 10,
+            "usage_count": 3,
+            "created_at": "2024-01-01T00:00:00",
+        },
         {"repo_name": "c/d", "stars": 5, "usage_count": "", "created_at": ""},
-        {"repo_name": "e/f", "stars": 20, "usage_count": 11, "created_at": "2025-01-01T00:00:00"},
+        {
+            "repo_name": "e/f",
+            "stars": 20,
+            "usage_count": 11,
+            "created_at": "2025-01-01T00:00:00",
+        },
         {"repo_name": "g/h", "stars": None, "usage_count": None, "created_at": None},
     ]
     out = analyzer._collect_top_repositories_for_dashboard()
@@ -129,4 +139,3 @@ def test_load_repository_count_from_db_missing_model_returns_empty():
         out = analyzer._load_repository_count_from_db({"2020": 3})
     assert out["repos_by_year_boost_rate"] == []
     assert out["language_comparison_data"] == {}
-

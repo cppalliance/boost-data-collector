@@ -58,7 +58,10 @@ def collect_dependents_data(analyzer: Any) -> dict[int, dict[str, Any]]:
             key=lambda x: (x[1], library_id_to_name.get(x[0], "")),
         ):
             table_data.append(
-                {"name": library_id_to_name.get(client_id, f"Unknown({client_id})"), "depth": depth}
+                {
+                    "name": library_id_to_name.get(client_id, f"Unknown({client_id})"),
+                    "depth": depth,
+                }
             )
         out[library_id] = {"table_data": table_data, "chart_data": chart_data}
     return out
@@ -75,7 +78,9 @@ def find_all_transitive_dependencies(
 
     all_deps: dict[int, int] = {}
     queue: deque[tuple[int, int]] = deque(
-        (dep_id, 1) for dep_id in graph[main_lib_id][version_id] if dep_id != main_lib_id
+        (dep_id, 1)
+        for dep_id in graph[main_lib_id][version_id]
+        if dep_id != main_lib_id
     )
     visited = {main_lib_id}
     while queue:
@@ -116,7 +121,9 @@ def collect_commit_info_by_library(analyzer: Any) -> dict[str, Any]:
     )
     email_map = {
         row["base_profile_id"]: row["email"]
-        for row in Email.objects.filter(is_primary=True).values("base_profile_id", "email")  # pylint: disable=no-member
+        for row in Email.objects.filter(is_primary=True).values(
+            "base_profile_id", "email"
+        )  # pylint: disable=no-member
     }
 
     # Count by distinct (library, version, commit_id) and (library, version, email, commit_id)
@@ -168,7 +175,9 @@ def collect_commit_info_by_library(analyzer: Any) -> dict[str, Any]:
     return default
 
 
-def get_first_version_released_after(version_info: list[Any], commit_at: datetime | None) -> str | None:
+def get_first_version_released_after(
+    version_info: list[Any], commit_at: datetime | None
+) -> str | None:
     """Return first Boost version whose version_created_at is strictly after commit_at."""
     if commit_at is None:
         return None
@@ -182,7 +191,9 @@ def get_first_version_released_after(version_info: list[Any], commit_at: datetim
     return min(candidates, key=lambda v: v.version_created_at).version
 
 
-def get_external_consumer_data(lib: dict[str, Any], repo_info_dict: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def get_external_consumer_data(
+    lib: dict[str, Any], repo_info_dict: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
     """Build external consumer table/chart payload for one library."""
     top_repos_list = lib.get("top_repo_list", {})
     table_data = []
@@ -245,15 +256,25 @@ def get_last_updated_version(contribute_data: dict[str, Any]) -> str:
     return max(versions) if versions else ""
 
 
-def build_library_overview_data(lib_source: dict[str, Any], lib_data: dict[str, Any]) -> dict[str, Any]:
+def build_library_overview_data(
+    lib_source: dict[str, Any], lib_data: dict[str, Any]
+) -> dict[str, Any]:
     """Compose summary panel data for one library page."""
     contribute_data = lib_source.get("contribute_data", {})
     last_updated_version = get_last_updated_version(contribute_data)
-    last_contributors = len(contribute_data.get(last_updated_version, {}).get("persons", {}))
-    overall_contributors = len(
-        {person for data in contribute_data.values() for person in data.get("persons", {}).keys()}
+    last_contributors = len(
+        contribute_data.get(last_updated_version, {}).get("persons", {})
     )
-    internal_consumers = len(lib_data.get("internal_dependents_data", {}).get("table_data", []))
+    overall_contributors = len(
+        {
+            person
+            for data in contribute_data.values()
+            for person in data.get("persons", {}).keys()
+        }
+    )
+    internal_consumers = len(
+        lib_data.get("internal_dependents_data", {}).get("table_data", [])
+    )
     year_count = lib_data.get("external_consumers", {}).get("chart_data", {})
     total_count = 0
     max_repo_count = 0
@@ -292,10 +313,11 @@ def collect_libraries_page_data(analyzer: Any) -> dict[str, Any]:
         lib_id = lib["id"]
         lib_data = {
             "internal_dependents_data": internal_dependents.get(lib_id, {}),
-            "external_consumers": get_external_consumer_data(lib, analyzer.repo_info_dict),
+            "external_consumers": get_external_consumer_data(
+                lib, analyzer.repo_info_dict
+            ),
             "contribute_data": get_contribution_data(lib),
         }
         lib_data["over_view"] = build_library_overview_data(lib, lib_data)
         libraries_data[lib["name"]] = lib_data
     return libraries_data
-

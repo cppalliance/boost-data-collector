@@ -50,4 +50,3 @@ def test_write_summary_report_generates_core_sections(tmp_path):
     assert "1.52.0" not in content
     assert "1.53.0" in content
     assert "1.54.0" in content
-

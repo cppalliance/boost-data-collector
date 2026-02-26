@@ -17,14 +17,20 @@ from boost_library_usage_dashboard.dashboard_html_common import (
 from boost_library_usage_dashboard.utils import sanitize_library_name
 
 
-def build_library_page(data: dict[str, Any], library_name: str, libraries_dir: Path) -> None:
+def build_library_page(
+    data: dict[str, Any], library_name: str, libraries_dir: Path
+) -> None:
     """Build per-library HTML page."""
     lib_data = (data.get("libraries_page_data", {}) or {}).get(library_name, {})
     if not lib_data:
         return
 
-    dependents = (lib_data.get("internal_dependents_data", {}) or {}).get("table_data", [])
-    dep_chart = (lib_data.get("internal_dependents_data", {}) or {}).get("chart_data", {})
+    dependents = (lib_data.get("internal_dependents_data", {}) or {}).get(
+        "table_data", []
+    )
+    dep_chart = (lib_data.get("internal_dependents_data", {}) or {}).get(
+        "chart_data", {}
+    )
     ext = (lib_data.get("external_consumers", {}) or {}).get("table_data", [])
     ext_chart = (lib_data.get("external_consumers", {}) or {}).get("chart_data", {})
     contrib = (lib_data.get("contribute_data", {}) or {}).get("table_data", [])
@@ -32,10 +38,16 @@ def build_library_page(data: dict[str, Any], library_name: str, libraries_dir: P
     overview = lib_data.get("over_view", {}) or {}
     headers_rows = [
         {"name": k, "count": v}
-        for k, v in sorted((overview.get("used_headers", {}) or {}).items(), key=lambda x: x[1], reverse=True)
+        for k, v in sorted(
+            (overview.get("used_headers", {}) or {}).items(),
+            key=lambda x: x[1],
+            reverse=True,
+        )
     ]
 
-    versions = sorted((data.get("all_versions_for_chart") or list(dep_chart.keys())), key=version_key)
+    versions = sorted(
+        (data.get("all_versions_for_chart") or list(dep_chart.keys())), key=version_key
+    )
     dep_first = []
     dep_all = []
     for version in versions:
@@ -43,7 +55,9 @@ def build_library_page(data: dict[str, Any], library_name: str, libraries_dir: P
         dep_first.append(entry.get("first_level", 0) if isinstance(entry, dict) else 0)
         dep_all.append(entry.get("all_deeper", 0) if isinstance(entry, dict) else 0)
 
-    years = sorted(str(y) for y in ext_chart.keys()) if isinstance(ext_chart, dict) else []
+    years = (
+        sorted(str(y) for y in ext_chart.keys()) if isinstance(ext_chart, dict) else []
+    )
     repo_counts = []
     by_created = []
     by_updated = []
@@ -58,7 +72,11 @@ def build_library_page(data: dict[str, Any], library_name: str, libraries_dir: P
             by_created.append(0)
             by_updated.append(0)
 
-    commit_versions = sorted(commit_chart.keys(), key=version_key) if isinstance(commit_chart, dict) else []
+    commit_versions = (
+        sorted(commit_chart.keys(), key=version_key)
+        if isinstance(commit_chart, dict)
+        else []
+    )
     commit_counts = [commit_chart.get(v, 0) for v in commit_versions]
 
     html_out = f"""<!DOCTYPE html>
@@ -238,4 +256,3 @@ def build_library_page(data: dict[str, Any], library_name: str, libraries_dir: P
         html_out,
         encoding="utf-8",
     )
-

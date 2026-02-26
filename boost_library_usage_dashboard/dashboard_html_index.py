@@ -43,8 +43,14 @@ def build_index_page(data: dict[str, Any], output_dir: Path) -> None:
         acc += c
         year_cumulative.append(acc)
 
-    version_labels = [row[0] if isinstance(row, list) else row.get("version", "") for row in repos_by_version]
-    version_counts = [row[1] if isinstance(row, list) else row.get("count", 0) for row in repos_by_version]
+    version_labels = [
+        row[0] if isinstance(row, list) else row.get("version", "")
+        for row in repos_by_version
+    ]
+    version_counts = [
+        row[1] if isinstance(row, list) else row.get("count", 0)
+        for row in repos_by_version
+    ]
     version_cumulative = []
     acc = 0
     for c in version_counts:
@@ -54,7 +60,9 @@ def build_index_page(data: dict[str, Any], output_dir: Path) -> None:
     boost_sorted = sorted(repos_by_year_boost_rate, key=lambda x: x.get("year", ""))
     boost_labels = [str(r.get("year", "")) for r in boost_sorted]
     boost_over_10 = [r.get("boost_over_10", 0) for r in boost_sorted]
-    non_boost_over_10 = [max(0, r.get("over_10", 0) - r.get("boost_over_10", 0)) for r in boost_sorted]
+    non_boost_over_10 = [
+        max(0, r.get("over_10", 0) - r.get("boost_over_10", 0)) for r in boost_sorted
+    ]
     boost_rate = []
     for r in boost_sorted:
         txt = str(r.get("boost_over_10_percentage", "0%")).replace("%", "").strip()
@@ -66,7 +74,9 @@ def build_index_page(data: dict[str, Any], output_dir: Path) -> None:
     languages = sorted(language_comparison_data.keys())
     language_data = {}
     if languages:
-        all_years = sorted({y for lang in language_comparison_data.values() for y in lang.keys()})
+        all_years = sorted(
+            {y for lang in language_comparison_data.values() for y in lang.keys()}
+        )
         for lang in languages:
             years = []
             all_counts = []
@@ -291,4 +301,3 @@ def build_index_page(data: dict[str, Any], output_dir: Path) -> None:
 </html>
 """
     (output_dir / "index.html").write_text(html_out, encoding="utf-8")
-

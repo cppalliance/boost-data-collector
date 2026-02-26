@@ -27,7 +27,10 @@ from .analyzer_metrics import (
     calculate_library_metrics_by_repository,
     calculate_trend_metrics,
 )
-from .analyzer_output import collect_dashboard_data, collect_top_repositories_for_dashboard
+from .analyzer_output import (
+    collect_dashboard_data,
+    collect_top_repositories_for_dashboard,
+)
 from .models import BoostExternalRepository, BoostUsage
 from .utils import format_percent
 
@@ -44,8 +47,12 @@ class BoostUsageDashboardAnalyzer:
         self.report_file = output_dir / "Boost_Usage_Report_total.md"
         self.stars_min_threshold = STARS_MIN_THRESHOLD
 
-        self.version_info = list(BoostVersion.objects.all().order_by("version"))  # pylint: disable=no-member
-        self.version_name_list = [v.version.replace("boost-", "") for v in self.version_info]
+        self.version_info = list(
+            BoostVersion.objects.all().order_by("version")
+        )  # pylint: disable=no-member
+        self.version_name_list = [
+            v.version.replace("boost-", "") for v in self.version_info
+        ]
         self.version_by_id = {v.id: v for v in self.version_info}
 
         self.repo_info: list[dict[str, Any]] = []
@@ -91,8 +98,12 @@ class BoostUsageDashboardAnalyzer:
                 "repo_name": full_name,
                 "affect_from_boost": bool(ext_repo.is_boost_used),
                 "stars": repo.stars or 0,
-                "created_at": repo.repo_created_at.isoformat() if repo.repo_created_at else "",
-                "pushed_at": repo.repo_pushed_at.isoformat() if repo.repo_pushed_at else "",
+                "created_at": (
+                    repo.repo_created_at.isoformat() if repo.repo_created_at else ""
+                ),
+                "pushed_at": (
+                    repo.repo_pushed_at.isoformat() if repo.repo_pushed_at else ""
+                ),
                 "boost_version": ext_repo.boost_version or "",
                 "candidate_version": "",
                 "usage_count": usage_counts.get(ext_repo.pk, 0),
@@ -111,22 +122,30 @@ class BoostUsageDashboardAnalyzer:
         # libs = BoostLibrary.objects.select_related("repo").all().order_by("name")  # pylint: disable=no-member
 
         latest_version_id = self.version_info[-1].id if self.version_info else None
-        libs_qs = BoostLibrary.objects.select_related("repo")  # pylint: disable=no-member
+        libs_qs = BoostLibrary.objects.select_related(
+            "repo"
+        )  # pylint: disable=no-member
         if latest_version_id is not None:
             libs_qs = libs_qs.filter(library_versions__version_id=latest_version_id)
         else:
             libs_qs = libs_qs.none()
         libs = libs_qs.distinct().order_by("name")
-        logger.debug(f"Loaded {len(libs)} libraries. Latest version: {latest_version_id}")
+        logger.debug(
+            f"Loaded {len(libs)} libraries. Latest version: {latest_version_id}"
+        )
         created_versions = {
             row["library_id"]: row["version__version"]
-            for row in BoostLibraryVersion.objects.values("library_id").annotate(  # pylint: disable=no-member
+            for row in BoostLibraryVersion.objects.values(
+                "library_id"
+            ).annotate(  # pylint: disable=no-member
                 version__version=Min("version__version")
             )
         }
         desc_map: dict[int, str] = {}
         for row in (
-            BoostLibraryVersion.objects.exclude(description="")  # pylint: disable=no-member
+            BoostLibraryVersion.objects.exclude(
+                description=""
+            )  # pylint: disable=no-member
             .values("library_id", "description", "version__version")
             .order_by("library_id", "-version__version")
         ):
@@ -171,14 +190,22 @@ class BoostUsageDashboardAnalyzer:
             {
                 "total_repositories": total_repositories,
                 "affected_repositories": affected_repositories,
-                "total_usage_records": sum(repo["usage_count"] for repo in self.repo_info),
+                "total_usage_records": sum(
+                    repo["usage_count"] for repo in self.repo_info
+                ),
                 "total_libraries": len(self.library_info),
             }
         )
 
         stats["version_related_stats"] = self.get_version_distribution()
         stats["top_libraries"] = self._filter_and_sort_libraries(
-            fields=["name", "repo_count", "total_usage", "earliest_commit", "latest_commit"],
+            fields=[
+                "name",
+                "repo_count",
+                "total_usage",
+                "earliest_commit",
+                "latest_commit",
+            ],
             sort_field="repo_count",
             sort_order="DESC",
             limit=20,
@@ -192,13 +219,25 @@ class BoostUsageDashboardAnalyzer:
             condition_signal=0,
         )
         stats["top_active_libraries"] = self._filter_and_sort_libraries(
-            fields=["name", "total_usage", "recent_usage", "past_usage", "activity_score"],
+            fields=[
+                "name",
+                "total_usage",
+                "recent_usage",
+                "past_usage",
+                "activity_score",
+            ],
             sort_field="activity_score",
             sort_order="DESC",
             limit=20,
         )
         stats["bottom_active_libraries"] = self._filter_and_sort_libraries(
-            fields=["name", "total_usage", "recent_usage", "past_usage", "activity_score"],
+            fields=[
+                "name",
+                "total_usage",
+                "recent_usage",
+                "past_usage",
+                "activity_score",
+            ],
             sort_field="activity_score",
             sort_order="ASC",
             limit=20,
@@ -265,10 +304,10 @@ class BoostUsageDashboardAnalyzer:
             "repos_with_version": total_repositories - no_version_count,
             "repos_without_version": no_version_count,
             "version_coverage_percent": (
-                (total_repositories - no_version_count) / total_repositories * 100
-            )
-            if total_repositories
-            else 0,
+                ((total_repositories - no_version_count) / total_repositories * 100)
+                if total_repositories
+                else 0
+            ),
             "distribution_by_version": distribution,
             "distribution_by_year_version": version_year_counts,
         }
@@ -318,7 +357,9 @@ class BoostUsageDashboardAnalyzer:
 
         language_data: dict[str, dict[str, dict[str, int]]] = defaultdict(dict)
         rows = (
-            CreatedReposByLanguage.objects.select_related("language")  # pylint: disable=no-member
+            CreatedReposByLanguage.objects.select_related(
+                "language"
+            )  # pylint: disable=no-member
             .all()
             .order_by("language__name", "year")
         )
@@ -414,7 +455,9 @@ class BoostUsageDashboardAnalyzer:
     def _collect_commit_info_by_library(self) -> dict[str, Any]:
         return collect_commit_info_by_library(self)
 
-    def _get_first_version_released_after(self, commit_at: datetime | None) -> str | None:
+    def _get_first_version_released_after(
+        self, commit_at: datetime | None
+    ) -> str | None:
         return get_first_version_released_after(self.version_info, commit_at)
 
     def _normalize_and_moving_version(
@@ -449,4 +492,3 @@ class BoostUsageDashboardAnalyzer:
 
     def _collect_dashboard_data(self, stats: dict[str, Any]) -> None:
         collect_dashboard_data(self, stats)
-

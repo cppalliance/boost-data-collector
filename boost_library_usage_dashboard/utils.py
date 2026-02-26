@@ -18,4 +18,3 @@ def sanitize_library_name(library_name: str) -> str:
     """Return a filesystem-safe library name for HTML filenames."""
     safe = re.sub(r"[^\w\-.]", "_", library_name or "")
     return safe or "unknown"
-
