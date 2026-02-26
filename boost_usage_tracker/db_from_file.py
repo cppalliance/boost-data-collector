@@ -94,6 +94,9 @@ def _update_github_account_from_records(
     created_count = 0
     updated_count = 0
     for rec in records:
+        if not isinstance(rec, dict):
+            logger.warning("Skipping record not a dictionary: %s", rec)
+            continue
         raw_id = rec.get("github_account_id")
         if raw_id is None:
             logger.warning("Skipping record missing github_account_id: %s", rec)

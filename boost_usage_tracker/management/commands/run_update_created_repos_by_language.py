@@ -74,8 +74,9 @@ class Command(BaseCommand):
             for err in result["errors"]:
                 self.stderr.write(self.style.ERROR(err))  # pylint: disable=no-member
 
+        style = self.style.WARNING if result.get("errors") else self.style.SUCCESS
         self.stdout.write(
-            self.style.SUCCESS(  # pylint: disable=no-member
+            style(  # pylint: disable=no-member
                 "languages_requested={requested} processed={processed} missing={missing} "
                 "years={start}-{end} stars_min={stars} rows_processed={rows} "
                 "created={created} updated={updated}".format(

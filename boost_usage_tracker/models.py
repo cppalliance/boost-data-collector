@@ -125,5 +125,5 @@ class BoostMissingHeaderTmp(models.Model):
             )
         ]
         indexes = [
-            models.Index(fields=["usage"], name="bost_missing_tmp_usage_id"),
+            models.Index(fields=["usage"], name="boost_missing_tmp_usage_id"),
         ]

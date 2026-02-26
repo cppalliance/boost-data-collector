@@ -14,7 +14,7 @@ from github_activity_tracker.models import CreatedReposByLanguage
 @pytest.mark.django_db
 def test_update_created_repos_by_language_requires_languages():
     """Returns error when no env/arg languages are provided."""
-    with patch.dict("os.environ", {}, clear=False):
+    with patch.dict("os.environ", {"REPO_COUNT_LANGUAGES": ""}, clear=False):
         result = update_created_repos_by_language(
             languages_csv="",
             start_year=2024,

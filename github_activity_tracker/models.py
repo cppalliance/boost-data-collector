@@ -68,7 +68,19 @@ class CreatedReposByLanguage(models.Model):
             models.UniqueConstraint(
                 fields=["language", "year"],
                 name="github_activity_tracker_created_lang_year_uniq",
-            )
+            ),
+            models.CheckConstraint(
+                check=models.Q(year__gte=0),
+                name="github_activity_tracker_created_lang_year_non_negative",
+            ),
+            models.CheckConstraint(
+                check=models.Q(all_repos__gte=0),
+                name="github_activity_tracker_created_lang_all_repos_non_negative",
+            ),
+            models.CheckConstraint(
+                check=models.Q(significant_repos__gte=0),
+                name="github_activity_tracker_created_lang_sig_repos_non_negative",
+            ),
         ]
 
 

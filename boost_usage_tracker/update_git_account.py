@@ -85,6 +85,9 @@ def _update_github_account_from_records(
         owner = rec
         if "owner" in rec:
             owner = rec.get("owner")
+        if not isinstance(owner, dict):
+            logger.warning("Skipping record with invalid owner : %s", rec)
+            continue
         github_account_id_raw = owner.get("id")
         if github_account_id_raw is None:
             logger.warning("Skipping record missing github_account_id: %s", owner)
@@ -114,7 +117,7 @@ def _update_github_account_from_records(
         else:
             updated_count += 1
         if username == "":
-            logger.warning("Skipping record with empty username: %s", owner)
+            logger.warning("Created record with empty username: %s", owner)
     return created_count, updated_count
 
 
@@ -140,26 +143,31 @@ def update_git_account(
         if path.is_dir():
             records = _load_all_json_records(path)
         elif path.is_file() and path.suffix.lower() == ".json":
-            records = _load_json_records_from_path(path)
+            try:
+                records = _load_json_records_from_path(path)
+            except (json.JSONDecodeError, OSError) as e:
+                result = _result_template(table, str(path))
+                result["errors"].append(f"Skipping {path.name}: {e}")
+                return result
         else:
-            return {
-                "table": table,
-                "source_path": str(path),
-                "created": 0,
-                "updated": 0,
-                "errors": ["Source is not a directory or .json file"],
-            }
+            result = _result_template(table, str(path))
+            result["errors"].append("Source is not a directory or .json file")
+            return result
         created, updated = _update_github_account_from_records(records)
-        return {
-            "table": table,
-            "source_path": str(path),
-            "created": created,
-            "updated": updated,
-        }
+        result = _result_template(table, str(path))
+        result["created"] += created
+        result["updated"] += updated
+        return result
+    result = _result_template(table, str(path) if path else None)
+    result["errors"].append(f"Unsupported table: {table}")
+    return result
+
+
+def _result_template(table: str, source_path: str | None) -> dict[str, Any]:
     return {
         "table": table,
-        "source_path": str(path) if path else "",
+        "source_path": source_path,
         "created": 0,
         "updated": 0,
-        "errors": [f"Unsupported table: {table}"],
+        "errors": [],
     }

@@ -35,7 +35,15 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="BoostMissingHeaderTmp",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
                 ("header_name", models.CharField(db_index=True, max_length=512)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 (
@@ -64,6 +72,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="boostmissingheadertmp",
-            index=models.Index(fields=["usage"], name="bost_missing_tmp_usage_id"),
+            index=models.Index(fields=["usage"], name="boost_missing_tmp_usage_id"),
         ),
     ]

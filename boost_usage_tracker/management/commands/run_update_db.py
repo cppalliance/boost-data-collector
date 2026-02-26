@@ -12,7 +12,7 @@ Examples:
   python manage.py run_update_db --target boostusage
 """
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 
 # Registry: target -> (runner_fn, formatter_fn).
@@ -135,8 +135,8 @@ class Command(BaseCommand):
         if result.get("errors"):
             for err in result["errors"]:
                 self.stderr.write(self.style.ERROR(err))  # pylint: disable=no-member
-            return 1
+            raise CommandError(f"run_update_db failed for target = {target}")
 
         msg = formatter(result)
         self.stdout.write(self.style.SUCCESS(msg))  # pylint: disable=no-member
-        return 0
+        return None

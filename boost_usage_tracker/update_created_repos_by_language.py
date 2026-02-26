@@ -92,12 +92,13 @@ def update_created_repos_by_language(
     }
     missing = [name for name in ordered_language_names if name not in language_map]
     if missing and fail_on_missing_language:
-        return {
-            "created": 0,
-            "updated": 0,
-            "rows_processed": 0,
-            "errors": [f"Languages not found in Language table: {', '.join(missing)}"],
-        }
+        result = _result_template(
+            start_year=start_year, end_year=end_year, stars_min=stars_min
+        )
+        result["errors"].append(
+            f"Languages not found in Language table: {', '.join(missing)}"
+        )
+        return result
     if missing:
         logger.warning(
             "Skipping languages not found in Language table: %s", ", ".join(missing)
@@ -141,15 +142,31 @@ def update_created_repos_by_language(
             if sleep_seconds > 0:
                 time.sleep(sleep_seconds)
 
+    result = _result_template(
+        start_year=start_year, end_year=end_year, stars_min=stars_min
+    )
+    result["languages_requested"].extend(ordered_language_names)
+    result["languages_processed"].extend(processed_languages)
+    result["languages_missing"].extend(missing)
+    result["created"] += created_count
+    result["updated"] += updated_count
+    result["rows_processed"] += rows_processed
+    result["errors"].extend(errors)
+    return result
+
+
+def _result_template(
+    *, start_year: int, end_year: int | None, stars_min: int
+) -> dict[str, Any]:
     return {
-        "languages_requested": ordered_language_names,
-        "languages_processed": processed_languages,
-        "languages_missing": missing,
+        "languages_requested": [],
+        "languages_processed": [],
+        "languages_missing": [],
         "start_year": start_year,
         "end_year": end_year,
         "stars_min": stars_min,
-        "created": created_count,
-        "updated": updated_count,
-        "rows_processed": rows_processed,
-        "errors": errors,
+        "created": 0,
+        "updated": 0,
+        "rows_processed": 0,
+        "errors": [],
     }

@@ -1,7 +1,7 @@
 """
 Load add_to_boostExternalRepository.csv and update GitHubRepository and BoostExternalRepository.
 
-CSV columns: owner, repo_name, stars, description, repo_pushed_at, repo_created_at,
+CSV columns: owner, repo_name, stars, forks,description, repo_pushed_at, repo_created_at,
 repo_updated_at, boost_version, is_boost_embedded, is_boost_used.
 
 - Resolves owner to GitHubAccount (by username); skips rows if owner not found.

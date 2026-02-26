@@ -155,6 +155,7 @@ def _process_date_range(
         second_range_1 = second_range
         second_range_2 = second_range
         days_diff = (first_range[1] - first_range[0]).days
+        second_diff = 0
         if days_diff > 0:
             mid_date = first_range[0] + timedelta(days=days_diff // 2)
             first_range_1 = (first_range[0], mid_date)

@@ -266,7 +266,7 @@ def test_create_or_update_boost_usage_idempotent(
         boost_file,
         external_github_file,
     )
-    usage2, created2 = services.create_or_update_boost_usage(
+    _, created2 = services.create_or_update_boost_usage(
         ext_repo,
         boost_file,
         external_github_file,
@@ -527,7 +527,7 @@ def test_get_or_create_missing_header_usage_gets_existing_tmp(
         external_github_file,
         "boost/same.hpp",
     )
-    usage2, tmp2, created2 = services.get_or_create_missing_header_usage(
+    usage2, _, created2 = services.get_or_create_missing_header_usage(
         ext_repo,
         external_github_file,
         "boost/same.hpp",
@@ -576,7 +576,7 @@ def test_get_or_create_missing_header_usage_header_name_max_length(
     """get_or_create_missing_header_usage accepts header_name up to 512 chars."""
     long_header = "boost/" + "x" * 506  # 6 + 506 = 512 chars total
     assert len(long_header) == 512
-    usage, tmp, created = services.get_or_create_missing_header_usage(
+    _, tmp, created = services.get_or_create_missing_header_usage(
         ext_repo,
         external_github_file,
         long_header,
@@ -592,7 +592,7 @@ def test_get_or_create_missing_header_usage_without_last_commit_date(
     external_github_file,
 ):
     """get_or_create_missing_header_usage without last_commit_date leaves usage with None."""
-    usage, tmp, _ = services.get_or_create_missing_header_usage(
+    usage, _, _ = services.get_or_create_missing_header_usage(
         ext_repo,
         external_github_file,
         "boost/no_date.hpp",

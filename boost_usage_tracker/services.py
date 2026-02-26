@@ -238,11 +238,15 @@ def bulk_create_or_update_boost_usage(
             continue
         to_create_keys.discard(key)
         boost_header, file_path, last_commit_date = key_to_item[key]
+        changed = False
         if last_commit_date is not None and usage.last_commit_date != last_commit_date:
             usage.last_commit_date = last_commit_date
+            changed = True
         if usage.excepted_at is not None:
             usage.excepted_at = None
-        to_update.append(usage)
+            changed = True
+        if changed:
+            to_update.append(usage)
 
     created_count = 0
     updated_count = 0

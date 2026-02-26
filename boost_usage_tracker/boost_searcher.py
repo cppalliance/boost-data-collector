@@ -266,14 +266,9 @@ def _build_boost_include_query(repo_full_names: list[str]) -> tuple[str, list[st
     base = '"#include <boost/" language:C++ '
     if not repo_full_names:
         return base, []
-    repos = repo_full_names[:BOOST_INCLUDE_SEARCH_BATCH_SIZE]
-    parts = [f"repo:{name}" for name in repos]
+    parts = [f"repo:{name}" for name in repo_full_names]
     query = base + " ".join(parts)
-    while len(query) > MAX_CODE_SEARCH_QUERY_LEN and len(repos) > 1:
-        repos = repos[:-1]
-        parts = [f"repo:{name}" for name in repos]
-        query = base + " ".join(parts)
-    return query, repos
+    return query, repo_full_names
 
 
 def _chunked(items: list[str], size: int) -> list[list[str]]:
@@ -518,9 +513,11 @@ def search_boost_include_files_batch(
         mid = len(repo_list) // 2
         part1 = search_boost_include_files_batch(client, repo_list[:mid])
         part2 = search_boost_include_files_batch(client, repo_list[mid:])
-        return part1 + part2
+        found = part1 + part2
+    else:
+        found = _search_boost_include_by_query(client, query)
 
-    return _search_boost_include_by_query(client, query)
+    return found
 
 
 def check_repo_has_vendored_boost(

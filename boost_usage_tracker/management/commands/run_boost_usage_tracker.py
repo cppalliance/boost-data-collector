@@ -210,18 +210,10 @@ def task_monitor_content(
             logger.info("  … and %d more", len(repo_results) - 20)
         return
 
-    # For monitor_content, only re-process files changed after the latest known
-    # commit timestamp in BoostUsage. Fall back to creation epoch for first run.
-    last_commit_dt = (
-        BoostUsage.objects.aggregate(max_last_commit_date=Max("last_commit_date"))[
-            "max_last_commit_date"
-        ]
-        or CREATION_START_DEFAULT
-    )
     totals = _run_boost_search_stage(
         client,
         repo_results,
-        last_commit_dt=last_commit_dt,
+        last_commit_dt=since,
         log_label="monitor_content",
     )
 
@@ -372,19 +364,21 @@ class Command(BaseCommand):
         min_stars = options["min_stars"]
 
         now = datetime.now(timezone.utc)
-        until = (
-            datetime.strptime(options["until"], "%Y-%m-%d").replace(
-                tzinfo=timezone.utc,
-            )
-            if options["until"]
-            else now
-        )
-        since = (
-            datetime.strptime(options["since"], "%Y-%m-%d").replace(
-                tzinfo=timezone.utc,
-            )
-            if options["since"]
-            else until - timedelta(days=1)
+
+        def _parse_ymd_or_none(value, opt_name):
+            if not value:
+                return None
+            try:
+                return datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            except ValueError:
+                logger.warning(
+                    "Invalid %s '%s'; falling back to default.", opt_name, value
+                )
+                return None
+
+        until = _parse_ymd_or_none(options["until"], "--until") or now
+        since = _parse_ymd_or_none(options["since"], "--since") or (
+            until - timedelta(days=1)
         )
 
         logger.info(

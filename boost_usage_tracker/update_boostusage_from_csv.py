@@ -21,7 +21,10 @@ from django.utils.dateparse import parse_datetime
 from config.workspace import get_workspace_path
 from boost_library_tracker.models import BoostFile
 from boost_usage_tracker.models import BoostExternalRepository
-from boost_usage_tracker.services import create_or_update_boost_usage
+from boost_usage_tracker.services import (
+    create_or_update_boost_usage,
+    mark_usages_excepted_bulk,
+)
 from github_activity_tracker.models import GitHubFile
 
 logger = logging.getLogger(__name__)
@@ -72,6 +75,7 @@ def update_boostusage_table_from_csv(
 
     try:
         with path.open("r", encoding="utf-8", newline="") as f:
+            to_except = []
             reader = csv.DictReader(f)
             required = ("owner", "repo_name", "file_path", "boost_header_name")
             if not reader.fieldnames or not all(
@@ -122,7 +126,7 @@ def update_boostusage_table_from_csv(
                 last_commit_date = (
                     _parse_datetime(last_commit_ts) if last_commit_ts else None
                 )
-                _, created = create_or_update_boost_usage(
+                usage, created = create_or_update_boost_usage(
                     repo,
                     boost_header=boost_header,
                     file_path=file_path_obj,
@@ -132,6 +136,10 @@ def update_boostusage_table_from_csv(
                     result["created"] += 1
                 else:
                     result["updated"] += 1
+                if (row.get("excepted_at") or "").strip():
+                    to_except.append(usage.pk)
+            if to_except:
+                mark_usages_excepted_bulk(to_except)
     except (OSError, csv.Error) as e:
         result["errors"].append(str(e))
     return result
