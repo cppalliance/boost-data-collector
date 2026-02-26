@@ -6,10 +6,10 @@ import json
 import logging
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 from .analyzer_libraries import collect_libraries_page_data
 from .utils import _version_tuple
+
+logger = logging.getLogger(__name__)
 
 
 def _created_at_key(created_at: str) -> tuple[int, str]:
@@ -90,22 +90,20 @@ def collect_dashboard_data(analyzer: Any, stats: dict[str, Any]) -> None:
     ]
     dashboard_data["repos_by_year_boost_rate"] = stats["repos_by_year_boost_rate"]
     dashboard_data["language_comparison_data"] = stats["language_comparison_data"]
-    dashboard_data["metrics_by_library"] = (
-        analyzer.filter_and_sort_libraries(
-            fields=[
-                "name",
-                "created_version",
-                "removed_version",
-                "total_usage",
-                "recent_usage",
-                "past_usage",
-                "activity_score",
-                "repo_count",
-                "earliest_commit",
-                "latest_commit",
-                "average_stars",
-            ]
-        )
+    dashboard_data["metrics_by_library"] = analyzer.filter_and_sort_libraries(
+        fields=[
+            "name",
+            "created_version",
+            "removed_version",
+            "total_usage",
+            "recent_usage",
+            "past_usage",
+            "activity_score",
+            "repo_count",
+            "earliest_commit",
+            "latest_commit",
+            "average_stars",
+        ]
     )
     dashboard_data["top_repositories"] = collect_top_repositories_for_dashboard(
         analyzer.repo_info
