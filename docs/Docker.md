@@ -216,13 +216,13 @@ The `make up` / `make build` targets always run `clean-mac` first, so you never 
 
 ## 7. Troubleshooting
 
-- **“Cannot connect to database” / “connection refused”**  
+- **“Cannot connect to database” / “connection refused”**
   Wait a few seconds after `docker compose up -d` and run migrations again. The `web` service waits for `db` to be healthy before starting.
 
-- **Port 8000 already in use**  
+- **Port 8000 already in use**
   Change the host port in `docker-compose.yml` under `web` → `ports`, e.g. `"9000:8000"`, then use http://localhost:9000.
 
-- **Changes in code not visible**  
+- **Changes in code not visible**
   Rebuild: `docker compose build web` then `docker compose up -d`.
 
 - **Need to see what’s inside a container**
