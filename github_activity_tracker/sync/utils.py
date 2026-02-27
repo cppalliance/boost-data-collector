@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from github_ops import get_github_client, get_github_token
 
@@ -16,9 +16,36 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "get_github_client",
     "get_github_token",
+    "normalize_issue_json",
+    "normalize_pr_json",
     "parse_github_user",
     "parse_datetime",
 ]
+
+
+def normalize_issue_json(data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize issue JSON to a flat dict for DB processing.
+    Accepts: (1) flat { number, id, title, user, comments, ... };
+    (2) nested { "issue_info": { ... }, "comments": [...] }.
+    Returns a single dict with all issue fields and "comments" list."""
+    if "issue_info" in data:
+        out = dict(data["issue_info"])
+        out["comments"] = data.get("comments", out.get("comments", []))
+        return out
+    return data
+
+
+def normalize_pr_json(data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize PR JSON to a flat dict for DB processing.
+    Accepts: (1) flat { number, id, title, head, base, comments, reviews, ... };
+    (2) nested { "pr_info": { ... }, "comments": [...], "reviews": [...] }.
+    Returns a single dict with all PR fields plus "comments" and "reviews" lists."""
+    if "pr_info" in data:
+        out = dict(data["pr_info"])
+        out["comments"] = data.get("comments", out.get("comments", []))
+        out["reviews"] = data.get("reviews", out.get("reviews", []))
+        return out
+    return data
 
 
 def parse_github_user(user_dict: Optional[dict]) -> dict:

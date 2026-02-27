@@ -56,30 +56,34 @@ def _merge_list_by_id(existing_list: list, new_list: list, id_key: str = "id") -
 
 
 def _merge_issue_json(existing: dict, new: dict) -> dict:
-    """Merge issue JSON: top-level from new; comments merged by id so we keep all/updated comments."""
-    merged = {**new}
-    merged["comments"] = _merge_list_by_id(
-        existing.get("comments") or [],
-        new.get("comments") or [],
-        "id",
-    )
-    return merged
+    """Merge issue JSON: detail from new (issue_info or flat); comments merged by id.
+    Accepts and produces nested { issue_info: <detail>, comments: [...] }."""
+    new_detail = new.get("issue_info")
+    if new_detail is None:
+        new_detail = {k: v for k, v in new.items() if k != "comments"}
+    existing_comments = existing.get("comments") or []
+    new_comments = new.get("comments") or []
+    return {
+        "issue_info": new_detail,
+        "comments": _merge_list_by_id(existing_comments, new_comments, "id"),
+    }
 
 
 def _merge_pr_json(existing: dict, new: dict) -> dict:
-    """Merge PR JSON: top-level from new; comments and reviews merged by id."""
-    merged = {**new}
-    merged["comments"] = _merge_list_by_id(
-        existing.get("comments") or [],
-        new.get("comments") or [],
-        "id",
-    )
-    merged["reviews"] = _merge_list_by_id(
-        existing.get("reviews") or [],
-        new.get("reviews") or [],
-        "id",
-    )
-    return merged
+    """Merge PR JSON: detail from new (pr_info or flat); comments and reviews merged by id.
+    Accepts and produces nested { pr_info: <detail>, comments: [...], reviews: [...] }."""
+    new_detail = new.get("pr_info")
+    if new_detail is None:
+        new_detail = {k: v for k, v in new.items() if k not in ("comments", "reviews")}
+    existing_comments = existing.get("comments") or []
+    new_comments = new.get("comments") or []
+    existing_reviews = existing.get("reviews") or []
+    new_reviews = new.get("reviews") or []
+    return {
+        "pr_info": new_detail,
+        "comments": _merge_list_by_id(existing_comments, new_comments, "id"),
+        "reviews": _merge_list_by_id(existing_reviews, new_reviews, "id"),
+    }
 
 
 def _write_json(path: Path, data: dict) -> None:
