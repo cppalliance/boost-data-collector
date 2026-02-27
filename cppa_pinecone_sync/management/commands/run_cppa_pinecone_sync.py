@@ -103,6 +103,5 @@ class Command(BaseCommand):
                     logger.warning("Sync error: %s", err)
             logger.info("run_cppa_pinecone_sync: finished successfully")
         except Exception as e:
-            logger.exception("run_cppa_pinecone_sync failed: %s", e)
-            logger.error("Sync failed: %s", e)
-            raise CommandError(f"Sync failed: {e}")
+            logger.exception("run_cppa_pinecone_sync failed")
+            raise CommandError(f"Sync failed: {e}") from e
