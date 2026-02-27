@@ -6,6 +6,7 @@
 #         make help     → list all targets
 # =============================================================================
 
+SHELL := /bin/bash
 COMPOSE   := docker compose
 APP       := web
 MANAGE    := $(COMPOSE) run --rm $(APP) python manage.py
@@ -43,9 +44,10 @@ help:
 	@echo "    bash           Open a bash shell inside the web container"
 	@echo "    collectstatic  Collect static files"
 	@echo ""
-	@echo "  Testing"
+	@echo "  Testing (runs locally, not inside Docker)"
 	@echo "    test           Run full pytest suite"
 	@echo "    test-fast      Run tests, stop on first failure"
+	@echo "    test-cov       Run tests with coverage report"
 	@echo ""
 	@echo "  Utilities"
 	@echo "    clean-mac      Remove macOS ._* resource-fork files"
@@ -132,15 +134,19 @@ bash:
 collectstatic:
 	$(MANAGE) collectstatic --noinput
 
-# ── Testing ───────────────────────────────────────────────────────────────────
+# ── Testing (runs locally, not inside the production image) ───────────────────
 
 .PHONY: test
 test:
-	$(COMPOSE) run --rm $(APP) python -m pytest
+	python -m pytest
 
 .PHONY: test-fast
 test-fast:
-	$(COMPOSE) run --rm $(APP) python -m pytest -x --tb=short
+	python -m pytest -x --tb=short
+
+.PHONY: test-cov
+test-cov:
+	python -m pytest --tb=short --cov=. --cov-report=term-missing
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 

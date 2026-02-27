@@ -89,14 +89,14 @@ docker compose up -d
 
 Containers that will run:
 
-| Service           | Role              | Port / note               |
-| ----------------- | ----------------- | ------------------------- |
-| **db**            | PostgreSQL        | Internal only             |
-| **redis**         | Redis (Celery)    | Internal only             |
+| Service           | Role              | Port / note                                                   |
+| ----------------- | ----------------- | ------------------------------------------------------------- |
+| **db**            | PostgreSQL        | Internal only                                                 |
+| **redis**         | Redis (Celery)    | Internal only                                                 |
 | **selenium**      | Chrome (Selenium) | **http://localhost:4444** (for cppa_slack_transcript_tracker) |
-| **web**           | Django (gunicorn) | **http://localhost:8000** |
-| **celery_worker** | Celery worker     | Runs tasks                |
-| **celery_beat**   | Celery beat       | Schedules daily job (schedule persisted in volume) |
+| **web**           | Django (gunicorn) | **http://localhost:8000**                                     |
+| **celery_worker** | Celery worker     | Runs tasks                                                    |
+| **celery_beat**   | Celery beat       | Schedules daily job (schedule persisted in volume)            |
 
 ---
 
@@ -214,7 +214,7 @@ The `make up` / `make build` targets always run `clean-mac` first, so you never 
 
 ---
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 - **“Cannot connect to database” / “connection refused”**
   Wait a few seconds after `docker compose up -d` and run migrations again. The `web` service waits for `db` to be healthy before starting.

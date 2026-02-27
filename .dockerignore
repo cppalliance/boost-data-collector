@@ -33,10 +33,13 @@ workspace
 logs
 staticfiles
 
-# Tests and dev tools
+# Tests and dev tools (not needed at runtime; run tests locally with: make test)
 tests
 *_test.py
 test_*.py
+conftest.py
+pytest.ini
+setup.cfg
 .pre-commit-config.yaml
 
 # OS
