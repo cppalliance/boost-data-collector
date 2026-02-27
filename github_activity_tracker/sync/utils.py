@@ -30,7 +30,8 @@ def normalize_issue_json(data: dict[str, Any]) -> dict[str, Any]:
     Returns a single dict with all issue fields and "comments" list."""
     if "issue_info" in data and isinstance(data.get("issue_info"), dict):
         out = dict(data["issue_info"])
-        out["comments"] = data.get("comments", out.get("comments", []))
+        raw_comments = data.get("comments", out.get("comments", []))
+        out["comments"] = raw_comments if isinstance(raw_comments, list) else []
         return out
     return data
 
@@ -42,8 +43,10 @@ def normalize_pr_json(data: dict[str, Any]) -> dict[str, Any]:
     Returns a single dict with all PR fields plus "comments" and "reviews" lists."""
     if "pr_info" in data and isinstance(data.get("pr_info"), dict):
         out = dict(data["pr_info"])
-        out["comments"] = data.get("comments", out.get("comments", []))
-        out["reviews"] = data.get("reviews", out.get("reviews", []))
+        raw_comments = data.get("comments", out.get("comments", []))
+        raw_reviews = data.get("reviews", out.get("reviews", []))
+        out["comments"] = raw_comments if isinstance(raw_comments, list) else []
+        out["reviews"] = raw_reviews if isinstance(raw_reviews, list) else []
         return out
     return data
 
