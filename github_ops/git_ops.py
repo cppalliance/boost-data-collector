@@ -72,17 +72,21 @@ def clone_repo(
             errors="replace",
             timeout=GIT_CMD_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired as e:
+    except subprocess.TimeoutExpired:
         logger.warning(
-            "git clone timed out after %ss (%s -> %s): %s",
+            "git clone timed out after %ss (%s -> %s)",
             GIT_CMD_TIMEOUT_SECONDS,
             url_or_slug,
             dest_dir,
-            e,
         )
         raise
     except subprocess.CalledProcessError as e:
-        logger.warning("git clone failed (%s -> %s): %s", url_or_slug, dest_dir, e)
+        logger.warning(
+            "git clone failed (%s -> %s), returncode=%s",
+            url_or_slug,
+            dest_dir,
+            e.returncode,
+        )
         raise
 
 
@@ -109,16 +113,17 @@ def push(
             check=True,
             timeout=GIT_CMD_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired as e:
+    except subprocess.TimeoutExpired:
         logger.warning(
-            "git remote get-url timed out after %ss (%s): %s",
+            "git remote get-url timed out after %ss (%s)",
             GIT_CMD_TIMEOUT_SECONDS,
             repo_dir,
-            e,
         )
         raise
     except subprocess.CalledProcessError as e:
-        logger.warning("git remote get-url failed (%s): %s", repo_dir, e)
+        logger.warning(
+            "git remote get-url failed (%s), returncode=%s", repo_dir, e.returncode
+        )
         raise
     remote_url = result.stdout.strip()
     push_url = _url_with_token(remote_url, token)
@@ -136,16 +141,15 @@ def push(
             errors="replace",
             timeout=GIT_CMD_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired as e:
+    except subprocess.TimeoutExpired:
         logger.warning(
-            "git push timed out after %ss (%s): %s",
+            "git push timed out after %ss (%s)",
             GIT_CMD_TIMEOUT_SECONDS,
             repo_dir,
-            e,
         )
         raise
     except subprocess.CalledProcessError as e:
-        logger.warning("git push failed (%s): %s", repo_dir, e)
+        logger.warning("git push failed (%s), returncode=%s", repo_dir, e.returncode)
         raise
 
 
