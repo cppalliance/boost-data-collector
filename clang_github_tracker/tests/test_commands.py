@@ -1,5 +1,6 @@
 """Tests for clang_github_tracker management command (run_clang_github_tracker)."""
 
+import json
 import logging
 
 import pytest
@@ -22,6 +23,11 @@ def test_run_clang_github_tracker_dry_run_creates_state_if_missing(caplog):
         state_file.unlink()
     with caplog.at_level(logging.INFO):
         call_command(CMD_NAME, "--dry-run", stdout=StringIO(), stderr=StringIO())
+    assert state_file.exists(), "State file should be created by command"
+    state = json.loads(state_file.read_text(encoding="utf-8"))
+    assert "last_commit_date" in state
+    assert "last_issue_date" in state
+    assert "last_pr_date" in state
     assert any("Resolved:" in r.getMessage() for r in caplog.records)
     assert any("Dry run" in r.getMessage() for r in caplog.records)
 
