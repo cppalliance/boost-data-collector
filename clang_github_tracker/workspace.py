@@ -8,6 +8,7 @@ Layout:
     - commits/, issues/, prs/
 """
 
+import re
 from pathlib import Path
 
 from django.conf import settings
@@ -22,6 +23,17 @@ STATE_FILENAME = "state.json"
 # Repo we sync (raw only, no DB); from settings (env: CLANG_GITHUB_OWNER, CLANG_GITHUB_REPO)
 OWNER = settings.CLANG_GITHUB_OWNER
 REPO = settings.CLANG_GITHUB_REPO
+
+# Safe path segment: alphanumeric, underscore, hyphen, dot (GitHub owner/repo style)
+_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+
+def _sanitize_segment(value: str, label: str) -> str:
+    """Validate owner/repo for use as a path segment; reject traversal, separators, empty."""
+    value = (value or "").strip()
+    if not value or not _SEGMENT_RE.fullmatch(value):
+        raise ValueError(f"Invalid GitHub {label}: {value!r}")
+    return value
 
 
 def get_workspace_root() -> Path:
@@ -45,7 +57,9 @@ def get_raw_repo_dir(
     owner: str = OWNER, repo: str = REPO, *, create: bool = True
 ) -> Path:
     """Return workspace/raw/github_activity_tracker/<owner>/<repo>/; creates dirs if missing when create=True."""
-    path = get_raw_root() / owner / repo
+    safe_owner = _sanitize_segment(owner, "owner")
+    safe_repo = _sanitize_segment(repo, "repo")
+    path = get_raw_root() / safe_owner / safe_repo
     if create:
         path.mkdir(parents=True, exist_ok=True)
     return path
