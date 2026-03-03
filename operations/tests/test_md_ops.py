@@ -1,7 +1,5 @@
 """Tests for operations.md_ops converters: issue_json_to_md and pr_json_to_md."""
 
-import pytest
-
 from operations.md_ops.issue_to_md import issue_json_to_md
 from operations.md_ops.pr_to_md import pr_json_to_md
 

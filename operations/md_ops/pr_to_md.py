@@ -120,9 +120,7 @@ def _transform_suggestion_to_diff(
     )
 
     def replace_suggestion(match):
-        suggested_content = (
-            (match.group(1) or "").replace("\r", "").strip("\r\n")
-        )
+        suggested_content = (match.group(1) or "").replace("\r", "").strip("\r\n")
         suggested_lines = suggested_content.split("\n")
         n = len(suggested_lines)
         old_lines = []
@@ -148,11 +146,7 @@ def _transform_suggestion_to_diff(
                 if new_line:
                     diff_lines.append("+" + new_line)
             return "```diff\n" + "\n".join(diff_lines) + "\n```"
-        return (
-            "```diff\n"
-            + "\n".join("+" + line for line in suggested_lines)
-            + "\n```"
-        )
+        return "```diff\n" + "\n".join("+" + line for line in suggested_lines) + "\n```"
 
     return pattern.sub(replace_suggestion, body)
 
@@ -171,9 +165,7 @@ def format_comment_with_replies(
     output.append(f"{indent_str}> Username: {username}  ")
     output.append(f"{indent_str}> Created_at: {created_at}  ")
     if updated_at and updated_at != comment.get("created_at"):
-        output.append(
-            f"{indent_str}> Updated_at: {format_datetime(updated_at)}  "
-        )
+        output.append(f"{indent_str}> Updated_at: {format_datetime(updated_at)}  ")
     if url:
         output.append(f"{indent_str}> Url: {url}  ")
     original_line = comment.get("original_line") or comment.get("line")
@@ -187,15 +179,11 @@ def format_comment_with_replies(
     comment_id = comment.get("id")
     if comment_id and comment_id in replies_map:
         for reply in replies_map[comment_id]:
-            output.append(
-                format_comment_with_replies(reply, replies_map, indent + 1)
-            )
+            output.append(format_comment_with_replies(reply, replies_map, indent + 1))
     return "\n".join(output)
 
 
-def format_review_comments(
-    review_comments: List[Dict], replies_map: Dict
-) -> str:
+def format_review_comments(review_comments: List[Dict], replies_map: Dict) -> str:
     """Format review comments grouped by file."""
     if not review_comments:
         return ""
@@ -243,12 +231,7 @@ def convert_pr_to_markdown(pr_data: Dict) -> str:
     merged_at = format_datetime(pr_info.get("merged_at"))
     closed_at = format_datetime(pr_info.get("closed_at"))
     url = pr_info.get("html_url", "")
-    body = (
-        (pr_info.get("body") or "")
-        .replace("\r", "")
-        .replace("\n", "  \n")
-        .strip()
-    )
+    body = (pr_info.get("body") or "").replace("\r", "").replace("\n", "  \n").strip()
 
     if merged:
         state_display = "Merged"
@@ -275,11 +258,19 @@ def convert_pr_to_markdown(pr_data: Dict) -> str:
     all_items = []
     for comment in comments:
         all_items.append(
-            {"type": "comment", "data": comment, "created_at": comment.get("created_at", "")}
+            {
+                "type": "comment",
+                "data": comment,
+                "created_at": comment.get("created_at", ""),
+            }
         )
     for review in reviews:
         all_items.append(
-            {"type": "review", "data": review, "created_at": review.get("submitted_at", "")}
+            {
+                "type": "review",
+                "data": review,
+                "created_at": review.get("submitted_at", ""),
+            }
         )
     all_items.sort(key=lambda x: x["created_at"])
 
@@ -332,10 +323,7 @@ def convert_pr_to_markdown(pr_data: Dict) -> str:
                 "COMMENTED": "[Commented]",
             }.get(state.upper() if isinstance(state, str) else state, "[Commented]")
             body = (
-                (data.get("body") or "")
-                .strip()
-                .replace("\r", "")
-                .replace("\n", "  \n")
+                (data.get("body") or "").strip().replace("\r", "").replace("\n", "  \n")
             )
             url = data.get("html_url", "")
             review_id = data.get("id")

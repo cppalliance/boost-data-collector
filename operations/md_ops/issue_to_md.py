@@ -31,12 +31,7 @@ def build_issue_md(data: dict) -> str:
 
     issue_url = info.get("html_url") or info.get("url") or ""
 
-    body = (
-        (info.get("body") or "")
-        .replace("\r\n", "\n")
-        .replace("\n", "  \n")
-        .strip()
-    )
+    body = (info.get("body") or "").replace("\r\n", "\n").replace("\n", "  \n").strip()
 
     meta_lines = [
         f"Username: {username}",
