@@ -381,6 +381,8 @@ erDiagram
         int version_id FK
         string cpp_version
         text description
+        string documentation
+        string key
         datetime created_at
         datetime updated_at
     }
@@ -676,13 +678,16 @@ erDiagram
 ```mermaid
 erDiagram
     BoostLibraryVersion ||--o{ BoostLibraryDocumentation : "has"
+    BoostVersion ||--o{ BoostDocContent : "has"
     BoostDocContent ||--o{ BoostLibraryDocumentation : "used_in"
 
     BoostDocContent {
         int id PK
-        text url UK "IX"
-        string content_hash "IX"
-        text page_content
+        text url "IX"
+        string content_hash UK "IX"
+        int first_version_id FK
+        int last_version_id FK
+        boolean is_upserted
         datetime scraped_at
         datetime created_at
     }
@@ -691,18 +696,15 @@ erDiagram
         int id PK
         int boost_library_version_id FK
         int boost_doc_content_id FK
-        string status "IX"
-        int page_count
-        datetime updated_at
         datetime created_at
     }
 ```
 
-**Note:** **BoostDocContent** stores one globally unique page per URL. One row per URL regardless of version or library. `content_hash` (SHA-256 of `page_content`) is used to detect whether content has changed between versions. `scraped_at` is updated each time the page is re-fetched.
+**Note:** **BoostDocContent** stores one globally unique page per URL. One row per URL regardless of version or library. Page content is not stored in the DB; it is kept in workspace files. `content_hash` (SHA-256 of the page text) is used to detect whether content has changed between scrape runs. `scraped_at` is updated each time the page is re-fetched.
 
-**Note:** **BoostLibraryDocumentation** is the join table between **BoostLibraryVersion** (section 3) and **BoostDocContent**. One row per (library-version, page) pair — it records which pages were found under a given (library, version) combination. `status` tracks the scrape and Pinecone sync state for that pair: `pending`, `running`, `completed`, `failed`. `page_count` is the total number of pages discovered for the `boost_library_version_id` in this run (same value for all rows sharing the same `boost_library_version_id`; used for progress/reporting). A `completed` status for all rows of a given `boost_library_version_id` means that (library, version) is fully scraped and can be skipped on re-run.
+**Note:** **BoostLibraryDocumentation** is the join table between **BoostLibraryVersion** (section 3) and **BoostDocContent**. One row per (library-version, page) pair — it records which pages were found under a given (library, version) combination. `is_upserted` indicates whether the document has been successfully upserted to Pinecone.
 
-**Note:** Unique constraint on `url` in BoostDocContent. Composite unique constraint on `(boost_library_version_id, boost_doc_content_id)` in BoostLibraryDocumentation. Index on `(boost_library_version_id, status)` for efficient restart queries.
+**Note:** Unique constraint on `content_hash` in BoostDocContent. Composite unique constraint on `(boost_library_version_id, boost_doc_content_id)` in BoostLibraryDocumentation. Index on `(boost_library_version_id, is_upserted)` for efficient sync and retry queries.
 
 ---
 
