@@ -89,30 +89,23 @@ def _persist_email(email_data: dict) -> tuple[bool, bool]:
     if MailingListMessage.objects.filter(msg_id=msg_id).exists():
         return False, True
 
+    list_name = _clean_text(email_data.get("list_name", "")).strip()
     sender_name = _clean_text(email_data.get("sender_name", "")).strip()
     sender_address = _clean_text(email_data.get("sender_address", "")).strip()
+
     display_name = sender_name or "Unknown Sender"
     if display_name == "Unknown Sender" and sender_address and "@" in sender_address:
         display_name = sender_address.split("@")[0] or display_name
 
     sent_at_str = _clean_text(email_data.get("sent_at", "")).strip()
+    error_reason = None
     try:
         sent_at = parse_datetime(sent_at_str) if sent_at_str else None
     except (TypeError, ValueError):
-        logger.debug(
-            "Skipping row with invalid sent_at %r: msg_id=%s", sent_at_str, msg_id
-        )
-        return False, True
-    if sent_at_str and sent_at is None:
-        logger.debug(
-            "Skipping row with unparseable sent_at %r: msg_id=%s", sent_at_str, msg_id
-        )
-        return False, True
+        error_reason = "invalid sent_at"
 
     if not sender_address:
-        logger.debug(
-            "Missing sender_address for sender_name=%s: msg_id=%s", sender_name, msg_id
-        )
+        error_reason = "missing sender_address"
 
     profile, _ = get_or_create_mailing_list_profile(
         email=sender_address,
@@ -126,9 +119,16 @@ def _persist_email(email_data: dict) -> tuple[bool, bool]:
         thread_id=_clean_text(email_data.get("thread_id", "")),
         subject=_clean_text(email_data.get("subject", "")),
         content=_clean_text(email_data.get("content", "")),
-        list_name=_clean_text(email_data.get("list_name", "")).strip(),
+        list_name=list_name,
         sent_at=sent_at,
     )
+    if error_reason:
+        logger.warning(
+            "Skipping row with %s: msg_id=%s, list_name=%s",
+            error_reason,
+            msg_id,
+            list_name,
+        )
     return was_created, False
 
 
