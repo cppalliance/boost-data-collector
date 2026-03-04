@@ -262,7 +262,7 @@ def convert_pr_to_markdown(pr_data: Dict) -> str:
             {
                 "type": "comment",
                 "data": comment,
-                "created_at": comment.get("created_at", ""),
+                "created_at": comment.get("created_at") or "",
             }
         )
     for review in reviews:
@@ -270,10 +270,10 @@ def convert_pr_to_markdown(pr_data: Dict) -> str:
             {
                 "type": "review",
                 "data": review,
-                "created_at": review.get("submitted_at", ""),
+                "created_at": review.get("submitted_at") or "",
             }
         )
-    all_items.sort(key=lambda x: x["created_at"])
+    all_items.sort(key=lambda x: x["created_at"] or "")
 
     all_review_comments = pr_data.get("comments", [])
     review_comments_list = (
