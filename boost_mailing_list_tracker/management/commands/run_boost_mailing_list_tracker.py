@@ -91,12 +91,6 @@ def _persist_email(email_data: dict) -> tuple[bool, bool]:
 
     sender_name = _clean_text(email_data.get("sender_name", "")).strip()
     sender_address = _clean_text(email_data.get("sender_address", "")).strip()
-    if not sender_address or "@" not in sender_address:
-        logger.debug(
-            "Skipping row with missing/invalid sender_address: msg_id=%s", msg_id
-        )
-        return False, True
-
     display_name = sender_name or "Unknown Sender"
     if display_name == "Unknown Sender" and sender_address and "@" in sender_address:
         display_name = sender_address.split("@")[0] or display_name
@@ -141,10 +135,12 @@ def _process_existing_workspace_json(list_name: str) -> tuple[int, int]:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             formatted_data = format_email(data)
+            fail_this_file = False
             for formatted_email in formatted_data:
                 try:
                     _persist_email(formatted_email)
                 except Exception:
+                    fail_this_file = True
                     logger.exception(
                         "Failed to persist message from %s (msg_id=%s, subject=%s)",
                         path,
@@ -152,7 +148,8 @@ def _process_existing_workspace_json(list_name: str) -> tuple[int, int]:
                         formatted_email.get("subject", "?"),
                     )
                     skipped += 1
-            path.unlink()
+            if not fail_this_file:
+                path.unlink()
             processed += 1
         except Exception as e:
             logger.exception("Failed to process %s: %s", path, e)
