@@ -102,26 +102,38 @@ def _persist_email(email_data: dict) -> tuple[bool, bool]:
     try:
         sent_at = parse_datetime(sent_at_str) if sent_at_str else None
     except (TypeError, ValueError):
+        sent_at = None
+        error_reason = "invalid sent_at"
+    if sent_at_str and sent_at is None:
         error_reason = "invalid sent_at"
 
     if not sender_address:
         error_reason = "missing sender_address"
 
-    profile, _ = get_or_create_mailing_list_profile(
-        email=sender_address,
-        display_name=display_name,
-    )
+    try:
+        profile, _ = get_or_create_mailing_list_profile(
+            email=sender_address,
+            display_name=display_name,
+        )
 
-    _, was_created = get_or_create_mailing_list_message(
-        sender=profile,
-        msg_id=msg_id,
-        parent_id=_clean_text(email_data.get("parent_id", "")),
-        thread_id=_clean_text(email_data.get("thread_id", "")),
-        subject=_clean_text(email_data.get("subject", "")),
-        content=_clean_text(email_data.get("content", "")),
-        list_name=list_name,
-        sent_at=sent_at,
-    )
+        _, was_created = get_or_create_mailing_list_message(
+            sender=profile,
+            msg_id=msg_id,
+            parent_id=_clean_text(email_data.get("parent_id", "")),
+            thread_id=_clean_text(email_data.get("thread_id", "")),
+            subject=_clean_text(email_data.get("subject", "")),
+            content=_clean_text(email_data.get("content", "")),
+            list_name=list_name,
+            sent_at=sent_at,
+        )
+    except Exception as e:
+        logger.exception(
+            "Failed to persist message (msg_id=%s, list_name=%s): %s",
+            msg_id,
+            list_name,
+            e,
+        )
+        return False, True
     if error_reason:
         logger.warning(
             "Incomplete email: msg_id=%s, list_name=%s, reason=%s",

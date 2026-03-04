@@ -80,8 +80,8 @@ def test_persist_email_skips_duplicate_msg_id():
 
 
 @pytest.mark.django_db
-def test_persist_email_skips_invalid_sent_at():
-    """_persist_email skips when sent_at is unparseable."""
+def test_persist_email_persists_with_invalid_sent_at():
+    """_persist_email still creates message when sent_at is unparseable; sent_at is stored as None."""
     from boost_mailing_list_tracker.management.commands.run_boost_mailing_list_tracker import (
         _persist_email,
     )
@@ -90,11 +90,10 @@ def test_persist_email_skips_invalid_sent_at():
         msg_id="<bad-date@example.com>", sent_at_str="not-a-date"
     )
     was_created, skipped = _persist_email(email_data)
-    assert was_created is False
-    assert skipped is True
-    assert not MailingListMessage.objects.filter(
-        msg_id="<bad-date@example.com>"
-    ).exists()
+    assert was_created is True
+    assert skipped is False
+    msg = MailingListMessage.objects.get(msg_id="<bad-date@example.com>")
+    assert msg.sent_at is None
 
 
 @pytest.mark.django_db
