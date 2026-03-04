@@ -1,9 +1,12 @@
 """
 Check whether a new Boost release exists (GitHub API vs BoostVersion in DB).
 Used by boost_collector_runner when running schedule=on_release tasks.
+Only considers stable releases: tag must be boost-X.Y.Z (e.g. boost-1.90.0).
+Excludes pre-releases (beta, rc, rc1, etc.). Minimum version: 1.16.1.
 """
 
 import logging
+import re
 
 from boost_library_tracker.models import BoostVersion
 from github_ops.client import GitHubAPIClient
@@ -14,12 +17,33 @@ logger = logging.getLogger(__name__)
 MAIN_OWNER = "boostorg"
 MAIN_REPO = "boost"
 
+# Only boost-X.Y.Z (three numeric parts, no suffix like -beta, -rc, etc.)
+BOOST_TAG_PATTERN = re.compile(r"^boost-(\d+)\.(\d+)\.(\d+)$")
+MIN_BOOST_VERSION = (1, 16, 1)
+
+
+def _parse_stable_version(tag_name: str) -> tuple[int, int, int] | None:
+    """
+    Return (major, minor, patch) if tag is a stable release boost-X.Y.Z and version >= MIN_BOOST_VERSION.
+    Return None for pre-releases (boost-1.90.0-beta, rc1, etc.) or versions below minimum.
+    """
+    if not tag_name:
+        return None
+    m = BOOST_TAG_PATTERN.match(tag_name.strip())
+    if not m:
+        return None
+    major, minor, patch = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    if (major, minor, patch) < MIN_BOOST_VERSION:
+        return None
+    return (major, minor, patch)
+
 
 def has_new_boost_release() -> bool:
     """
     Return True if the GitHub API has at least one release whose tag_name
-    is not yet in BoostVersion. Return False if all known releases are
-    already in the DB, or on API/network errors (no new release assumed).
+    is a stable boost-X.Y.Z (>= 1.16.1) not yet in BoostVersion. Return False
+    if all known releases are already in the DB, or on API/network errors.
+    Pre-releases (beta, rc, etc.) are ignored.
     """
     token = get_github_token()
     if not token:
@@ -39,7 +63,9 @@ def has_new_boost_release() -> bool:
                 break
             for r in page_releases:
                 tag = r.get("tag_name")
-                if tag and tag not in existing:
+                if not tag or tag in existing:
+                    continue
+                if _parse_stable_version(tag) is not None:
                     logger.info("New Boost release detected: %s", tag)
                     return True
             if len(page_releases) < per_page:
