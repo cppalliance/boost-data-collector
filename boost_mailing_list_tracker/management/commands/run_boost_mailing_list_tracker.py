@@ -226,7 +226,7 @@ class Command(BaseCommand):
                     processed, skipped = _process_existing_workspace_json(list_name)
                     total_existing += processed
                     total_skipped += skipped
-                
+
                 self.stdout.write(
                     f"Processed {total_existing} existing message JSON(s) from workspace. {total_skipped} skipped."
                 )
