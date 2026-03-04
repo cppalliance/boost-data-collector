@@ -155,7 +155,7 @@ def format_comment_with_replies(
     comment: Dict, replies_map: Dict, indent: int = 0
 ) -> str:
     """Format a comment and its replies recursively."""
-    indent_str = "" if indent > 0 else ("    " * indent)
+    indent_str = "    " * indent
     output = []
     username = (comment.get("user") or {}).get("login", "Unknown")
     created_at = format_datetime(comment.get("created_at"))
@@ -198,14 +198,15 @@ def format_review_comments(review_comments: List[Dict], replies_map: Dict) -> st
             if i > 0:
                 output.append("---")
                 output.append("")
+            resolved = comment.get("resolved") or comment.get("resolution")
+            resolved_suffix = " [Resolved]" if resolved else ""
+            output.append(f"📁 {file_path}{resolved_suffix}")
+            output.append("")
+
             diff_hunk = comment.get("diff_hunk", "")
             if diff_hunk:
                 last_lines = get_last_n_lines(diff_hunk, 3)
                 if last_lines:
-                    resolved = comment.get("resolved") or comment.get("resolution")
-                    resolved_suffix = " [Resolved]" if resolved else ""
-                    output.append(f"📁 {file_path}{resolved_suffix}")
-                    output.append("")
                     output.append("```diff")
                     output.append(last_lines)
                     output.append("```")
@@ -321,7 +322,10 @@ def convert_pr_to_markdown(pr_data: Dict) -> str:
                 "APPROVED": "[Approved]",
                 "CHANGES_REQUESTED": "[Changes requested]",
                 "COMMENTED": "[Commented]",
-            }.get(state.upper() if isinstance(state, str) else state, "[Commented]")
+            }.get(
+                state.upper() if isinstance(state, str) else state,
+                "[Commented]",
+            )
             body = (
                 (data.get("body") or "").strip().replace("\r", "").replace("\n", "  \n")
             )
