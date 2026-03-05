@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 # Fewer workers to avoid GitHub secondary rate limit (403 when too many concurrent requests)
 _UPLOAD_FOLDER_MAX_WORKERS = 8
 _UPLOAD_FOLDER_BLOB_RETRIES = 5
-_UPLOAD_FOLDER_403_WAIT_SEC = 5
+_UPLOAD_FOLDER_403_WAIT_SEC = 60
 _thread_local = threading.local()
 
 
