@@ -48,10 +48,16 @@ def run_scheduled_collectors_task(
         call_command("run_scheduled_collectors", *args)
         logger.info("run_scheduled_collectors_task: finished successfully")
     except SystemExit as e:
-        if e.code != 0:
+        if e.code is None:
+            code = 0
+        elif isinstance(e.code, int):
+            code = e.code
+        else:
+            code = 1
+        if code != 0:
             logger.error(
                 "run_scheduled_collectors_task: command exited with code %s",
-                e.code,
+                code,
             )
             raise
     except Exception as e:

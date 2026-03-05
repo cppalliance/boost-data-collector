@@ -188,7 +188,12 @@ class Command(BaseCommand):
                 results.append((name, 0))
                 self.stdout.write(self.style.SUCCESS(f"  {name}: success"))
             except SystemExit as e:
-                code = e.code if isinstance(e.code, int) else 1
+                if e.code is None:
+                    code = 0
+                elif isinstance(e.code, int):
+                    code = e.code
+                else:
+                    code = 1
                 results.append((name, code))
                 if code == 0:
                     self.stdout.write(self.style.SUCCESS(f"  {name}: success"))
