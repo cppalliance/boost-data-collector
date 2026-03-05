@@ -185,7 +185,9 @@ def load_config(path=None):
             raise ValueError(f"Group {group_id!r} must be a dict")
         group_time = (group_data.get("default_time") or "").strip()
         if not group_time:
-            raise ValueError(f"Group {group_id!r} must have 'default_time' (e.g. \"04:10\")")
+            raise ValueError(
+                f"Group {group_id!r} must have 'default_time' (e.g. \"04:10\")"
+            )
         _parse_time(group_time)  # validate format; return value unused
         tasks = group_data.get("tasks")
         if not isinstance(tasks, list):
@@ -213,9 +215,10 @@ def get_groups_and_tasks(data=None):
         if not group_time:
             raise ValueError(f"Group {group_id!r} must have 'default_time'")
         tasks = []
-        for task in (group_data.get("tasks") or []):
+        for task in group_data.get("tasks") or []:
             t = _normalize_task(
-                dict(task), group_id,
+                dict(task),
+                group_id,
                 group_default_time=group_time,
             )
             if t.get("enabled") is False:
@@ -226,7 +229,13 @@ def get_groups_and_tasks(data=None):
     return result
 
 
-def get_tasks_for_schedule(schedule_kind, day_of_week=None, day_of_month=None, interval_minutes=None, group_id=None):
+def get_tasks_for_schedule(
+    schedule_kind,
+    day_of_week=None,
+    day_of_month=None,
+    interval_minutes=None,
+    group_id=None,
+):
     """
     Return list of (group_id, task_dict) for tasks matching the given schedule.
     Only enabled tasks. Preserves task order within each group.
@@ -241,12 +250,16 @@ def get_tasks_for_schedule(schedule_kind, day_of_week=None, day_of_month=None, i
         raise ValueError("day_of_month required for schedule_kind='monthly'")
     if schedule_kind == "interval" and interval_minutes is None:
         raise ValueError("interval_minutes required for schedule_kind='interval'")
-    if schedule_kind == "interval" and not (1 <= int(interval_minutes) <= INTERVAL_MINUTES_MAX):
+    if schedule_kind == "interval" and not (
+        1 <= int(interval_minutes) <= INTERVAL_MINUTES_MAX
+    ):
         raise ValueError(f"interval_minutes must be 1-{INTERVAL_MINUTES_MAX}")
 
     day_of_week_full = _normalize_day_of_week(day_of_week) if day_of_week else None
     day_of_month_int = int(day_of_month) if day_of_month is not None else None
-    interval_minutes_int = int(interval_minutes) if interval_minutes is not None else None
+    interval_minutes_int = (
+        int(interval_minutes) if interval_minutes is not None else None
+    )
 
     out = []
     for gid, tasks in get_groups_and_tasks():
@@ -319,7 +332,14 @@ def get_beat_schedule():
 
     schedule = {}
     for row in _collect_distinct_schedules(data=data):
-        schedule_kind, day_of_week, day_of_month, time_str, interval_minutes, group_id = row
+        (
+            schedule_kind,
+            day_of_week,
+            day_of_month,
+            time_str,
+            interval_minutes,
+            group_id,
+        ) = row
         kwargs = {"schedule_kind": schedule_kind}
         if day_of_week:
             kwargs["day_of_week"] = day_of_week
@@ -334,7 +354,9 @@ def get_beat_schedule():
             key = f"boost-collector-interval-{interval_minutes}min"
             schedule[key] = {
                 "task": "boost_collector_runner.tasks.run_scheduled_collectors_task",
-                "schedule": celery_schedule(run_every=timedelta(minutes=interval_minutes)),
+                "schedule": celery_schedule(
+                    run_every=timedelta(minutes=interval_minutes)
+                ),
                 "kwargs": kwargs,
             }
         elif schedule_kind == "daily":

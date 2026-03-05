@@ -24,7 +24,9 @@ COLLECTOR_COMMANDS = [
 
 
 class Command(BaseCommand):
-    help = "Run all collector commands in order (fixed list). Exit 0 only if all succeed."
+    help = (
+        "Run all collector commands in order (fixed list). Exit 0 only if all succeed."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(

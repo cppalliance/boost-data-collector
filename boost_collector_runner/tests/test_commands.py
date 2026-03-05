@@ -90,16 +90,21 @@ def test_run_scheduled_collectors_daily_runs_tasks_from_yaml(tmp_path, settings)
 
     yaml_path = tmp_path / "boost_collector_schedule.yaml"
     yaml_path.write_text(
-        yaml.dump({
-            "groups": {
-                "github": {
-                    "default_time": "04:10",
-                    "tasks": [
-                        {"command": "run_boost_library_tracker", "schedule": "daily"},
-                    ],
+        yaml.dump(
+            {
+                "groups": {
+                    "github": {
+                        "default_time": "04:10",
+                        "tasks": [
+                            {
+                                "command": "run_boost_library_tracker",
+                                "schedule": "daily",
+                            },
+                        ],
+                    },
                 },
-            },
-        }),
+            }
+        ),
         encoding="utf-8",
     )
     settings.BOOST_COLLECTOR_SCHEDULE_YAML = yaml_path
@@ -112,7 +117,8 @@ def test_run_scheduled_collectors_daily_runs_tasks_from_yaml(tmp_path, settings)
     ):
         call_command(
             "run_scheduled_collectors",
-            "--schedule", "daily",
+            "--schedule",
+            "daily",
             stdout=out,
             stderr=err,
         )

@@ -73,16 +73,13 @@ class Command(BaseCommand):
             )
         )
         tasks.extend(
-            get_tasks_for_schedule(
-                "monthly", day_of_month=today_day, group_id=group_id
-            )
+            get_tasks_for_schedule("monthly", day_of_month=today_day, group_id=group_id)
         )
         try:
             from boost_library_tracker.release_check import has_new_boost_release
+
             if has_new_boost_release():
-                tasks.extend(
-                    get_tasks_for_schedule("on_release", group_id=group_id)
-                )
+                tasks.extend(get_tasks_for_schedule("on_release", group_id=group_id))
         except ImportError:
             pass
         return tasks
@@ -99,7 +96,9 @@ class Command(BaseCommand):
         if schedule_kind == "monthly" and day_of_month is None:
             raise CommandError("--schedule monthly requires --day-of-month")
         if schedule_kind == "interval" and interval_minutes is None:
-            raise CommandError("--schedule interval requires --interval-minutes (1-180)")
+            raise CommandError(
+                "--schedule interval requires --interval-minutes (1-180)"
+            )
 
         group_id = options.get("group")
         if group_id and schedule_kind == "daily":
@@ -112,7 +111,9 @@ class Command(BaseCommand):
         else:
             if schedule_kind == "on_release":
                 try:
-                    from boost_library_tracker.release_check import has_new_boost_release
+                    from boost_library_tracker.release_check import (
+                        has_new_boost_release,
+                    )
                 except ImportError as e:
                     raise CommandError(
                         "on_release requires boost_library_tracker (install and add to INSTALLED_APPS)."
@@ -122,7 +123,9 @@ class Command(BaseCommand):
                         "run_scheduled_collectors: no new Boost release; skipping on_release tasks."
                     )
                     return
-            group_id = group_id if schedule_kind not in ("interval", "on_release") else None
+            group_id = (
+                group_id if schedule_kind not in ("interval", "on_release") else None
+            )
             try:
                 tasks = get_tasks_for_schedule(
                     schedule_kind,
@@ -169,7 +172,7 @@ class Command(BaseCommand):
                 exit_code = code
                 if stop_on_failure:
                     break
-            except Exception as e:
+            except Exception:
                 logger.exception("%s failed", name)
                 results.append((name, -1))
                 exit_code = 1
