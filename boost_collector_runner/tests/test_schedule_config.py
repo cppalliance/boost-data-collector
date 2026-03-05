@@ -62,14 +62,16 @@ def test_load_config_group_id_empty_string(tmp_path):
     """Group id that is empty string raises ValueError."""
     path = tmp_path / "config.yaml"
     path.write_text(
-        yaml.dump({
-            "groups": {
-                "": {
-                    "default_time": "04:10",
-                    "tasks": [],
+        yaml.dump(
+            {
+                "groups": {
+                    "": {
+                        "default_time": "04:10",
+                        "tasks": [],
+                    },
                 },
-            },
-        }),
+            }
+        ),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="Group id must be a non-empty string"):
@@ -80,14 +82,16 @@ def test_load_config_group_id_whitespace_only(tmp_path):
     """Group id that is only whitespace raises ValueError."""
     path = tmp_path / "config.yaml"
     path.write_text(
-        yaml.dump({
-            "groups": {
-                "   ": {
-                    "default_time": "04:10",
-                    "tasks": [],
+        yaml.dump(
+            {
+                "groups": {
+                    "   ": {
+                        "default_time": "04:10",
+                        "tasks": [],
+                    },
                 },
-            },
-        }),
+            }
+        ),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="Group id must be a non-empty string"):
@@ -98,11 +102,13 @@ def test_load_config_group_data_not_dict(tmp_path):
     """Group value that is not a dict raises ValueError."""
     path = tmp_path / "config.yaml"
     path.write_text(
-        yaml.dump({
-            "groups": {
-                "github": "not a dict",
-            },
-        }),
+        yaml.dump(
+            {
+                "groups": {
+                    "github": "not a dict",
+                },
+            }
+        ),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="Group 'github' must be a dict"):
@@ -113,27 +119,31 @@ def test_load_config_default_time_missing(tmp_path):
     """Group without default_time or with empty default_time raises ValueError."""
     path = tmp_path / "config.yaml"
     path.write_text(
-        yaml.dump({
-            "groups": {
-                "github": {
-                    "tasks": [],
+        yaml.dump(
+            {
+                "groups": {
+                    "github": {
+                        "tasks": [],
+                    },
                 },
-            },
-        }),
+            }
+        ),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="must have 'default_time'"):
         load_config(path)
 
     path.write_text(
-        yaml.dump({
-            "groups": {
-                "github": {
-                    "default_time": "   ",
-                    "tasks": [],
+        yaml.dump(
+            {
+                "groups": {
+                    "github": {
+                        "default_time": "   ",
+                        "tasks": [],
+                    },
                 },
-            },
-        }),
+            }
+        ),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="must have 'default_time'"):
@@ -144,28 +154,32 @@ def test_load_config_default_time_invalid(tmp_path):
     """Group with invalid default_time format raises ValueError."""
     path = tmp_path / "config.yaml"
     path.write_text(
-        yaml.dump({
-            "groups": {
-                "github": {
-                    "default_time": "25:00",
-                    "tasks": [],
+        yaml.dump(
+            {
+                "groups": {
+                    "github": {
+                        "default_time": "25:00",
+                        "tasks": [],
+                    },
                 },
-            },
-        }),
+            }
+        ),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="Invalid time"):
         load_config(path)
 
     path.write_text(
-        yaml.dump({
-            "groups": {
-                "github": {
-                    "default_time": "not-time",
-                    "tasks": [],
+        yaml.dump(
+            {
+                "groups": {
+                    "github": {
+                        "default_time": "not-time",
+                        "tasks": [],
+                    },
                 },
-            },
-        }),
+            }
+        ),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="Invalid time"):
@@ -176,14 +190,16 @@ def test_load_config_tasks_not_list(tmp_path):
     """Group with tasks not a list raises ValueError."""
     path = tmp_path / "config.yaml"
     path.write_text(
-        yaml.dump({
-            "groups": {
-                "github": {
-                    "default_time": "04:10",
-                    "tasks": "not a list",
+        yaml.dump(
+            {
+                "groups": {
+                    "github": {
+                        "default_time": "04:10",
+                        "tasks": "not a list",
+                    },
                 },
-            },
-        }),
+            }
+        ),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="must have 'tasks' \\(list\\)"):
@@ -194,16 +210,18 @@ def test_load_config_valid_minimal(tmp_path):
     """Valid minimal YAML loads and returns data dict."""
     path = tmp_path / "config.yaml"
     path.write_text(
-        yaml.dump({
-            "groups": {
-                "github": {
-                    "default_time": "04:10",
-                    "tasks": [
-                        {"command": "run_foo", "schedule": "daily"},
-                    ],
+        yaml.dump(
+            {
+                "groups": {
+                    "github": {
+                        "default_time": "04:10",
+                        "tasks": [
+                            {"command": "run_foo", "schedule": "daily"},
+                        ],
+                    },
                 },
-            },
-        }),
+            }
+        ),
         encoding="utf-8",
     )
     data = load_config(path)
@@ -217,17 +235,19 @@ def test_load_config_invalid_task_fails(tmp_path):
     """Invalid task in YAML causes load_config to raise ValueError from _validate_task."""
     path = tmp_path / "config.yaml"
     path.write_text(
-        yaml.dump({
-            "groups": {
-                "github": {
-                    "default_time": "04:10",
-                    "tasks": [
-                        {"command": "run_foo", "schedule": "daily"},
-                        {"command": "run_bar"},  # missing schedule
-                    ],
+        yaml.dump(
+            {
+                "groups": {
+                    "github": {
+                        "default_time": "04:10",
+                        "tasks": [
+                            {"command": "run_foo", "schedule": "daily"},
+                            {"command": "run_bar"},  # missing schedule
+                        ],
+                    },
                 },
-            },
-        }),
+            }
+        ),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="'schedule' must be one of"):
@@ -322,7 +342,11 @@ def test_validate_task_interval_minutes_out_of_range():
         _validate_task({"command": "c1", "schedule": "interval", "minutes": 0}, "g1")
     with pytest.raises(ValueError, match="'minutes' must be 1-180"):
         _validate_task(
-            {"command": "c1", "schedule": "interval", "minutes": INTERVAL_MINUTES_MAX + 1},
+            {
+                "command": "c1",
+                "schedule": "interval",
+                "minutes": INTERVAL_MINUTES_MAX + 1,
+            },
             "g1",
         )
 
@@ -331,7 +355,9 @@ def test_validate_task_interval_valid():
     """Task with schedule interval and valid minutes passes."""
     _validate_task({"command": "c1", "schedule": "interval", "minutes": 1}, "g1")
     _validate_task({"command": "c1", "schedule": "interval", "minutes": 60}, "g1")
-    _validate_task({"command": "c1", "schedule": "interval", "minutes": INTERVAL_MINUTES_MAX}, "g1")
+    _validate_task(
+        {"command": "c1", "schedule": "interval", "minutes": INTERVAL_MINUTES_MAX}, "g1"
+    )
 
 
 def test_validate_task_enabled_not_bool():
