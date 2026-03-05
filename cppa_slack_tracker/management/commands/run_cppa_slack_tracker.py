@@ -48,9 +48,12 @@ def _parse_date(date_str: Optional[str]) -> Optional[datetime]:
 
 
 class Command(BaseCommand):
+    """Django management command to run CPPA Slack Tracker (sync teams, users, channels, memberships, messages)."""
+
     help = "Run CPPA Slack Tracker to sync Slack data (users, channels, channel memberships, messages)"
 
     def add_arguments(self, parser):
+        """Add --team-id, --channel-id, date range, sync flags, and --dry-run."""
         parser.add_argument(
             "--team-id",
             type=str,
@@ -108,6 +111,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *_args, **options):
+        """Run the requested sync(s) for the given team (and optional channel)."""
         team_id = (options.get("team_id") or "").strip()
         if not team_id:
             team_id = (getattr(settings, "SLACK_TEAM_ID", "") or "").strip()
@@ -236,6 +240,7 @@ class Command(BaseCommand):
         messages = []
 
         def _append_payload(data):
+            """Append a single message dict or extend with a list of message dicts."""
             if isinstance(data, list):
                 messages.extend(data)
             else:

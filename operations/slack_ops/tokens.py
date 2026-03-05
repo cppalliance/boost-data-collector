@@ -14,15 +14,33 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _slack_team_id_fallback() -> str:
+    """Return SLACK_TEAM_ID from Django settings or os.environ for single-workspace fallback."""
+    try:
+        from django.conf import settings as django_settings
+
+        tid = (getattr(django_settings, "SLACK_TEAM_ID", None) or "").strip()
+    except Exception:
+        tid = ""
+    if not tid:
+        tid = (os.environ.get("SLACK_TEAM_ID") or "").strip()
+    return tid
+
+
 def get_slack_bot_token(team_id: Optional[str] = None) -> str:
     """
     Return the Slack bot token for the given workspace (team_id).
 
     SLACK_BOT_TOKEN in settings is a dict (team_id -> token), built from env via
-    SLACK_TEAM_IDS and SLACK_BOT_TOKEN_<team_id>. Logs error and raises ValueError
-    if team_id is missing or the token for that team_id is missing.
+    SLACK_TEAM_IDS and SLACK_BOT_TOKEN_<team_id>. When team_id is missing or empty,
+    falls back to SLACK_TEAM_ID from Django settings or os.environ so single-workspace
+    setups (e.g. cppa_slack_transcript_tracker) work without passing team_id.
+    Logs error and raises ValueError only if both team_id and fallback are absent,
+    or the token for that team is missing.
     """
     tid = (team_id or "").strip()
+    if not tid:
+        tid = _slack_team_id_fallback()
     if not tid:
         logger.error("team_id is missing for Slack bot token lookup")
         raise ValueError("team_id is required for get_slack_bot_token")
@@ -77,7 +95,11 @@ def get_slack_app_token() -> str:
 def get_slack_client(
     bot_token: Optional[str] = None, team_id: Optional[str] = None
 ) -> "SlackAPIClient":
-    """Get a SlackAPIClient with the given token, or the token for team_id from settings.SLACK_BOT_TOKEN (dict)."""
+    """
+    Get a SlackAPIClient with the given token, or the token for team_id from
+    settings.SLACK_BOT_TOKEN (dict). When neither bot_token nor team_id is
+    provided, get_slack_bot_token(team_id) uses SLACK_TEAM_ID fallback internally.
+    """
     from operations.slack_ops.client import SlackAPIClient
 
     token = (bot_token or "").strip() or get_slack_bot_token(team_id)
