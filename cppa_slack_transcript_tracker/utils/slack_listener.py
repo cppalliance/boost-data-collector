@@ -52,8 +52,9 @@ class SlackListener:
     """Slack Event Listener using Slack Bolt."""
 
     def __init__(self, bot_token=None, app_token=None):
-        if bot_token:
-            self.bot_token = bot_token
+        token = (bot_token or "").strip()
+        if token:
+            self.bot_token = token
         else:
             try:
                 team_id = (

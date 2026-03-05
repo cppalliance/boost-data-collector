@@ -261,12 +261,15 @@ def fetch_channel_user_list(
             cursor=cursor,
         )
         if not data.get("ok"):
+            error = data.get("error", "unknown")
             logger.warning(
                 "conversations.members failed for %s: %s",
                 channel_id,
-                data.get("error", "unknown"),
+                error,
             )
-            break
+            raise RuntimeError(
+                f"conversations.members failed for channel_id={channel_id}: {error}"
+            )
         user_ids.extend(data.get("members", []))
         cursor = (data.get("response_metadata") or {}).get("next_cursor")
         if not cursor:

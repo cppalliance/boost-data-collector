@@ -32,8 +32,9 @@ def run_slack_huddle(bot_token=None, app_token=None):
         )
 
     try:
-        team_id = getattr(settings, "SLACK_TEAM_ID", None) or None
-        bot_token = bot_token or get_slack_bot_token(team_id=team_id)
+        team_id = (getattr(settings, "SLACK_TEAM_ID", None) or "").strip() or None
+        token = (bot_token or "").strip()
+        bot_token = token or get_slack_bot_token(team_id=team_id)
     except ValueError:
         bot_token = None
     try:

@@ -42,16 +42,22 @@ def sync_users(
     """
     Sync workspace users to the database.
 
-    Fetches users via fetch_user_list(team_id or team_slug) from
-    cppa_slack_tracker.fetcher and processes each via _process_user_info.
+    Fetches users via fetch_user_list(team_id) from cppa_slack_tracker.fetcher.
+    team_id is required for API token resolution (workspace ID, not slug).
+    Processes each user via _process_user_info.
 
     Returns (success_count, error_count).
     """
     success_count = 0
     error_count = 0
 
+    tid = (team_id or "").strip()
+    if not tid:
+        logger.error("team_id is required for sync_users (team_slug=%s)", team_slug)
+        return success_count, error_count + 1
+
     try:
-        members = fetch_user_list(team_id or team_slug)
+        members = fetch_user_list(tid)
     except Exception:
         error_count += 1
         logger.exception(
