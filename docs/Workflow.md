@@ -38,7 +38,7 @@ The **boost_collector_runner** app runs collectors from a single config file so 
 | **weekly** | Run once per week. Use **on** with a weekday: `monday`, `mon`, `tuesday`, `tue`, etc. |
 | **monthly** | Run once per month on a given date. Use **on** with day of month (1–31). |
 | **interval** | Run every N **minutes**. Use **minutes** (1–180). **Use interval only for minutes; at most 3 hours.** Suitable for short periodic runs (e.g. every 15 min). |
-| **on_release** | Run when a new version release is detected. Not driven by Celery Beat; trigger manually or from release-detection code (e.g. `run_scheduled_collectors_task.delay(schedule_kind="on_release")`). |
+| **on_release** | Run when a new version release is detected. There is no dedicated Beat entry for `on_release`; grouped `on_release` tasks are evaluated during group batch runs, and standalone checks can also be triggered manually or from release-detection code (e.g. `run_scheduled_collectors_task.delay(schedule_kind="on_release")`). |
 
 ### Structure
 
@@ -51,7 +51,7 @@ The **boost_collector_runner** app runs collectors from a single config file so 
   - **enabled** (optional) – `true` (default) or `false` to skip without removing the entry.
   - **args** (optional) – List of strings passed to the command (e.g. `["--format", "json"]`).
 
-  Tasks do not have their own **time**; the group's **default_time** is when that group's non-interval tasks run. Within a group, tasks run sequentially. Each group has its own Celery Beat entry so groups can run in parallel on different workers. Interval tasks are configured under groups but excluded from the group batch; they get separate Beat entries and run independently.
+  Tasks do not have their own **time**; the group's **default_time** is when that group's non-interval tasks run. Within a group, tasks run sequentially. Each group has its own Celery Beat entry so groups can run in parallel on different workers. Interval tasks are configured under groups but excluded from the group batch; they get separate Beat entries and run independently. Tasks with `schedule: on_release` do not get a dedicated Beat entry but are included in the group batch when the group runs (and run if a new release is detected).
 
 ### Example (excerpt)
 
@@ -90,7 +90,7 @@ Add `--stop-on-failure` to stop after the first failing command.
 
 ### Celery Beat
 
-`CELERY_BEAT_SCHEDULE` is built from the YAML: one Beat entry **per group** for daily/weekly/monthly (so groups run in parallel), and one entry per interval-minutes for interval tasks (run independently, not tied to a group). Tasks with `schedule: on_release` are not in Beat; trigger them when your release-detection logic runs.
+`CELERY_BEAT_SCHEDULE` is built from the YAML: one Beat entry **per group** for daily/weekly/monthly (so groups run in parallel), and one entry per interval-minutes for interval tasks (run independently, not tied to a group). Tasks with `schedule: on_release` do not get dedicated Beat entries; grouped `on_release` tasks are checked during group runs, and standalone `on_release` runs can be triggered from release-detection logic.
 
 ## 3. Project details
 
