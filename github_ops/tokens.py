@@ -30,7 +30,11 @@ def get_github_token(
     - write: GITHUB_TOKEN_WRITE (create PR, issues, comments, git push) or GITHUB_TOKEN
     """
     if use == "scraping":
-        tokens = getattr(settings, "GITHUB_TOKENS_SCRAPING", None) or []
+        raw_tokens = getattr(settings, "GITHUB_TOKENS_SCRAPING", None) or []
+        # Only include non-empty strings (skip whitespace-only or non-string entries)
+        tokens = [
+            t.strip() for t in raw_tokens if isinstance(t, str) and (t or "").strip()
+        ]
         if not tokens:
             token = getattr(settings, "GITHUB_TOKEN", None) or os.environ.get(
                 "GITHUB_TOKEN", ""

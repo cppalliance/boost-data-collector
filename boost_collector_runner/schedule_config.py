@@ -201,11 +201,12 @@ def load_config(path=None):
             raise ValueError("Group id must be a non-empty string")
         if not isinstance(group_data, dict):
             raise ValueError(f"Group {group_id!r} must be a dict")
-        group_time = (group_data.get("default_time") or "").strip()
-        if not group_time:
+        raw_group_time = group_data.get("default_time")
+        if not isinstance(raw_group_time, str) or not raw_group_time.strip():
             raise ValueError(
                 f"Group {group_id!r} must have 'default_time' (e.g. \"04:10\")"
             )
+        group_time = raw_group_time.strip()
         _parse_time(group_time)  # validate format; return value unused
         tasks = group_data.get("tasks")
         if not isinstance(tasks, list):
@@ -365,7 +366,7 @@ def get_beat_schedule():
 
     try:
         data = load_config(path)
-    except (ValueError, yaml.YAMLError) as e:
+    except (ValueError, yaml.YAMLError, OSError) as e:
         logger.warning("Invalid schedule YAML: %s; no beat schedule loaded.", e)
         return {}
 

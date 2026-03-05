@@ -87,7 +87,9 @@ class Command(BaseCommand):
             )
         )
         try:
-            from boost_library_tracker.release_check import has_new_boost_release
+            from boost_library_tracker.release_check import (
+                has_new_boost_release,
+            )
 
             if has_new_boost_release():
                 tasks.extend(get_tasks_for_schedule("on_release", group_id=group_id))
@@ -117,7 +119,7 @@ class Command(BaseCommand):
             )
 
         group_id = options.get("group")
-        if group_id and schedule_kind == "daily":
+        if schedule_kind == "daily":
             try:
                 tasks = self._get_group_batch_tasks(group_id)
             except FileNotFoundError as e:
@@ -139,9 +141,6 @@ class Command(BaseCommand):
                         "run_scheduled_collectors: no new Boost release; skipping on_release tasks."
                     )
                     return
-            group_id = (
-                group_id if schedule_kind not in ("interval", "on_release") else None
-            )
             kwargs = dict(
                 schedule_kind=schedule_kind,
                 day_of_week=day_of_week,
@@ -179,7 +178,7 @@ class Command(BaseCommand):
             len(tasks),
         )
 
-        for task_group_id, task in tasks:
+        for _task_group_id, task in tasks:
             name = task.get("command")
             args = task.get("args") or []
             self.stdout.write(f"Running {name}...")

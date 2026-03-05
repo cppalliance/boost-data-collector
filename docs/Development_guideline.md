@@ -50,7 +50,7 @@ The project provides:
 
 1. Settings and configuration: `settings.py` (Django settings; database, logging, installed apps), and environment variables for database URL, credentials, and API keys (e.g. via `django-environ` or `python-decouple`).
 2. Database: One PostgreSQL database shared by all apps; migrations are run from the project root.
-3. Execution: `manage.py` and management commands; the main task runs app commands in order (e.g. via `run_all_collectors`, `run_scheduled_collectors`, or a Celery task). Sequential execution only.
+3. Execution: `manage.py` and management commands; within a single run (e.g. `run_all_collectors` or one `run_scheduled_collectors` batch), app commands run in order sequentially. Separate Celery Beat entries may still run concurrently across workers.
 
 ## Local development setup
 
