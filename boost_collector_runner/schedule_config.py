@@ -197,6 +197,8 @@ def load_config(path=None):
         raise ValueError("Schedule YAML must have 'groups' (dict)")
 
     for group_id, group_data in groups.items():
+        if not isinstance(group_id, str) or not group_id.strip():
+            raise ValueError("Group id must be a non-empty string")
         if not isinstance(group_data, dict):
             raise ValueError(f"Group {group_id!r} must be a dict")
         group_time = (group_data.get("default_time") or "").strip()
