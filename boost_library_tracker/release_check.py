@@ -40,10 +40,11 @@ def _parse_stable_version(tag_name: str) -> tuple[int, int, int] | None:
 
 def has_new_boost_release() -> bool:
     """
-    Return True if the GitHub API has at least one release whose tag_name
+    Return True if the GitHub API has at least one tag (from /tags) whose name
     is a stable boost-X.Y.Z (>= 1.16.1) not yet in BoostVersion. Return False
-    if all known releases are already in the DB, or on API/network errors.
-    Pre-releases (beta, rc, etc.) are ignored.
+    if all known tags are already in the DB, or on API/network errors.
+    Pre-releases (beta, rc, etc.) are ignored. Uses /tags so new tags are
+    detected as soon as they are pushed, without waiting for a Release object.
     """
     try:
         token = get_github_token(use="scraping")
@@ -61,20 +62,20 @@ def has_new_boost_release() -> bool:
         page = 1
         per_page = 100
         while True:
-            page_releases = client.rest_request(
-                f"/repos/{MAIN_OWNER}/{MAIN_REPO}/releases",
+            page_tags = client.rest_request(
+                f"/repos/{MAIN_OWNER}/{MAIN_REPO}/tags",
                 params={"per_page": per_page, "page": page},
             )
-            if not page_releases:
+            if not page_tags:
                 break
-            for r in page_releases:
-                tag = r.get("tag_name")
+            for r in page_tags:
+                tag = r.get("name")
                 if not tag or tag in existing:
                     continue
                 if _parse_stable_version(tag) is not None:
                     logger.info("New Boost release detected: %s", tag)
                     return True
-            if len(page_releases) < per_page:
+            if len(page_tags) < per_page:
                 break
             page += 1
     except Exception as e:
