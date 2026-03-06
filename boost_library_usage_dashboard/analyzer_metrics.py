@@ -9,7 +9,11 @@ from typing import Any
 
 from django.db.models import Avg, Count, Max, Min
 
-from .models import BoostUsage
+from boost_usage_tracker.models import BoostUsage
+
+ACTIVITY_DERIVATION_WEIGHT = 0.4
+ACTIVITY_TREND_WEIGHT = 0.3
+ACTIVITY_MOMENTUM_WEIGHT = 0.3
 
 
 def calculate_library_metrics_by_file_usage(
@@ -29,7 +33,7 @@ def calculate_library_metrics_by_file_usage(
         .filter(
             excepted_at__isnull=True,
             boost_header__isnull=False,
-            repo__githubrepository_ptr__stars__gte=analyzer.stars_min_threshold,
+            repo__githubrepository_ptr__stars__gt=analyzer.stars_min_threshold,
         )
         .iterator()
     )
@@ -155,9 +159,9 @@ def calculate_trend_metrics(
 
     return {
         "total_usage": total_usage,
-        "activity_score": derivation_score * 0.4
-        + trend_score * 0.3
-        + momentum_score * 0.3,
+        "activity_score": derivation_score * ACTIVITY_DERIVATION_WEIGHT
+        + trend_score * ACTIVITY_TREND_WEIGHT
+        + momentum_score * ACTIVITY_MOMENTUM_WEIGHT,
         "recent_usage": recent_usage,
         "past_usage": past_usage,
     }
@@ -169,7 +173,7 @@ def calculate_library_metrics_by_repository(analyzer: Any) -> dict[str, dict[str
         BoostUsage.objects.filter(  # pylint: disable=no-member
             excepted_at__isnull=True,
             boost_header__isnull=False,
-            repo__githubrepository_ptr__stars__gte=analyzer.stars_min_threshold,
+            repo__githubrepository_ptr__stars__gt=analyzer.stars_min_threshold,
         )
         .values("boost_header__library__name")
         .annotate(

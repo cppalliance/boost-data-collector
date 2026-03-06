@@ -6,19 +6,20 @@ import pytest
 from django.core.exceptions import ValidationError
 
 from boost_library_usage_dashboard.models import BoostExternalRepository, BoostUsage
+from boost_usage_tracker import models as usage_models
 
 
 def test_boost_external_repository_meta_contract():
+    assert BoostExternalRepository is usage_models.BoostExternalRepository
     assert (
         BoostExternalRepository._meta.db_table
         == "boost_usage_tracker_boostexternalrepository"
     )
-    assert BoostExternalRepository._meta.managed is False
 
 
 def test_boost_usage_meta_contract():
+    assert BoostUsage is usage_models.BoostUsage
     assert BoostUsage._meta.db_table == "boost_usage_tracker_boostusage"
-    assert BoostUsage._meta.managed is False
 
 
 def test_boost_external_repository_boost_version_allows_empty_string():
