@@ -63,6 +63,7 @@ class SlackListener:
             except Exception:
                 team_id = None
             self.bot_token = get_slack_bot_token(team_id=team_id)
+        app_token = (app_token or "").strip()
         self.app_token = app_token or get_slack_app_token()
         if not self.bot_token:
             raise ValueError("Missing SLACK_BOT_TOKEN. Set it in .env file.")

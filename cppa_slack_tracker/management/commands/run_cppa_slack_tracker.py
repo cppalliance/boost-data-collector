@@ -196,6 +196,11 @@ class Command(BaseCommand):
         start_str = (options.get("start_date") or "").strip() or "from DB or today"
         end_str = (options.get("end_date") or "").strip() or "today"
         logger.info("    start=%s, end=%s", start_str, end_str)
+        if options.get("messages_json"):
+            logger.info(
+                "    Would load legacy messages from: %s",
+                options.get("messages_json"),
+            )
 
     def sync_users(self, _options, team: SlackTeam):
         """Sync users via sync.sync_users (fetch_user_list from Slack API)."""
