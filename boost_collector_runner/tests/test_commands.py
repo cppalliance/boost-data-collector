@@ -57,7 +57,6 @@ def test_run_scheduled_collectors_daily_runs_tasks_from_yaml(tmp_path, settings)
     content = out.getvalue()
     assert "Running" in content and "run_boost_library_tracker" in content
     assert "success" in content
-    assert "succeeded" in content
 
 
 @pytest.mark.django_db

@@ -59,7 +59,10 @@ def run_scheduled_collectors_task(
                 "run_scheduled_collectors_task: command exited with code %s",
                 code,
             )
-            raise
+            raise RuntimeError(
+                f"run_scheduled_collectors exited with code {code}"
+            ) from e
+        logger.info("run_scheduled_collectors_task: finished successfully")
     except Exception:
         logger.exception("run_scheduled_collectors_task failed")
         raise

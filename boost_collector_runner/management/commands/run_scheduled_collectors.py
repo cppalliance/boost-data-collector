@@ -61,7 +61,7 @@ class Command(BaseCommand):
             "--group",
             type=str,
             default=None,
-            help="Run only this group's tasks (for daily/weekly/monthly). Omit for interval or to run all groups.",
+            help="Run only this group's tasks. Applies to daily, weekly, monthly, interval, and on_release. Omit to run all groups.",
         )
         parser.add_argument(
             "--stop-on-failure",
@@ -143,7 +143,25 @@ class Command(BaseCommand):
             except (FileNotFoundError, ValueError, yaml.YAMLError) as e:
                 raise CommandError(str(e)) from e
         else:
+            kwargs = dict(
+                schedule_kind=schedule_kind,
+                day_of_week=day_of_week,
+                day_of_month=day_of_month,
+                interval_minutes=interval_minutes,
+                group_id=group_id,
+            )
+            if schedule_kind == "monthly" and day_of_month is not None:
+                tz_name = getattr(settings, "CELERY_TIMEZONE", "UTC")
+                today = datetime.now(ZoneInfo(tz_name)).date()
+                kwargs["month"] = today.month
+                kwargs["year"] = today.year
+            try:
+                tasks = get_tasks_for_schedule(**kwargs)
+            except (FileNotFoundError, ValueError, yaml.YAMLError) as e:
+                raise CommandError(str(e)) from e
             if schedule_kind == "on_release":
+                if not tasks:
+                    return
                 try:
                     from boost_library_tracker.release_check import (
                         has_new_boost_release,
@@ -162,22 +180,6 @@ class Command(BaseCommand):
                     raise CommandError(
                         f"Failed to check for new Boost release: {e}"
                     ) from e
-            kwargs = dict(
-                schedule_kind=schedule_kind,
-                day_of_week=day_of_week,
-                day_of_month=day_of_month,
-                interval_minutes=interval_minutes,
-                group_id=group_id,
-            )
-            if schedule_kind == "monthly" and day_of_month is not None:
-                tz_name = getattr(settings, "CELERY_TIMEZONE", "UTC")
-                today = datetime.now(ZoneInfo(tz_name)).date()
-                kwargs["month"] = today.month
-                kwargs["year"] = today.year
-            try:
-                tasks = get_tasks_for_schedule(**kwargs)
-            except (FileNotFoundError, ValueError, yaml.YAMLError) as e:
-                raise CommandError(str(e)) from e
 
         if not tasks:
             logger.info(

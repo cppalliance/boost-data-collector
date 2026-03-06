@@ -69,7 +69,10 @@ def _parse_time(s):
     parts = str(s).strip().split(":")
     if len(parts) != 2:
         raise ValueError(f"Invalid time {s!r}; use HH:MM")
-    h, m = int(parts[0], 10), int(parts[1], 10)
+    try:
+        h, m = int(parts[0], 10), int(parts[1], 10)
+    except ValueError:
+        raise ValueError(f"Invalid time {s!r}; use HH:MM") from None
     if not (0 <= h <= 23 and 0 <= m <= 59):
         raise ValueError(f"Invalid time {s!r}")
     return h, m
