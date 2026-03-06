@@ -401,7 +401,9 @@ class PineconeIngestion:
         chunked = (
             documents if is_chunked else self.text_splitter.split_documents(documents)
         )
-        updated_count, errors, failed_docs = self._update_all_batches(chunked, namespace)
+        updated_count, errors, failed_docs = self._update_all_batches(
+            chunked, namespace
+        )
         return {
             "updated": updated_count,
             "total": len(documents),

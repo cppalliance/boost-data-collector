@@ -223,9 +223,7 @@ def test_sync_to_pinecone_calls_ingestion_and_updates_db(mock_get_ingestion, app
 
 @pytest.mark.django_db
 @patch("cppa_pinecone_sync.sync._get_ingestion")
-def test_sync_to_pinecone_returns_metadata_update_result(
-    mock_get_ingestion, app_type
-):
+def test_sync_to_pinecone_returns_metadata_update_result(mock_get_ingestion, app_type):
     """sync_to_pinecone returns metadata update results when metas_to_update is provided."""
     mock_ingestion = MagicMock()
     mock_ingestion.upsert_documents.return_value = {
