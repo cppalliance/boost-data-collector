@@ -2,7 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from boost_library_docs_tracker import fetcher
 
@@ -10,6 +9,7 @@ from boost_library_docs_tracker import fetcher
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _mock_html_response(html: str, final_url: str | None = None) -> MagicMock:
     """Return a mock requests.Response for an HTML page."""
@@ -19,7 +19,6 @@ def _mock_html_response(html: str, final_url: str | None = None) -> MagicMock:
     resp.text = html
     resp.url = final_url or ""
     return resp
-
 
 
 # ---------------------------------------------------------------------------
@@ -74,8 +73,7 @@ def test_crawl_library_pages_respects_max_pages(mock_get_session, _mock_sleep):
     root_url = "https://www.boost.org/doc/libs/1_87_0/libs/algorithm/"
 
     many_links = "".join(
-        f'<a href="{root_url}page{i}.html">Page {i}</a>'
-        for i in range(100)
+        f'<a href="{root_url}page{i}.html">Page {i}</a>' for i in range(100)
     )
     root_html = f"<html><body>{many_links}</body></html>"
 
@@ -127,14 +125,16 @@ def test_crawl_library_pages_follows_redirect_url(mock_get_session, _mock_sleep)
     htm_url = root_url + "call_traits.htm"
     html_url = root_url + "call_traits.html"  # redirect target
 
-    root_html = f'<html><body><a href="call_traits.htm">Traits</a></body></html>'
+    root_html = '<html><body><a href="call_traits.htm">Traits</a></body></html>'
 
     def side_effect(url, timeout=30):
         if url == root_url:
             return _mock_html_response(root_html, final_url=root_url)
         if url == htm_url:
             # Simulates server redirect: .htm → .html
-            return _mock_html_response("<html><body>Call traits</body></html>", final_url=html_url)
+            return _mock_html_response(
+                "<html><body>Call traits</body></html>", final_url=html_url
+            )
         resp = MagicMock()
         resp.raise_for_status = MagicMock()
         resp.headers = {"Content-Type": "text/plain"}

@@ -113,8 +113,10 @@ def resolve_path_from_url(url: str) -> Path | None:
     relative_parts = parts[3:]  # e.g. libs/utility/doc/html/index.html
     if not relative_parts:
         return None
-    return get_converted_root() / f"boost_{url_version}" / Path(*relative_parts).with_suffix(
-        ".md"
+    return (
+        get_converted_root()
+        / f"boost_{url_version}"
+        / Path(*relative_parts).with_suffix(".md")
     )
 
 

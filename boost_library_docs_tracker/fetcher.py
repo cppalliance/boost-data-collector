@@ -20,7 +20,9 @@ from .html_to_md import convert_html_to_markdown  # noqa: F401
 logger = logging.getLogger(__name__)
 
 BOOST_ORG_BASE = "https://www.boost.org"
-BOOST_SOURCE_ZIP_URL = "https://archives.boost.io/release/{version}/source/boost_{url_version}.zip"
+BOOST_SOURCE_ZIP_URL = (
+    "https://archives.boost.io/release/{version}/source/boost_{url_version}.zip"
+)
 BOOST_SOURCE_ZIP_GITHUB_URL = (
     "https://github.com/boostorg/boost/archive/refs/tags/boost-{version}.zip"
 )
@@ -130,7 +132,9 @@ def extract_source_zip(zip_path: Path, extract_dir: Path) -> Path:
         top_dir = extract_dir / root_name
 
         if top_dir.exists():
-            logger.info("Extracted source already present, skipping extract: %s", top_dir)
+            logger.info(
+                "Extracted source already present, skipping extract: %s", top_dir
+            )
             return top_dir
 
         logger.info("Extracting %s → %s ...", zip_path.name, extract_dir)
@@ -177,7 +181,7 @@ def get_start_path(lib_key: str, lib_documentation: str) -> Path:
     if doc.endswith("/"):
         rel = rel / "index.html"
     return rel
-    
+
 
 def walk_library_html(
     source_root: Path,
@@ -208,9 +212,7 @@ def walk_library_html(
     start_file = source_root / start_file
 
     if not start_file.exists():
-        logger.warning(
-            "Doc entry point not found for %s; skipping.", lib_key
-        )
+        logger.warning("Doc entry point not found for %s; skipping.", lib_key)
         return []
 
     base_url = f"{BOOST_ORG_BASE}/doc/libs/{url_version}/"
@@ -228,7 +230,7 @@ def walk_library_html(
 
         if not file_path.exists() or file_path.suffix.lower() not in {".html", ".htm"}:
             continue
-        if file_path.name.startswith("."): # hidden or macos files
+        if file_path.name.startswith("."):  # hidden or macos files
             continue
 
         try:
@@ -261,6 +263,7 @@ def walk_library_html(
         "Walked %d local pages for lib=%s version=%s", len(results), lib_key, version
     )
     return results
+
 
 # ---------------------------------------------------------------------------
 # HTTP page crawling
@@ -334,6 +337,3 @@ def crawl_library_pages(
         max_pages,
     )
     return results
-
-
-

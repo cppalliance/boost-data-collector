@@ -27,6 +27,7 @@ except Exception:  # optional runtime dependency
 # Public entry point
 # ---------------------------------------------------------------------------
 
+
 def convert_html_to_markdown(html: str) -> str:
     """
     Convert an HTML string to clean GitHub-flavoured Markdown.
@@ -49,7 +50,7 @@ def convert_html_to_markdown(html: str) -> str:
 _BS_REMOVE_TAGS = ["script", "style", "noscript"]
 # CSS classes whose entire containing block carries no meaningful text content
 _BS_REMOVE_CLASSES = [
-    "spirit-nav",        # prev/next navigation arrows
+    "spirit-nav",  # prev/next navigation arrows
     "copyright-footer",  # copyright boilerplate
 ]
 
@@ -92,6 +93,7 @@ def _preprocess_html(html: str) -> str:
 # Pandoc conversion (pypandoc primary, CLI fallback)
 # ---------------------------------------------------------------------------
 
+
 def _pandoc_convert(html: str) -> str:
     """Run pandoc HTML → GFM.  Tries pypandoc first, then raw CLI."""
     if pypandoc is not None:
@@ -132,9 +134,9 @@ def _pandoc_convert(html: str) -> str:
 # Boost BoostBook nav table leftover: any pipe-table whose only data row still
 # contains a Home/Libraries/People/FAQ nav pattern (edge case for pre-converted files).
 _RE_NAV_TABLE = re.compile(
-    r"\|[^\n]*\|\s*\n"                         # header row
-    r"\|[-: |]+\|\s*\n"                         # separator row
-    r"\|[^\n]*(Home|Libraries)[^\n]*\|\s*\n",   # data row with Boost nav links
+    r"\|[^\n]*\|\s*\n"  # header row
+    r"\|[-: |]+\|\s*\n"  # separator row
+    r"\|[^\n]*(Home|Libraries)[^\n]*\|\s*\n",  # data row with Boost nav links
     re.MULTILINE,
 )
 
@@ -175,13 +177,13 @@ _RE_INLINE_CODE = re.compile(r"`[^`\n]+`")
 # Lines that must never be joined to the previous line
 _RE_BLOCK_START = re.compile(
     r"^(?:"
-    r"#{1,6}\s"       # ATX heading
-    r"|[*\-+]\s"      # unordered list item
-    r"|\d+\.\s"       # ordered list item
-    r"|>"             # blockquote
-    r"|```"           # fenced code fence
-    r"|\|"            # table row
-    r"|$"             # blank line
+    r"#{1,6}\s"  # ATX heading
+    r"|[*\-+]\s"  # unordered list item
+    r"|\d+\.\s"  # ordered list item
+    r"|>"  # blockquote
+    r"|```"  # fenced code fence
+    r"|\|"  # table row
+    r"|$"  # blank line
     r")"
 )
 

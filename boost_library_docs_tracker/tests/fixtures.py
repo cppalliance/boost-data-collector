@@ -26,7 +26,9 @@ def make_boost_doc_content(db):
     def _make(url=None, content_hash=None):
         import uuid
 
-        url = url or f"https://www.boost.org/doc/libs/1_81_0/libs/{uuid.uuid4().hex[:8]}/"
+        url = (
+            url or f"https://www.boost.org/doc/libs/1_81_0/libs/{uuid.uuid4().hex[:8]}/"
+        )
         content_hash = content_hash or ("0" * 64)
         obj, _ = services.get_or_create_doc_content(url, content_hash)
         return obj

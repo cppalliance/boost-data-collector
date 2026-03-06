@@ -225,6 +225,7 @@ def test_get_docs_for_library_version_does_not_return_other_versions(
 ):
     """get_docs_for_library_version does not leak docs from other library versions."""
     from model_bakery import baker
+
     other_lv = baker.make("boost_library_tracker.BoostLibraryVersion")
     make_boost_library_documentation(library_version=other_lv)
 

@@ -17,6 +17,7 @@ def test_boost_doc_content_url_unique(boost_doc_content):
     assert boost_doc_content.id is not None
     with pytest.raises(Exception):
         from model_bakery import baker
+
         baker.make(
             "boost_library_docs_tracker.BoostDocContent",
             url=boost_doc_content.url,
@@ -65,7 +66,9 @@ def test_boost_library_documentation_links_version_and_content(
     boost_doc_content,
 ):
     """BoostLibraryDocumentation is linked to BoostLibraryVersion and BoostDocContent."""
-    assert boost_library_documentation.boost_library_version_id == boost_library_version.pk
+    assert (
+        boost_library_documentation.boost_library_version_id == boost_library_version.pk
+    )
     assert boost_library_documentation.boost_doc_content_id == boost_doc_content.pk
 
 
@@ -80,6 +83,7 @@ def test_boost_library_documentation_unique_constraint(
     )
     with pytest.raises(IntegrityError):
         from model_bakery import baker
+
         baker.make(
             "boost_library_docs_tracker.BoostLibraryDocumentation",
             boost_library_version=boost_library_version,

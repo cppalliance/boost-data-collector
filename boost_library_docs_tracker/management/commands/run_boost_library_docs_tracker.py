@@ -128,10 +128,21 @@ class Command(BaseCommand):
     # Top-level flow
     # ------------------------------------------------------------------
 
-    def _run(self, *, versions_arg, library_filter, dry_run, skip_pinecone, max_pages,
-             use_local, cleanup_extract):
+    def _run(
+        self,
+        *,
+        versions_arg,
+        library_filter,
+        dry_run,
+        skip_pinecone,
+        max_pages,
+        use_local,
+        cleanup_extract,
+    ):
         versions = self._resolve_versions(versions_arg)
-        self.stdout.write(f"Processing {len(versions)} version(s): {', '.join(versions)}")
+        self.stdout.write(
+            f"Processing {len(versions)} version(s): {', '.join(versions)}"
+        )
         mode = "local-zip" if use_local else "HTTP crawl"
         self.stdout.write(f"Scrape mode: {mode}")
 
@@ -152,13 +163,16 @@ class Command(BaseCommand):
 
         self._sync_pinecone()
 
-    def _process_version(self, *, version, library_filter, dry_run, max_pages,
-                         use_local, cleanup_extract):
+    def _process_version(
+        self, *, version, library_filter, dry_run, max_pages, use_local, cleanup_extract
+    ):
         self.stdout.write(f"\n[{version}] Discovering libraries...")
 
         library_list = self._get_library_list(version)
         if library_filter:
-            library_list = [(n, u, k, d) for n, u, k, d in library_list if n == library_filter]
+            library_list = [
+                (n, u, k, d) for n, u, k, d in library_list if n == library_filter
+            ]
             if not library_list:
                 raise CommandError(
                     f"Library '{library_filter}' not found in Boost {version}."
@@ -216,11 +230,19 @@ class Command(BaseCommand):
         return source_root
 
     def _process_library(
-        self, *, version, lib_name, doc_root_url, lib_key, lib_doc,
-        source_root, dry_run, max_pages
+        self,
+        *,
+        version,
+        lib_name,
+        doc_root_url,
+        lib_key,
+        lib_doc,
+        source_root,
+        dry_run,
+        max_pages,
     ) -> int:
         max_pages = max_pages if dry_run else None
-            
+
         if source_root is not None:
             self.stdout.write(
                 f"  [{lib_name}] walking local HTML (key={lib_key!r}) ..."
@@ -235,7 +257,9 @@ class Command(BaseCommand):
                 )
             except Exception as exc:
                 logger.error("[%s] local walk failed: %s", lib_name, exc)
-                self.stdout.write(self.style.ERROR(f"  [{lib_name}] local walk error: {exc}"))
+                self.stdout.write(
+                    self.style.ERROR(f"  [{lib_name}] local walk error: {exc}")
+                )
                 return 0
         else:
             self.stdout.write(f"  [{lib_name}] crawling {doc_root_url} ...")
@@ -245,7 +269,9 @@ class Command(BaseCommand):
                 )
             except Exception as exc:
                 logger.error("[%s] crawl failed: %s", lib_name, exc)
-                self.stdout.write(self.style.ERROR(f"  [{lib_name}] crawl error: {exc}"))
+                self.stdout.write(
+                    self.style.ERROR(f"  [{lib_name}] crawl error: {exc}")
+                )
                 return 0
 
         page_count = len(pages)
@@ -287,7 +313,9 @@ class Command(BaseCommand):
             try:
                 workspace.save_page(version, lib_name, url, page_text)
             except Exception as exc:
-                logger.error("[%s] workspace write failed for %s: %s", lib_name, url, exc)
+                logger.error(
+                    "[%s] workspace write failed for %s: %s", lib_name, url, exc
+                )
                 continue
 
             try:
@@ -312,7 +340,9 @@ class Command(BaseCommand):
             except Exception as exc:
                 logger.error(
                     "[%s] link_content_to_library_version failed for %s: %s",
-                    lib_name, url, exc,
+                    lib_name,
+                    url,
+                    exc,
                 )
 
         self.stdout.write(
@@ -386,7 +416,11 @@ class Command(BaseCommand):
             versions = [v.strip() for v in versions_arg if v.strip()]
         else:
             self.stdout.write("Using latest Boost version from BoostVersion table...")
-            latest = BoostVersion.objects.filter(version_created_at__isnull=False).order_by("-version_created_at", "-version").first()
+            latest = (
+                BoostVersion.objects.filter(version_created_at__isnull=False)
+                .order_by("-version_created_at", "-version")
+                .first()
+            )
             if latest is None:
                 raise CommandError(
                     "No BoostVersion in DB. Run boost_library_tracker first."
@@ -428,9 +462,7 @@ class Command(BaseCommand):
             result.append((lib_name, doc_root_url, lib_key, lib_doc))
         return result
 
-    def _resolve_library_version_id(
-        self, lib_name: str, version: str
-    ) -> int | None:
+    def _resolve_library_version_id(self, lib_name: str, version: str) -> int | None:
         """Resolve BoostLibraryVersion id from DB. Returns None if not found."""
         try:
             lv = BoostLibraryVersion.objects.select_related("library", "version").get(
