@@ -5,7 +5,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from boost_library_usage_dashboard.analyzer import BoostUsageDashboardAnalyzer
 from boost_library_usage_dashboard.renderer import render_dashboard_html
@@ -26,7 +26,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--publish",
             action="store_true",
-            help="Publish generated files to --target-repo.",
+            help="Publish generated files to the repository configured in settings.",
         )
         parser.add_argument(
             "--target-branch",
@@ -94,8 +94,10 @@ class Command(BaseCommand):
                     branch=branch,
                 )
             else:
-                logger.error("No owner or repo found in settings")
-                return
+                raise CommandError(
+                    "Cannot publish: BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_OWNER "
+                    "and BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_REPO must be set in settings."
+                )
 
     def _publish_via_raw_clone(
         self,
@@ -139,7 +141,7 @@ class Command(BaseCommand):
             if child.is_dir():
                 shutil.copytree(child, dest)
             else:
-                if child.name.split(".")[-1] != "html":
+                if child.suffix != ".html":
                     continue
                 shutil.copy2(child, dest)
         tz_name = getattr(settings, "CELERY_TIMEZONE", None) or settings.TIME_ZONE

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.conf import settings
 from django.core.management import call_command, get_commands
+from django.core.management.base import CommandError
 
 
 @pytest.mark.django_db
@@ -87,12 +88,6 @@ def test_dashboard_command_publish_with_owner_repo_calls_publish_via_raw_clone(
         settings,
         "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_BRANCH",
         "",
-    ), patch(
-        "github_ops.git_ops.clone_repo"
-    ), patch(
-        "github_ops.git_ops.pull"
-    ), patch(
-        "github_ops.git_ops.push"
     ):
         call_command(
             dashboard_cmd_name,
@@ -142,12 +137,6 @@ def test_dashboard_command_publish_uses_branch_from_settings_when_set(
         settings,
         "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_BRANCH",
         "publish-branch",
-    ), patch(
-        "github_ops.git_ops.clone_repo"
-    ), patch(
-        "github_ops.git_ops.pull"
-    ), patch(
-        "github_ops.git_ops.push"
     ):
         call_command(
             dashboard_cmd_name,
@@ -162,10 +151,10 @@ def test_dashboard_command_publish_uses_branch_from_settings_when_set(
 
 
 @pytest.mark.django_db
-def test_dashboard_command_publish_no_owner_repo_does_not_call_publish(
+def test_dashboard_command_publish_no_owner_repo_raises_command_error(
     dashboard_cmd_name, tmp_path
 ):
-    """When --publish but owner or repo missing in settings, _publish_via_raw_clone is not called."""
+    """When --publish but owner or repo missing in settings, CommandError is raised."""
     fake_analyzer = MagicMock()
     fake_analyzer.run.return_value = {}
     fake_analyzer.report_file = tmp_path / "report.md"
@@ -189,11 +178,12 @@ def test_dashboard_command_publish_no_owner_repo_does_not_call_publish(
         "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_REPO",
         "",
     ):
-        call_command(
-            dashboard_cmd_name,
-            "--publish",
-            "--output-dir",
-            str(tmp_path),
-        )
-
-    publish_raw_mock.assert_not_called()
+        with pytest.raises(CommandError) as exc_info:
+            call_command(
+                dashboard_cmd_name,
+                "--publish",
+                "--output-dir",
+                str(tmp_path),
+            )
+        assert "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH" in str(exc_info.value)
+        publish_raw_mock.assert_not_called()

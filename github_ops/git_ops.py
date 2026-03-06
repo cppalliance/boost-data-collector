@@ -31,7 +31,7 @@ _UPLOAD_FOLDER_403_WAIT_SEC = 60
 _thread_local = threading.local()
 
 
-def _get_worker_session(base: str, token: str) -> requests.Session:
+def _get_worker_session(token: str) -> requests.Session:
     """One session per thread for parallel blob creation."""
     if not hasattr(_thread_local, "session"):
         s = requests.Session()
@@ -46,10 +46,14 @@ def _get_worker_session(base: str, token: str) -> requests.Session:
 
 
 def _create_blob_with_retry(
-    base: str, token: str, repo_path: str, content_b64: str
+    base: str, token: str, repo_path: str, local_path: Path
 ) -> tuple[str, str]:
-    """Create one blob; retry on failure (including 403 rate limit). Returns (repo_path, blob_sha)."""
-    session = _get_worker_session(base, token)
+    """Create one blob; retry on failure (including 403 rate limit). Returns (repo_path, blob_sha).
+    Reads file content from local_path on demand to avoid loading all files into memory.
+    """
+    session = _get_worker_session(token)
+    content = local_path.read_bytes()
+    content_b64 = base64.b64encode(content).decode("ascii")
     blob_data = {"content": content_b64, "encoding": "base64"}
     url = f"{base}/git/blobs"
     last_err = None
@@ -82,11 +86,11 @@ def _create_blob_with_retry(
             last_err = e
             if attempt < _UPLOAD_FOLDER_BLOB_RETRIES - 1:
                 time.sleep(2)
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             last_err = e
             if attempt < _UPLOAD_FOLDER_BLOB_RETRIES - 1:
                 time.sleep(1)
-    raise last_err
+    raise last_err or RuntimeError(f"Blob creation failed for {repo_path}")
 
 
 def _url_with_token(url: str, token: str) -> str:
@@ -153,7 +157,7 @@ def push(
         add_targets = ["."] if add_paths is None else [str(Path(p)) for p in add_paths]
         logger.info("Adding and committing in %s", repo_dir)
         subprocess.run(
-            ["git", "-C", str(repo_dir), "add"] + add_targets,
+            ["git", "-C", str(repo_dir), "add", *add_targets],
             check=True,
             capture_output=True,
             text=True,
@@ -305,6 +309,10 @@ def upload_folder_to_github(
     No need to clone the repo; upload is done entirely via the API.
     Note: Performance scales with file count (e.g. ~200 files can take 2+ minutes).
 
+    Token resolution: When client is provided, an explicit token argument takes
+    precedence over client.token (token = token or client.token). When client
+    is None, token defaults to get_github_token(use="write") if not passed.
+
     Returns:
         {"success": True, "message": "..."} on success,
         {"success": False, "message": "..."} on failure.
@@ -343,25 +351,20 @@ def upload_folder_to_github(
         r.raise_for_status()
         base_tree = r.json()["tree"]["sha"]
 
-        # Collect (repo_path, content_b64) for all files
+        # Collect (repo_path, local_path) for all files (paths only; content read in worker)
         file_items = []
         for root, _, files in os.walk(local_folder):
             for file in files:
                 local_path = Path(root) / file
                 repo_path = local_path.relative_to(local_folder).as_posix()
-                content = local_path.read_bytes()
-                content_b64 = base64.b64encode(content).decode("ascii")
-                file_items.append((repo_path, content_b64))
+                file_items.append((repo_path, local_path))
 
-        # Create blobs in parallel (one request per file; when one finishes, next starts)
+        # Create blobs in parallel (each worker reads and encodes its file on demand)
         tree_items = []
         with ThreadPoolExecutor(max_workers=_UPLOAD_FOLDER_MAX_WORKERS) as executor:
             futures = {
-                executor.submit(_create_blob_with_retry, base, token, rp, b64): (
-                    rp,
-                    b64,
-                )
-                for rp, b64 in file_items
+                executor.submit(_create_blob_with_retry, base, token, rp, lp): (rp, lp)
+                for rp, lp in file_items
             }
             for fut in as_completed(futures):
                 repo_path, blob_sha = fut.result()
@@ -404,5 +407,5 @@ def upload_folder_to_github(
             "message": f"Uploaded {local_folder} to {owner}/{repo} (branch {branch})",
         }
     except Exception as e:
-        logger.exception("upload_folder_to_github failed: %s", e)
+        logger.exception("upload_folder_to_github failed")
         return {"success": False, "message": str(e)}
