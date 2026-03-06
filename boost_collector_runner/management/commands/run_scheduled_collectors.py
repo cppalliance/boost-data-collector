@@ -15,7 +15,11 @@ from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
-from boost_collector_runner.schedule_config import get_tasks_for_schedule
+from boost_collector_runner.schedule_config import (
+    get_tasks_for_schedule,
+    load_config,
+    _get_yaml_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +76,12 @@ class Command(BaseCommand):
         today_weekday = today.strftime("%A").lower()
         today_day = today.day
         tasks = []
-        tasks.extend(get_tasks_for_schedule("daily", group_id=group_id))
+        path = _get_yaml_path()
+        data = load_config(path)
+        tasks.extend(get_tasks_for_schedule("daily", group_id=group_id, data=data))
         tasks.extend(
             get_tasks_for_schedule(
-                "weekly", day_of_week=today_weekday, group_id=group_id
+                "weekly", day_of_week=today_weekday, group_id=group_id, data=data
             )
         )
         tasks.extend(
@@ -85,6 +91,7 @@ class Command(BaseCommand):
                 group_id=group_id,
                 month=today.month,
                 year=today.year,
+                data=data,
             )
         )
         try:
@@ -93,12 +100,19 @@ class Command(BaseCommand):
             )
 
             if has_new_boost_release():
-                tasks.extend(get_tasks_for_schedule("on_release", group_id=group_id))
+                tasks.extend(
+                    get_tasks_for_schedule("on_release", group_id=group_id, data=data)
+                )
         except ImportError as e:
             logger.warning(
                 "Skipping on_release tasks for group=%s: release_check import failed (%s)",
                 group_id,
                 e,
+            )
+        except Exception:
+            logger.exception(
+                "Skipping on_release tasks for group=%s: release check failed",
+                group_id,
             )
         return tasks
 

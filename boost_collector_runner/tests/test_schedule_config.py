@@ -1,10 +1,13 @@
-"""Tests for boost_collector_runner.schedule_config: load_config and _validate_task validation."""
+"""Tests for boost_collector_runner.schedule_config: load_config, validation, get_tasks_for_schedule, get_beat_schedule."""
 
+import calendar
 import pytest
 import yaml
 
 from boost_collector_runner.schedule_config import (
     INTERVAL_MINUTES_MAX,
+    get_beat_schedule,
+    get_tasks_for_schedule,
     load_config,
     _validate_task,
 )
@@ -408,3 +411,154 @@ def test_validate_task_daily_valid():
 def test_validate_task_on_release_valid():
     """Minimal valid on_release task passes."""
     _validate_task({"command": "c1", "schedule": "on_release"}, "g1")
+
+
+# --- get_tasks_for_schedule runtime ---
+
+
+def test_get_tasks_for_schedule_monthly_exact_match_with_month_year(tmp_path):
+    """get_tasks_for_schedule with month and year returns only tasks matching that day (exact or last-day fallback)."""
+    path = tmp_path / "schedule.yaml"
+    path.write_text(
+        yaml.dump(
+            {
+                "groups": {
+                    "g1": {
+                        "default_time": "04:10",
+                        "tasks": [
+                            {"command": "cmd_mid", "schedule": "monthly", "on": 15},
+                            {"command": "cmd_last", "schedule": "monthly", "on": 31},
+                        ],
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    data = load_config(path)
+    # March 2024 has 31 days; day 15 is exact match
+    tasks_15 = get_tasks_for_schedule(
+        "monthly",
+        day_of_month=15,
+        month=3,
+        year=2024,
+        data=data,
+    )
+    assert len(tasks_15) == 1
+    assert tasks_15[0][1]["command"] == "cmd_mid"
+    # day 31 in March: both task 15 and 31 match (15 not, 31 yes)
+    tasks_31 = get_tasks_for_schedule(
+        "monthly",
+        day_of_month=31,
+        month=3,
+        year=2024,
+        data=data,
+    )
+    assert len(tasks_31) == 1
+    assert tasks_31[0][1]["command"] == "cmd_last"
+    # day 10: no monthly task on 10
+    tasks_10 = get_tasks_for_schedule(
+        "monthly",
+        day_of_month=10,
+        month=3,
+        year=2024,
+        data=data,
+    )
+    assert len(tasks_10) == 0
+
+
+def test_get_tasks_for_schedule_monthly_last_day_fallback(tmp_path):
+    """get_tasks_for_schedule with month/year returns task with day_of_month 31 on last day of February."""
+    path = tmp_path / "schedule.yaml"
+    path.write_text(
+        yaml.dump(
+            {
+                "groups": {
+                    "g1": {
+                        "default_time": "04:10",
+                        "tasks": [
+                            {"command": "month_end", "schedule": "monthly", "on": 31},
+                        ],
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    data = load_config(path)
+    # Feb 2023 has 28 days; request day 28 with month/year -> effective_day = min(31, 28) = 28, task runs
+    _, last_day = calendar.monthrange(2023, 2)
+    assert last_day == 28
+    tasks = get_tasks_for_schedule(
+        "monthly",
+        day_of_month=28,
+        month=2,
+        year=2023,
+        data=data,
+    )
+    assert len(tasks) == 1
+    assert tasks[0][1]["command"] == "month_end"
+    assert tasks[0][1]["day_of_month"] == 31
+    # Feb 2024 has 29 days; request day 29 -> effective_day = min(31, 29) = 29
+    _, last_day_2024 = calendar.monthrange(2024, 2)
+    assert last_day_2024 == 29
+    tasks_leap = get_tasks_for_schedule(
+        "monthly",
+        day_of_month=29,
+        month=2,
+        year=2024,
+        data=data,
+    )
+    assert len(tasks_leap) == 1
+    assert tasks_leap[0][1]["command"] == "month_end"
+
+
+def test_get_beat_schedule_generates_expected_entries(tmp_path, settings):
+    """get_beat_schedule returns Beat entries with expected task name, keys, and interval."""
+    yaml_path = tmp_path / "boost_collector_schedule.yaml"
+    yaml_path.write_text(
+        yaml.dump(
+            {
+                "groups": {
+                    "github": {
+                        "default_time": "04:10",
+                        "tasks": [
+                            {"command": "run_foo", "schedule": "daily"},
+                            {
+                                "command": "run_bar",
+                                "schedule": "interval",
+                                "minutes": 15,
+                            },
+                        ],
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(yaml_path)
+
+    schedule = get_beat_schedule()
+
+    assert isinstance(schedule, dict)
+    group_key = "boost-collector-group-github-04-10"
+    assert group_key in schedule
+    assert (
+        schedule[group_key]["task"]
+        == "boost_collector_runner.tasks.run_scheduled_collectors_task"
+    )
+    assert "kwargs" in schedule[group_key]
+    assert schedule[group_key]["kwargs"]["schedule_kind"] == "daily"
+    assert schedule[group_key]["kwargs"]["group_id"] == "github"
+
+    interval_key = "boost-collector-interval-15min"
+    assert interval_key in schedule
+    assert (
+        schedule[interval_key]["task"]
+        == "boost_collector_runner.tasks.run_scheduled_collectors_task"
+    )
+    assert schedule[interval_key]["kwargs"]["schedule_kind"] == "interval"
+    assert schedule[interval_key]["kwargs"]["interval_minutes"] == 15
+    from datetime import timedelta
+
+    assert schedule[interval_key]["schedule"].run_every == timedelta(minutes=15)

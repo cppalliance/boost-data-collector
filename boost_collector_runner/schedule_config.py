@@ -256,6 +256,7 @@ def get_tasks_for_schedule(
     group_id=None,
     month=None,
     year=None,
+    data=None,
 ):
     """
     Return list of (group_id, task_dict) for tasks matching the given schedule.
@@ -264,6 +265,10 @@ def get_tasks_for_schedule(
     For interval, group_id should be None so all interval tasks with that minutes run in one independent task.
     For monthly: when month and year are provided, a task with day_of_month > last day of that month
     (e.g. 30 or 31) runs on the last day of the month (e.g. Feb 28/29).
+
+    data: optional preloaded config dict (e.g. from load_config(path)). When provided, the YAML file
+    is not read again; use this to avoid repeated disk I/O when calling get_tasks_for_schedule
+    multiple times. When data is passed it must already be validated (e.g. by load_config()).
     """
     if schedule_kind not in SCHEDULE_TYPES:
         raise ValueError(f"schedule_kind must be one of {SCHEDULE_TYPES}")
@@ -297,7 +302,7 @@ def get_tasks_for_schedule(
     )
 
     out = []
-    for gid, tasks in get_groups_and_tasks():
+    for gid, tasks in get_groups_and_tasks(data=data):
         if group_id is not None and gid != group_id:
             continue
         for t in tasks:
