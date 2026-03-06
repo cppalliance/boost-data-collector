@@ -75,9 +75,9 @@ def download_source_zip(version: str, dest_dir: Path) -> Path:
     zip_name = f"boost_{normalized.replace('.', '_')}.zip"
     zip_path = dest_dir / zip_name
 
-    if zip_path.exists():
-        logger.info("Source zip already present, skipping download: %s", zip_path)
-        return zip_path
+    # if zip_path.exists():
+    #     logger.info("Source zip already present, skipping download: %s", zip_path)
+    #     return zip_path
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     session = _get_session()
@@ -131,11 +131,11 @@ def extract_source_zip(zip_path: Path, extract_dir: Path) -> Path:
         root_name = sorted({n.split("/", 1)[0] for n in names})[0]
         top_dir = extract_dir / root_name
 
-        if top_dir.exists():
-            logger.info(
-                "Extracted source already present, skipping extract: %s", top_dir
-            )
-            return top_dir
+        # if top_dir.exists():
+        #     logger.info(
+        #         "Extracted source already present, skipping extract: %s", top_dir
+        #     )
+        #     return top_dir
 
         logger.info("Extracting %s → %s ...", zip_path.name, extract_dir)
         zf.extractall(extract_dir)
@@ -273,7 +273,7 @@ def walk_library_html(
 def crawl_library_pages(
     doc_root_url: str,
     *,
-    max_pages: int = DEFAULT_MAX_PAGES,
+    max_pages: int | None = DEFAULT_MAX_PAGES,
     delay_secs: float = DEFAULT_DELAY_SECS,
 ) -> list[tuple[str, str]]:
     """
@@ -281,7 +281,7 @@ def crawl_library_pages(
     Only follows links that stay within the same URL prefix (doc_root_url).
 
     Returns a list of (url, page_text) for every page visited.
-    Stops after max_pages pages to avoid run-away crawls.
+    Stops after max_pages pages to avoid run-away crawls. Pass None for no limit.
     Waits delay_secs between requests.
     """
     session = _get_session()
@@ -289,7 +289,7 @@ def crawl_library_pages(
     queue: deque[str] = deque([doc_root_url])
     results: list[tuple[str, str]] = []
 
-    while queue and len(results) < max_pages:
+    while queue and (max_pages is None or len(results) < max_pages):
         url = queue.popleft()
         if url in visited:
             continue
@@ -320,7 +320,7 @@ def crawl_library_pages(
         soup = BeautifulSoup(resp.text, "lxml")
         for a in soup.find_all("a", href=True):
             href: str = a["href"]
-            abs_url = urljoin(url, href)
+            abs_url = urljoin(final_url, href)
             # Strip fragment
             abs_url = abs_url.split("#")[0]
             if (
@@ -331,7 +331,7 @@ def crawl_library_pages(
                 queue.append(abs_url)
 
     logger.debug(
-        "Crawled %d pages for root %s (max_pages=%d)",
+        "Crawled %d pages for root %s (max_pages=%s)",
         len(results),
         doc_root_url,
         max_pages,

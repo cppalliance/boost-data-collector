@@ -11,16 +11,16 @@ from boost_library_docs_tracker import services
 
 
 @pytest.mark.django_db
-def test_boost_doc_content_url_unique(boost_doc_content):
-    """BoostDocContent has a unique url constraint."""
-    assert boost_doc_content.url is not None
+def test_boost_doc_content_content_hash_unique(boost_doc_content):
+    """BoostDocContent has a unique content_hash constraint."""
+    assert boost_doc_content.content_hash is not None
     assert boost_doc_content.id is not None
-    with pytest.raises(Exception):
+    with pytest.raises(IntegrityError):
         from model_bakery import baker
 
         baker.make(
             "boost_library_docs_tracker.BoostDocContent",
-            url=boost_doc_content.url,
+            content_hash=boost_doc_content.content_hash,
         )
 
 
@@ -50,13 +50,38 @@ def test_boost_doc_content_str(boost_doc_content):
     assert str(boost_doc_content) == boost_doc_content.url
 
 
+@pytest.mark.django_db
+def test_boost_doc_content_default_is_upserted(boost_doc_content):
+    """BoostDocContent default is_upserted is False."""
+    assert boost_doc_content.is_upserted is False
+
+
+@pytest.mark.django_db
+def test_boost_doc_content_has_version_fks(boost_doc_content):
+    """BoostDocContent has first_version and last_version FK fields (nullable)."""
+    field_names = [f.name for f in BoostDocContent._meta.get_fields()]
+    assert "first_version" in field_names
+    assert "last_version" in field_names
+    assert boost_doc_content.first_version_id is None
+    assert boost_doc_content.last_version_id is None
+
+
 # --- BoostLibraryDocumentation (3+ tests) ---
 
 
 @pytest.mark.django_db
-def test_boost_library_documentation_default_is_upserted(boost_library_documentation):
-    """BoostLibraryDocumentation default is_upserted is False."""
-    assert boost_library_documentation.is_upserted is False
+def test_boost_library_documentation_no_is_upserted_field():
+    """BoostLibraryDocumentation no longer has is_upserted (moved to BoostDocContent)."""
+    field_names = [f.name for f in BoostLibraryDocumentation._meta.get_fields()]
+    assert "is_upserted" not in field_names
+
+
+@pytest.mark.django_db
+def test_boost_library_documentation_no_page_count_or_updated_at():
+    """BoostLibraryDocumentation no longer has page_count or updated_at."""
+    field_names = [f.name for f in BoostLibraryDocumentation._meta.get_fields()]
+    assert "page_count" not in field_names
+    assert "updated_at" not in field_names
 
 
 @pytest.mark.django_db
@@ -79,7 +104,7 @@ def test_boost_library_documentation_unique_constraint(
 ):
     """BoostLibraryDocumentation has unique constraint on (library_version, doc_content)."""
     services.link_content_to_library_version(
-        boost_library_version.pk, boost_doc_content.pk, 1
+        boost_library_version.pk, boost_doc_content.pk
     )
     with pytest.raises(IntegrityError):
         from model_bakery import baker
@@ -92,16 +117,9 @@ def test_boost_library_documentation_unique_constraint(
 
 
 @pytest.mark.django_db
-def test_boost_library_documentation_has_timestamps(boost_library_documentation):
-    """BoostLibraryDocumentation has created_at and updated_at."""
+def test_boost_library_documentation_has_created_at(boost_library_documentation):
+    """BoostLibraryDocumentation has created_at timestamp."""
     assert boost_library_documentation.created_at is not None
-    assert boost_library_documentation.updated_at is not None
-
-
-@pytest.mark.django_db
-def test_boost_library_documentation_page_count(boost_library_documentation):
-    """BoostLibraryDocumentation stores page_count."""
-    assert boost_library_documentation.page_count == 5
 
 
 @pytest.mark.django_db

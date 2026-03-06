@@ -12,14 +12,16 @@ Procedure:
      - Default (--use-local not set): HTTP BFS crawl per library.
      - --use-local: download source zip once per version, extract, walk local HTML.
        Zip is saved in workspace/raw/boost_library_docs_tracker/ and is not deleted.
-       Extract tree is saved in workspace/boost_library_docs_tracker/extrated/.
+       Extract tree is saved in workspace/boost_library_docs_tracker/extracted/.
        Converted page content is saved in workspace/boost_library_docs_tracker/converted/.
        Pass --cleanup-extract to delete the extract tree after all libraries are done.
   4. Fill BoostDocContent and BoostLibraryDocumentation tables (no page_content in DB).
-     - Same content_hash → update url and scraped_at.
-     - New content_hash → create new row.
+     - New content_hash → create new BoostDocContent row, set first_version and last_version.
+     - Same content_hash but different URL → update url and scraped_at, update last_version.
+     - Same content_hash and URL → update scraped_at and last_version only.
+     - Link BoostDocContent to BoostLibraryVersion via BoostLibraryDocumentation (idempotent).
   5. Call sync_to_pinecone with preprocess_for_pinecone.
-  6. Extract failed_ids from the sync result and mark those BoostLibraryDocumentation
+  6. Extract failed_ids from the sync result and mark those BoostDocContent
      rows as is_upserted=False.
 
 Usage examples:
@@ -185,6 +187,9 @@ class Command(BaseCommand):
         if use_local:
             source_root = self._prepare_local_source(version=version)
 
+        # Resolve once per version; used to track first/last_version on BoostDocContent.
+        boost_version_id = self._resolve_boost_version_id(version)
+
         total_pages = 0
         for lib_name, doc_root_url, lib_key, lib_doc in library_list:
             pages_count = self._process_library(
@@ -196,6 +201,7 @@ class Command(BaseCommand):
                 source_root=source_root,
                 dry_run=dry_run,
                 max_pages=max_pages,
+                boost_version_id=boost_version_id,
             )
             total_pages += pages_count
 
@@ -240,8 +246,9 @@ class Command(BaseCommand):
         source_root,
         dry_run,
         max_pages,
+        boost_version_id,
     ) -> int:
-        max_pages = max_pages if dry_run else None
+        effective_max_pages = max_pages if dry_run else None
 
         if source_root is not None:
             self.stdout.write(
@@ -253,7 +260,7 @@ class Command(BaseCommand):
                     lib_key=lib_key,
                     lib_documentation=lib_doc,
                     version=version,
-                    max_pages=max_pages,
+                    max_pages=effective_max_pages,
                 )
             except Exception as exc:
                 logger.error("[%s] local walk failed: %s", lib_name, exc)
@@ -265,7 +272,7 @@ class Command(BaseCommand):
             self.stdout.write(f"  [{lib_name}] crawling {doc_root_url} ...")
             try:
                 pages = fetcher.crawl_library_pages(
-                    doc_root_url, max_pages=max_pages, delay_secs=0.3
+                    doc_root_url, max_pages=effective_max_pages, delay_secs=0.3
                 )
             except Exception as exc:
                 logger.error("[%s] crawl failed: %s", lib_name, exc)
@@ -293,8 +300,8 @@ class Command(BaseCommand):
             version=version,
             lib_name=lib_name,
             lib_version_id=lib_version_id,
+            boost_version_id=boost_version_id,
             pages=pages,
-            page_count=page_count,
         )
         return page_count
 
@@ -303,7 +310,7 @@ class Command(BaseCommand):
     # ------------------------------------------------------------------
 
     def _save_pages_to_workspace_and_db(
-        self, *, version, lib_name, lib_version_id, pages, page_count
+        self, *, version, lib_name, lib_version_id, boost_version_id, pages
     ):
         created = changed = unchanged = 0
 
@@ -320,7 +327,7 @@ class Command(BaseCommand):
 
             try:
                 doc_content, change_type = services.get_or_create_doc_content(
-                    url, content_hash
+                    url, content_hash, version_id=boost_version_id
                 )
             except Exception as exc:
                 logger.error("[%s] DB write failed for %s: %s", lib_name, url, exc)
@@ -334,9 +341,7 @@ class Command(BaseCommand):
                 unchanged += 1
 
             try:
-                services.link_content_to_library_version(
-                    lib_version_id, doc_content.pk, page_count
-                )
+                services.link_content_to_library_version(lib_version_id, doc_content.pk)
             except Exception as exc:
                 logger.error(
                     "[%s] link_content_to_library_version failed for %s: %s",
@@ -390,11 +395,16 @@ class Command(BaseCommand):
 
         failed_ids = result.get("failed_ids", [])
         if failed_ids:
-            int_failed_ids = [int(fid) for fid in failed_ids if str(fid).isdigit()]
+            int_failed_ids = []
+            for fid in failed_ids:
+                try:
+                    int_failed_ids.append(int(fid))
+                except (ValueError, TypeError):
+                    logger.warning("Ignoring non-integer failed_id: %r", fid)
             if int_failed_ids:
-                services.set_is_upserted_by_ids(int_failed_ids, False)
+                services.set_doc_content_upserted_by_ids(int_failed_ids, False)
                 logger.warning(
-                    "Marked %d BoostLibraryDocumentation rows as is_upserted=False "
+                    "Marked %d BoostDocContent rows as is_upserted=False "
                     "due to Pinecone failures.",
                     len(int_failed_ids),
                 )
@@ -478,14 +488,19 @@ class Command(BaseCommand):
                 lib_name,
                 version,
             )
-            return (
-                BoostLibraryVersion.objects.filter(
-                    library__name=lib_name,
-                    version__version=version,
-                )
-                .first()
-                .pk
-            )
+            lv = BoostLibraryVersion.objects.filter(
+                library__name=lib_name,
+                version__version=version,
+            ).first()
+            return lv.pk if lv is not None else None
+
+    def _resolve_boost_version_id(self, version: str) -> int | None:
+        """Resolve BoostVersion PK from the version string. Returns None if not found."""
+        try:
+            bv = BoostVersion.objects.get(version=version)
+            return bv.pk
+        except BoostVersion.DoesNotExist:
+            return None
 
 
 # ---------------------------------------------------------------------------

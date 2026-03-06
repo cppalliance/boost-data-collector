@@ -7,7 +7,7 @@ Layout:
     │   └── boost_library_docs_tracker/
     │       └── boost_<version>.zip                  # downloaded source zip
     └── boost_library_docs_tracker/
-        ├── extrated/
+        ├── extracted/
         │   └── boost_<version>/...                  # extracted HTML/source files
         └── converted/
             └── boost_<version>/...                  # converted page markdown files
@@ -44,8 +44,8 @@ def get_zip_dir() -> Path:
 
 
 def get_extract_dir() -> Path:
-    """Return workspace/boost_library_docs_tracker/extrated/ (created if missing)."""
-    path = get_app_workspace() / "extrated"
+    """Return workspace/boost_library_docs_tracker/extracted/ (created if missing)."""
+    path = get_app_workspace() / "extracted"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -95,6 +95,9 @@ def load_page_by_url(url: str) -> str | None:
     return path.read_text(encoding="utf-8")
 
 
+_ALLOWED_NETLOCS = ("www.boost.org", "boost.org")
+
+
 def resolve_path_from_url(url: str) -> Path | None:
     """
     Derive the workspace file path from a boost.org doc URL.
@@ -102,22 +105,38 @@ def resolve_path_from_url(url: str) -> Path | None:
     URL pattern: https://www.boost.org/doc/libs/<url_version>/libs/<library>/...
     e.g. https://www.boost.org/doc/libs/1_87_0/libs/algorithm/doc/html/index.html
 
-    Returns None if the URL does not match the expected pattern.
+    Validates the host, sanitizes path segments (rejects '..', '.', empty), and
+    ensures the resolved path stays under the versioned converted root.
+    Returns None if the URL is invalid or would escape the workspace.
     """
     parsed = urlparse(url)
+    if parsed.netloc not in _ALLOWED_NETLOCS:
+        return None
     parts = parsed.path.strip("/").split("/")
     # Expected: doc / libs / <url_version> / ...
     if len(parts) < 4 or parts[0] != "doc" or parts[1] != "libs":
         return None
     url_version = parts[2]  # e.g. 1_90_0
-    relative_parts = parts[3:]  # e.g. libs/utility/doc/html/index.html
-    if not relative_parts:
+    raw_relative = parts[3:]
+    if not raw_relative:
         return None
-    return (
-        get_converted_root()
-        / f"boost_{url_version}"
-        / Path(*relative_parts).with_suffix(".md")
-    )
+    # Reject path traversal and meaningless segments
+    sanitized: list[str] = []
+    for seg in raw_relative:
+        if seg in ("", ".", "..") or seg.startswith("/"):
+            return None
+        sanitized.append(seg)
+    version_root = (get_converted_root() / f"boost_{url_version}").resolve()
+    try:
+        target = (version_root / Path(*sanitized)).with_suffix(".md").resolve()
+    except (OSError, ValueError):
+        return None
+    # Ensure resolved path is under version_root (no escape)
+    try:
+        target.relative_to(version_root)
+    except ValueError:
+        return None
+    return target
 
 
 # ---------------------------------------------------------------------------

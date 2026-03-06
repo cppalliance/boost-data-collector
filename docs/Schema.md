@@ -723,11 +723,11 @@ erDiagram
     }
 ```
 
-**Note:** **BoostDocContent** stores one globally unique page per URL. One row per URL regardless of version or library. Page content is not stored in the DB; it is kept in workspace files. `content_hash` (SHA-256 of the page text) is used to detect whether content has changed between scrape runs. `scraped_at` is updated each time the page is re-fetched.
+**Note:** **BoostDocContent** stores one globally unique scraped page per content hash. One row per unique `content_hash` regardless of version or library. Page content is not stored in the DB; it is kept in workspace files. `content_hash` (SHA-256 of the page text) is the unique key — the same URL may produce a new row if the content changes. `first_version_id` / `last_version_id` track the earliest and latest Boost version in which this page content was observed. `is_upserted` tracks whether the page has been successfully upserted to Pinecone. `scraped_at` is updated each time the page is re-fetched.
 
-**Note:** **BoostLibraryDocumentation** is the join table between **BoostLibraryVersion** (section 3) and **BoostDocContent**. One row per (library-version, page) pair — it records which pages were found under a given (library, version) combination. `is_upserted` indicates whether the document has been successfully upserted to Pinecone.
+**Note:** **BoostLibraryDocumentation** is the join table between **BoostLibraryVersion** (section 3) and **BoostDocContent**. One row per (library-version, page) pair — it records which pages were found under a given (library, version) combination.
 
-**Note:** Unique constraint on `content_hash` in BoostDocContent. Composite unique constraint on `(boost_library_version_id, boost_doc_content_id)` in BoostLibraryDocumentation. Index on `(boost_library_version_id, is_upserted)` for efficient sync and retry queries.
+**Note:** Unique constraint on `content_hash` in BoostDocContent. Composite unique constraint on `(boost_library_version_id, boost_doc_content_id)` in BoostLibraryDocumentation. Index on `boost_library_version_id` in BoostLibraryDocumentation for efficient per-library-version queries.
 
 ---
 
@@ -788,8 +788,8 @@ erDiagram
 | **WebsiteWordCount**                 | Per-date, per-word count.                                                                                                                            | 8       |
 | **PineconeFailList**                 | Failed sync records (failed_id, type) for retry/audit.                                                                                               | 9       |
 | **PineconeSyncStatus**               | Last sync per type (type, final_sync_at, created_at, updated_at); type = slack, mailing list, wg21, etc.                                             | 9       |
-| **BoostDocContent**                  | Globally unique scraped page by URL (url, content_hash, page_content, scraped_at). One row per URL across all versions.                              | 10      |
-| **BoostLibraryDocumentation**        | Join table: BoostLibraryVersion × BoostDocContent. Tracks which pages belong to each (library, version) and their scrape/sync status and page_count. | 10      |
+| **BoostDocContent**                  | Globally unique scraped page by content hash (url, content_hash UK, first_version_id, last_version_id, is_upserted, scraped_at). One row per unique content hash across all versions.       | 10      |
+| **BoostLibraryDocumentation**        | Join table: BoostLibraryVersion × BoostDocContent. Records which pages belong to each (library, version) pair.                                                                              | 10      |
 
 ### Appendix B: Relationship summary
 
@@ -814,7 +814,7 @@ erDiagram
 | BoostLibraryRepository      | BoostLibrary                                                                                                           | Has many                                   |
 | BoostLibrary                | BoostFile, BoostDependency (client/dep), BoostLibraryVersion, DependencyChangeLog                                      | Has many                                   |
 | BoostLibrary                | BoostLibraryCategoryRelationship                                                                                       | Has many                                   |
-| BoostVersion                | BoostDependency, BoostLibraryVersion                                                                                   | Version                                    |
+| BoostVersion                | BoostDependency, BoostLibraryVersion, BoostDocContent (first/last)                                                     | Version / first+last observed              |
 | BoostLibraryVersion         | BoostLibraryRoleRelationship                                                                                           | Has many                                   |
 | GitHubAccount               | BoostLibraryRoleRelationship                                                                                           | Role (maintainer/author)                   |
 | BoostLibraryCategory        | BoostLibraryCategoryRelationship                                                                                       | Category                                   |
@@ -827,5 +827,5 @@ erDiagram
 | SlackChannel                | SlackUser                                                                                                              | Creator (many-to-one)                      |
 | WG21PaperAuthorProfile      | WG21PaperAuthor                                                                                                        | Author (has many)                          |
 | WG21Paper                   | WG21PaperAuthor                                                                                                        | Has many authors                           |
-| BoostLibraryVersion         | BoostLibraryDocumentation                                                                                                | Has many (boost_library_version_id)        |
-| BoostDocContent             | BoostLibraryDocumentation                                                                                                | Used in many (boost_doc_content_id)       |
+| BoostLibraryVersion         | BoostLibraryDocumentation                                                                                              | Has many (boost_library_version_id)        |
+| BoostDocContent             | BoostLibraryDocumentation                                                                                              | Used in many (boost_doc_content_id)        |

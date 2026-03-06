@@ -159,8 +159,8 @@ _RE_SPAN_CLASS = re.compile(r'<span\s+class="[^"]*"[^>]*>(.*?)</span>', re.DOTAL
 _RE_HTML_TAG = re.compile(r"<[^>]+>")
 
 # Code fence with spurious language name from DocBook 'programlisting' class
-# e.g.  ``` programlisting  →  ```
-_RE_BAD_FENCE = re.compile(r"^(``` *)programlisting\s*$", re.MULTILINE)
+# e.g.  ``` programlisting  →  ```  or  ~~~ programlisting  →  ~~~
+_RE_BAD_FENCE = re.compile(r"^([`~]{3,}) *programlisting\s*$", re.MULTILINE)
 
 # Three or more consecutive blank lines → exactly two
 _RE_EXCESS_BLANK = re.compile(r"\n{3,}")
@@ -168,8 +168,10 @@ _RE_EXCESS_BLANK = re.compile(r"\n{3,}")
 # Trailing whitespace on every line
 _RE_TRAILING_WS = re.compile(r"[ \t]+$", re.MULTILINE)
 
-# Fenced code block: opening fence (``` or ~~~, optional lang), body, closing fence
-_RE_FENCED_BLOCK = re.compile(r"(?:^|\n)(```[^\n]*\n.*?```)", re.DOTALL)
+# Fenced code block: opening fence (``` or ~~~, optional lang), body, closing fence (same char/length)
+_RE_FENCED_BLOCK = re.compile(
+    r"(?:^|\n)(((?P<fence>[`~]{3,})[^\n]*\n.*?\n(?P=fence)))", re.DOTALL
+)
 
 # Inline code span (backtick-delimited, no newlines)
 _RE_INLINE_CODE = re.compile(r"`[^`\n]+`")
@@ -181,7 +183,7 @@ _RE_BLOCK_START = re.compile(
     r"|[*\-+]\s"  # unordered list item
     r"|\d+\.\s"  # ordered list item
     r"|>"  # blockquote
-    r"|```"  # fenced code fence
+    r"|[`~]{3,}"  # fenced code fence (backticks or tildes)
     r"|\|"  # table row
     r"|$"  # blank line
     r")"
@@ -193,7 +195,8 @@ def _strip_html_tags_in_prose(md: str) -> str:
     parts = _RE_FENCED_BLOCK.split(md)
     result = []
     for part in parts:
-        if part.startswith("```") or part.startswith("~~~"):
+        # Full block has newline; split() also returns the fence-only group
+        if re.match(r"^[`~]{3,}", part) and "\n" in part:
             result.append(part)
         else:
             # Prose section — strip HTML tags but protect inline code spans
@@ -223,7 +226,7 @@ def _join_wrapped_lines(md: str) -> str:
     in_fence = False
 
     for line in md.splitlines():
-        if line.startswith("```"):
+        if re.match(r"^[`~]{3,}", line):
             in_fence = not in_fence
             out_lines.append(line)
             continue

@@ -8,7 +8,7 @@ Signature matches the PreprocessFn contract:
         OR tuple[list[dict], bool, list[dict]]   (with metadata updates)
 
 The failed_ids values come from failed_documents[*]["ids"] in the upsert result,
-which are comma-separated strings of BoostLibraryDocumentation PKs.
+which are BoostDocContent PKs encoded as strings.
 """
 
 from __future__ import annotations
@@ -17,9 +17,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from boost_library_tracker.models import BoostVersion
-
-from .models import BoostDocContent, BoostLibraryDocumentation
+from .models import BoostDocContent
 from . import services, workspace
 
 logger = logging.getLogger(__name__)
@@ -30,18 +28,17 @@ def preprocess_for_pinecone(
     final_sync_at: datetime | None,
 ) -> tuple[list[dict[str, Any]], bool]:
     """
-    Build documents for Pinecone upsert from BoostLibraryDocumentation records.
+    Build documents for Pinecone upsert from BoostDocContent records.
 
-    Selects records that:
-      - have id in failed_ids (retry), OR
-      - were created after final_sync_at (incremental sync).
+    Selects BoostDocContent records where is_upserted=False (not yet synced)
+    or whose PK is in failed_ids (retry after a previous failure).
+    final_sync_at is accepted for interface compatibility but is not used —
+    is_upserted is the authoritative sync state.
 
     For each selected record:
-      - Resolves first_version / last_version via BoostVersion.version_created_at ordering.
-      - Skips if current_version is older than last_version (not the latest holder).
-      - Skips if current_version == last_version and is_upserted is True (already synced).
-      - Loads page_content from the workspace file.
-      - Marks the BoostLibraryDocumentation row as is_upserted=True before returning.
+      - Resolves first_version / last_version from the FK fields on BoostDocContent.
+      - Loads page content from the workspace file.
+      - Marks the BoostDocContent row as is_upserted=True.
 
     Returns (documents, is_chunked=False).
     doc_id in metadata is the content_hash of the BoostDocContent row.
@@ -50,8 +47,7 @@ def preprocess_for_pinecone(
     if not records:
         return [], False
 
-    version_order = _build_version_order()
-    documents = _build_documents(records, version_order)
+    documents = _build_documents(records)
     return documents, False
 
 
@@ -63,24 +59,23 @@ def preprocess_for_pinecone(
 def _select_records(
     failed_ids: list[str],
     final_sync_at: datetime | None,
-) -> list[BoostLibraryDocumentation]:
-    """Return deduplicated BoostLibraryDocumentation records to process."""
+) -> list[BoostDocContent]:
+    """Return BoostDocContent records to process.
+
+    Selects rows that are not yet upserted (is_upserted=False) or are in
+    failed_ids for retry. The final_sync_at parameter is accepted for interface
+    compatibility but is not used — is_upserted is the authoritative sync state.
+    """
     from django.db.models import Q
 
     int_failed_ids = _parse_int_ids(failed_ids)
-    query = Q(pk__in=int_failed_ids)
-    if final_sync_at is not None:
-        query |= Q(created_at__gt=final_sync_at)
-    else:
-        query = Q()  # first run: include all
+    query = Q(is_upserted=False)
+    if int_failed_ids:
+        query |= Q(pk__in=int_failed_ids)
 
     qs = (
-        BoostLibraryDocumentation.objects.filter(query)
-        .select_related(
-            "boost_doc_content",
-            "boost_library_version__version",
-            "boost_library_version__library",
-        )
+        BoostDocContent.objects.filter(query)
+        .select_related("first_version", "last_version")
         .order_by("id")
     )
     return list(qs)
@@ -105,98 +100,35 @@ def _parse_int_ids(failed_ids: list[str]) -> list[int]:
     return result
 
 
-def _build_version_order() -> dict[int, int]:
+def _get_library_name(doc_content: BoostDocContent) -> str:
     """
-    Return a mapping of BoostVersion.pk → sort_order (0 = oldest).
-    Versions without version_created_at are sorted last by version string.
+    Derive the library name for a BoostDocContent from its BoostLibraryDocumentation relations.
+    Returns an empty string if no relation is found.
     """
-    versions = list(
-        BoostVersion.objects.all().values("pk", "version", "version_created_at")
+    rel = (
+        doc_content.library_relations.select_related("boost_library_version__library")
+        .order_by("id")
+        .first()
     )
-    versions.sort(
-        key=lambda v: (
-            v["version_created_at"] is None,
-            v["version_created_at"] or "",
-            v["version"],
-        )
-    )
-    return {v["pk"]: idx for idx, v in enumerate(versions)}
-
-
-def _get_version_range(
-    doc_content: BoostDocContent,
-    version_order: dict[int, int],
-) -> tuple[str, str, int | None]:
-    """
-    For the given BoostDocContent, determine first_version, last_version,
-    and the version_id of the last (newest) version.
-
-    Returns (first_version_str, last_version_str, last_version_id).
-    """
-    relations = list(
-        BoostLibraryDocumentation.objects.filter(
-            boost_doc_content=doc_content,
-        ).select_related("boost_library_version__version")
-    )
-
-    if not relations:
-        return "", "", None
-
-    def _order_key(rel: BoostLibraryDocumentation) -> int:
-        ver_id = rel.boost_library_version.version_id
-        return version_order.get(ver_id, 999_999)
-
-    relations.sort(key=_order_key)
-    first_rel = relations[0]
-    last_rel = relations[-1]
-    first_version = first_rel.boost_library_version.version.version
-    last_version = last_rel.boost_library_version.version.version
-    last_version_id = last_rel.boost_library_version.version_id
-    return first_version, last_version, last_version_id
+    if rel is None:
+        return ""
+    return rel.boost_library_version.library.name
 
 
 def _build_documents(
-    records: list[BoostLibraryDocumentation],
-    version_order: dict[int, int],
+    records: list[BoostDocContent],
 ) -> list[dict[str, Any]]:
     """Build raw document dicts, apply skip rules, mark rows as upserted."""
     documents: list[dict[str, Any]] = []
     ids_to_mark: list[int] = []
 
-    for rec in records:
-        doc_content = rec.boost_doc_content
-        lib_ver = rec.boost_library_version
-
-        first_version, last_version, last_version_id = _get_version_range(
-            doc_content, version_order
+    for doc_content in records:
+        first_version_str = (
+            doc_content.first_version.version if doc_content.first_version else ""
         )
-        if not last_version_id:
-            logger.warning(
-                "No version range found for BoostDocContent id=%d, skipping.",
-                doc_content.pk,
-            )
-            continue
-
-        current_version_id = lib_ver.version_id
-        current_order = version_order.get(current_version_id, 999_999)
-        last_order = version_order.get(last_version_id, 999_999)
-
-        # Skip if current version is older than last version
-        if current_order < last_order:
-            logger.debug(
-                "Skipping doc_content_id=%d: current_version_id=%d is older than last.",
-                doc_content.pk,
-                current_version_id,
-            )
-            continue
-
-        # Skip if already upserted at the last version
-        if current_order == last_order and rec.is_upserted:
-            logger.debug(
-                "Skipping doc_content_id=%d: already upserted at last version.",
-                doc_content.pk,
-            )
-            continue
+        last_version_str = (
+            doc_content.last_version.version if doc_content.last_version else ""
+        )
 
         page_content = workspace.load_page_by_url(doc_content.url)
         if not page_content:
@@ -207,25 +139,27 @@ def _build_documents(
             )
             continue
 
+        library_name = _get_library_name(doc_content)
+
         documents.append(
             {
                 "content": page_content,
                 "metadata": {
                     "doc_id": doc_content.content_hash,
                     "url": doc_content.url,
-                    "first_version": first_version,
-                    "last_version": last_version,
-                    "library_name": lib_ver.library.name,
-                    "ids": str(rec.pk),
+                    "first_version": first_version_str,
+                    "last_version": last_version_str,
+                    "library_name": library_name,
+                    "ids": str(doc_content.pk),
                 },
             }
         )
-        ids_to_mark.append(rec.pk)
+        ids_to_mark.append(doc_content.pk)
 
     if ids_to_mark:
-        services.set_is_upserted_by_ids(ids_to_mark, True)
+        services.set_doc_content_upserted_by_ids(ids_to_mark, True)
         logger.info(
-            "Marked %d BoostLibraryDocumentation rows as is_upserted=True.",
+            "Marked %d BoostDocContent rows as is_upserted=True.",
             len(ids_to_mark),
         )
 

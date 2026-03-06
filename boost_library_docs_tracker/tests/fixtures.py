@@ -29,7 +29,7 @@ def make_boost_doc_content(db):
         url = (
             url or f"https://www.boost.org/doc/libs/1_81_0/libs/{uuid.uuid4().hex[:8]}/"
         )
-        content_hash = content_hash or ("0" * 64)
+        content_hash = content_hash or (uuid.uuid4().hex * 2)[:64]
         obj, _ = services.get_or_create_doc_content(url, content_hash)
         return obj
 
@@ -42,7 +42,6 @@ def boost_library_documentation(db, boost_library_version, boost_doc_content):
     rel, _ = services.link_content_to_library_version(
         library_version_id=boost_library_version.pk,
         doc_content_id=boost_doc_content.pk,
-        page_count=5,
     )
     return rel
 
@@ -51,13 +50,12 @@ def boost_library_documentation(db, boost_library_version, boost_doc_content):
 def make_boost_library_documentation(db, boost_library_version, make_boost_doc_content):
     """Factory: create BoostLibraryDocumentation via service API."""
 
-    def _make(library_version=None, doc_content=None, page_count=1):
+    def _make(library_version=None, doc_content=None):
         lv = library_version or boost_library_version
         dc = doc_content or make_boost_doc_content()
         rel, _ = services.link_content_to_library_version(
             library_version_id=lv.pk,
             doc_content_id=dc.pk,
-            page_count=page_count,
         )
         return rel
 
