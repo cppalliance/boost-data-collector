@@ -3,9 +3,8 @@ Handle commits with 300+ file changes (GitHub API limit).
 
 Flow:
 1. Detect when commit has 300 files (possibly truncated).
-2. Optionally check real count via GitHub Trees API.
-3. If > 300, clone repo and use git to get full file list.
-4. Build commit payload with full files array for sync.
+2. Clone repo and use git to get full file list.
+3. Build commit payload with full files array for sync.
 """
 
 from __future__ import annotations
@@ -14,7 +13,6 @@ import logging
 import subprocess
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
 
 from github_ops import clone_repo, get_commit_file_changes
 from github_activity_tracker.workspace import (
@@ -22,9 +20,6 @@ from github_activity_tracker.workspace import (
     register_clone,
     remove_clone_dir,
 )
-
-if TYPE_CHECKING:
-    from github_ops.client import GitHubAPIClient
 
 logger = logging.getLogger(__name__)
 
@@ -50,98 +45,6 @@ def is_commit_truncated(commit_data: dict) -> bool:
     """
     files = commit_data.get("files") or []
     return len(files) == 300
-
-
-def get_changed_file_count_via_trees(
-    client: GitHubAPIClient,
-    owner: str,
-    repo: str,
-    commit_data: dict,
-) -> Optional[int]:
-    """
-    Get real changed file count via GitHub Trees API (compare commit tree vs parent tree).
-
-    Returns count, or None if trees are truncated or error occurs.
-
-    Note: This is optional; can skip and just use clone path for all 300-file commits.
-    """
-    try:
-        # Get commit tree SHA and parent SHA
-        commit_tree_sha = commit_data.get("commit", {}).get("tree", {}).get("sha")
-        parents = commit_data.get("parents") or []
-        if not parents:
-            logger.debug("Commit has no parent (initial commit), skipping tree check")
-            return None
-        parent_sha = parents[0].get("sha")
-
-        if not commit_tree_sha or not parent_sha:
-            logger.warning("Missing tree or parent SHA, cannot check via trees API")
-            return None
-
-        # Get parent commit to get its tree SHA
-        parent_commit = client.rest_request(
-            f"/repos/{owner}/{repo}/commits/{parent_sha}"
-        )
-        if not parent_commit:
-            logger.warning("Could not fetch parent commit %s", parent_sha)
-            return None
-        parent_tree_sha = parent_commit.get("commit", {}).get("tree", {}).get("sha")
-
-        if not parent_tree_sha:
-            logger.warning("Could not get parent tree SHA")
-            return None
-
-        # Fetch both trees (recursive)
-        commit_tree = client.rest_request(
-            f"/repos/{owner}/{repo}/git/trees/{commit_tree_sha}?recursive=1"
-        )
-        parent_tree = client.rest_request(
-            f"/repos/{owner}/{repo}/git/trees/{parent_tree_sha}?recursive=1"
-        )
-
-        if not commit_tree or not parent_tree:
-            logger.warning("Could not fetch trees")
-            return None
-
-        # Check if truncated
-        if commit_tree.get("truncated") or parent_tree.get("truncated"):
-            logger.info("Trees are truncated, cannot get accurate count via API")
-            return None
-
-        # Get blob paths (type == "blob" means file)
-        commit_blobs = {
-            item["path"]: item["sha"]
-            for item in commit_tree.get("tree", [])
-            if item.get("type") == "blob"
-        }
-        parent_blobs = {
-            item["path"]: item["sha"]
-            for item in parent_tree.get("tree", [])
-            if item.get("type") == "blob"
-        }
-
-        # Count changed files (added, removed, or modified)
-        added = set(commit_blobs.keys()) - set(parent_blobs.keys())
-        removed = set(parent_blobs.keys()) - set(commit_blobs.keys())
-        modified = {
-            path
-            for path in commit_blobs
-            if path in parent_blobs and commit_blobs[path] != parent_blobs[path]
-        }
-
-        total_changed = len(added) + len(removed) + len(modified)
-        logger.info(
-            "Trees API: %d added, %d removed, %d modified = %d total changed",
-            len(added),
-            len(removed),
-            len(modified),
-            total_changed,
-        )
-        return total_changed
-
-    except Exception as e:
-        logger.warning("Failed to get changed file count via trees: %s", e)
-        return None
 
 
 def ensure_repo_cloned(owner: str, repo: str) -> Path:

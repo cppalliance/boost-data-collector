@@ -1,6 +1,6 @@
 """Tests for github_activity_tracker big_commit (handle 300+ file commits)."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -23,79 +23,6 @@ def test_is_commit_truncated_returns_false_for_no_files():
     """is_commit_truncated returns False when commit has no files."""
     commit_data = {"files": []}
     assert big_commit.is_commit_truncated(commit_data) is False
-
-
-def test_get_changed_file_count_via_trees_returns_count():
-    """get_changed_file_count_via_trees returns count of changed files via trees API."""
-    mock_client = MagicMock()
-    mock_client.rest_request.side_effect = [
-        # Parent commit
-        {"commit": {"tree": {"sha": "parent_tree_sha"}}},
-        # Commit tree
-        {
-            "tree": [
-                {"path": "file1.txt", "type": "blob", "sha": "sha1"},
-                {"path": "file2.txt", "type": "blob", "sha": "sha2_new"},
-                {"path": "file3.txt", "type": "blob", "sha": "sha3"},
-            ],
-            "truncated": False,
-        },
-        # Parent tree
-        {
-            "tree": [
-                {"path": "file1.txt", "type": "blob", "sha": "sha1"},
-                {"path": "file2.txt", "type": "blob", "sha": "sha2_old"},
-            ],
-            "truncated": False,
-        },
-    ]
-
-    commit_data = {
-        "commit": {"tree": {"sha": "commit_tree_sha"}},
-        "parents": [{"sha": "parent_sha"}],
-    }
-
-    count = big_commit.get_changed_file_count_via_trees(
-        mock_client, "owner", "repo", commit_data
-    )
-
-    # file2.txt modified, file3.txt added = 2 changed
-    assert count == 2
-
-
-def test_get_changed_file_count_via_trees_returns_none_when_truncated():
-    """get_changed_file_count_via_trees returns None when trees are truncated."""
-    mock_client = MagicMock()
-    mock_client.rest_request.side_effect = [
-        {"commit": {"tree": {"sha": "parent_tree_sha"}}},
-        {"tree": [], "truncated": True},
-        {"tree": [], "truncated": False},
-    ]
-
-    commit_data = {
-        "commit": {"tree": {"sha": "commit_tree_sha"}},
-        "parents": [{"sha": "parent_sha"}],
-    }
-
-    count = big_commit.get_changed_file_count_via_trees(
-        mock_client, "owner", "repo", commit_data
-    )
-
-    assert count is None
-
-
-def test_get_changed_file_count_via_trees_returns_none_for_initial_commit():
-    """get_changed_file_count_via_trees returns None for commit with no parent."""
-    commit_data = {
-        "commit": {"tree": {"sha": "tree_sha"}},
-        "parents": [],
-    }
-
-    count = big_commit.get_changed_file_count_via_trees(
-        MagicMock(), "owner", "repo", commit_data
-    )
-
-    assert count is None
 
 
 def test_ensure_repo_cloned_clones_when_not_exists(tmp_path):
