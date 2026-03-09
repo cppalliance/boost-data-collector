@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "boost_library_usage_dashboard",
     "boost_usage_tracker",
     "boost_mailing_list_tracker",
+    "clang_github_tracker",
     "cppa_slack_transcript_tracker",
     "cppa_slack_tracker",
     "discord_activity_tracker",
@@ -145,6 +146,14 @@ _WORKSPACE_APP_SLUGS = (
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 for _slug in _WORKSPACE_APP_SLUGS:
     (WORKSPACE_DIR / _slug).mkdir(parents=True, exist_ok=True)
+
+# Clang GitHub Tracker (raw sync: commits, issues, PRs for one repo)
+CLANG_GITHUB_OWNER = (
+    env("CLANG_GITHUB_OWNER", default="llvm") or "llvm"
+).strip() or "llvm"
+CLANG_GITHUB_REPO = (
+    env("CLANG_GITHUB_REPO", default="llvm-project") or "llvm-project"
+).strip() or "llvm-project"
 
 # GitHub tokens (multiple use cases: scraping, write)
 # - GITHUB_TOKEN: fallback when a specific token is not set
