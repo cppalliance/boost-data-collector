@@ -3,7 +3,7 @@
 from unittest.mock import patch
 
 
-from clang_github_tracker import state as clang_state
+from clang_github_tracker import state_manager as clang_state
 
 
 def test_parse_iso_valid():
@@ -26,7 +26,7 @@ def test_parse_iso_invalid_or_empty():
 
 def test_compute_state_from_raw_empty_dir(tmp_path):
     """When raw repo dir does not exist, compute_state_from_raw returns nulls."""
-    with patch("clang_github_tracker.state.get_raw_repo_dir") as m:
+    with patch("clang_github_tracker.state_manager.get_raw_repo_dir") as m:
         m.return_value = tmp_path / "nonexistent_repo_dir"
         result = clang_state.compute_state_from_raw()
     assert result[clang_state.KEY_LAST_COMMIT_DATE] is None

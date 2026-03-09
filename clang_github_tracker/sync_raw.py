@@ -19,19 +19,19 @@ from github_activity_tracker.sync.raw_source import (
 from github_ops import get_github_client
 from github_ops.client import ConnectionException, RateLimitException
 
-from clang_github_tracker import state as clang_state
+from clang_github_tracker import state_manager as clang_state
 from clang_github_tracker.workspace import OWNER, REPO
 
 logger = logging.getLogger(__name__)
 
 
 def _ensure_utc(dt: datetime | None) -> datetime | None:
-    """Return dt with UTC tzinfo if naive; otherwise return dt or None."""
+    """Return dt converted to UTC if aware, or set to UTC if naive."""
     if dt is None:
         return None
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
-    return dt
+    return dt.astimezone(timezone.utc)
 
 
 def _commit_date(commit_data: dict) -> datetime | None:

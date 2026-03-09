@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 from django.core.management.base import BaseCommand, CommandError
 
-from clang_github_tracker import state as clang_state
+from clang_github_tracker import state_manager as clang_state
 from clang_github_tracker.sync_raw import sync_raw_only
 
 logger = logging.getLogger(__name__)
