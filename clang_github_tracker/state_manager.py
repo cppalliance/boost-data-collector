@@ -222,7 +222,9 @@ def ensure_state_file_exists() -> dict[str, str | None]:
         path.write_text(json.dumps(computed, indent=2), encoding="utf-8")
     except OSError as e:
         logger.warning(
-            "Failed to write state file %s: %s; proceeding with no state.", path, e
+            "Failed to write state file %s: %s; proceeding with no state.",
+            path,
+            e,
         )
         return {}
     logger.info(
@@ -259,10 +261,8 @@ def resolve_start_end_dates(
 
     state = ensure_state_file_exists()
     if not state:
-        state = ensure_state_file_exists()  # retry once
-    if not state:
         logger.error(
-            "State unavailable after retry (error reading state.json or raw folder). Cannot resolve dates; exiting."
+            "State unavailable (error reading state.json or raw folder). Cannot resolve dates; exiting."
         )
         return None
     now = datetime.now(timezone.utc)
