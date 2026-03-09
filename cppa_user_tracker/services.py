@@ -26,6 +26,7 @@ from .models import (
     MailingListProfile,
     SlackUser,
     DiscordProfile,
+    WG21PaperAuthorProfile,
 )
 
 
@@ -49,7 +50,9 @@ def get_or_create_identity(
     """Get or create an Identity by display_name. If exists, updates description from defaults."""
     lookup = {"display_name": display_name}
     defaults = defaults or {"description": description}
-    identity, created = Identity.objects.get_or_create(defaults=defaults, **lookup)
+    identity, created = Identity.objects.get_or_create(
+        defaults=defaults, **lookup
+    )
     if (
         not created
         and "description" in defaults
@@ -247,7 +250,9 @@ def _get_next_negative_github_account_id() -> int:
 
 
 @transaction.atomic
-def get_or_create_slack_user(user_data: dict[str, Any]) -> tuple[SlackUser, bool]:
+def get_or_create_slack_user(
+    user_data: dict[str, Any],
+) -> tuple[SlackUser, bool]:
     """Get or create a SlackUser from Slack API user data. Returns (SlackUser, created).
 
     If the user exists, updates username, display_name, and avatar_url from user_data.
@@ -260,7 +265,9 @@ def get_or_create_slack_user(user_data: dict[str, Any]) -> tuple[SlackUser, bool
         raise ValueError("Slack user ID ('id') is required")
     profile = user_data.get("profile") or {}
     username = (user_data.get("name") or "").strip()
-    display_name = (user_data.get("real_name") or user_data.get("name") or "").strip()
+    display_name = (
+        user_data.get("real_name") or user_data.get("name") or ""
+    ).strip()
     avatar_url = (profile.get("image_72") or "").strip()
     user, created = SlackUser.objects.get_or_create(
         slack_user_id=user_id,
@@ -303,7 +310,9 @@ def get_or_create_unknown_github_account(
     ).first()
     if existing is not None:
         if email_str and not existing.emails.filter(email=email_str).exists():
-            add_email(existing, email_str, is_primary=not existing.emails.exists())
+            add_email(
+                existing, email_str, is_primary=not existing.emails.exists()
+            )
         return existing, False
     next_id = _get_next_negative_github_account_id()
     account = get_or_create_github_account(
@@ -350,3 +359,13 @@ def get_or_create_discord_profile(
         profile.is_bot = is_bot
         profile.save()
     return profile, created
+
+
+def get_or_create_wg21_paper_author_profile(
+    display_name: str,
+) -> tuple[Any, bool]:
+    """Get or create a WG21PaperAuthorProfile by display_name."""
+    display_name_val = (display_name or "").strip()
+    return WG21PaperAuthorProfile.objects.get_or_create(
+        display_name=display_name_val,
+    )

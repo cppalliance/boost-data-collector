@@ -611,6 +611,7 @@ erDiagram
 erDiagram
     Direction LR
     WG21PaperAuthorProfile ||--o{ WG21PaperAuthor : "author"
+    WG21Mailing ||--o{ WG21Paper : "has"
     WG21PaperAuthor }o--|| WG21Paper : "has"
 
     WG21PaperAuthor {
@@ -620,18 +621,31 @@ erDiagram
         datetime created_at
     }
 
+    WG21Mailing {
+        int id PK
+        string mailing_date UK "IX"
+        string title
+        datetime created_at
+        datetime updated_at
+    }
+
     WG21Paper {
         int id PK
         string paper_id UK "IX"
         string url
         string title "IX"
-        date publication_date "IX"
+        date document_date "IX"
+        int mailing_id FK "IX"
+        string subgroup "IX"
+        boolean is_downloaded "IX"
         datetime created_at
         datetime updated_at
     }
 ```
 
 **Note:** **WG21PaperAuthorProfile** extends `BaseProfile` (section 1). `profile_id` in WG21PaperAuthor references this profile; each paper can have multiple authors.
+
+**Note:** **WG21Mailing** stores information about the mailing release, identified by `mailing_date` (e.g. "2025-03"). `mailing_id` in WG21Paper references this mailing.
 
 **Note:** Composite unique constraint should be applied on (`paper_id`, `profile_id`) in WG21PaperAuthor.
 
@@ -746,7 +760,8 @@ erDiagram
 | **SlackMessage**                     | Message in a channel (ts, slack_user_id, message, thread_ts).                                            | 6       |
 | **SlackChannelMembership**           | Channel-member link (slack_user_id, is_restricted, is_deleted).                                          | 6       |
 | **SlackChannelMembershipChangeLog**  | Log of join/leave (slack_user_id, is_joined, created_at).                                                | 6       |
-| **WG21Paper**                        | WG21 paper (paper_id, url, title, publication_date).                                                     | 7       |
+| **WG21Mailing**                      | WG21 mailing release (mailing_date, title).                                                              | 7       |
+| **WG21Paper**                        | WG21 paper (paper_id, url, title, document_date, mailing, subgroup, is_downloaded).                      | 7       |
 | **WG21PaperAuthor**                  | Paper-author link (paper_id, profile_id->WG21PaperAuthorProfile).                                        | 7       |
 | **Website**                          | Daily site visit total (stat_date, website_visit_count).                                                 | 8       |
 | **WebsiteVisitCount**                | Per-date, per-country visit count.                                                                       | 8       |
@@ -790,5 +805,6 @@ erDiagram
 | SlackChannel                 | SlackMessage, SlackChannelMembership, SlackChannelMembershipChangeLog                                                  | Contains / has many                        |
 | SlackUser                    | SlackMessage, SlackChannelMembership, SlackChannelMembershipChangeLog                                                  | Author / member / user                     |
 | SlackChannel                 | SlackUser                                                                                                              | Creator (many-to-one)                      |
+| WG21Mailing                  | WG21Paper                                                                                                              | Has many papers                            |
 | WG21PaperAuthorProfile       | WG21PaperAuthor                                                                                                        | Author (has many)                          |
 | WG21Paper                    | WG21PaperAuthor                                                                                                        | Has many authors                           |

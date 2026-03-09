@@ -1,0 +1,174 @@
+"""
+Pipeline for WG21 Paper Tracker.
+Coordinates scraping, downloading, uploading to GCS, and updating the database.
+"""
+
+import os
+import requests
+import logging
+from pathlib import Path
+from typing import Optional
+
+from django.conf import settings
+from google.cloud import storage
+
+from wg21_paper_tracker.fetcher import fetch_all_mailings, fetch_papers_for_mailing
+from wg21_paper_tracker.models import WG21Mailing, WG21Paper
+from wg21_paper_tracker.services import get_or_create_mailing, get_or_create_paper
+from wg21_paper_tracker.workspace import get_raw_dir
+
+logger = logging.getLogger(__name__)
+
+def _upload_to_gcs(bucket_name: str, source_path: Path, destination_blob_name: str) -> bool:
+    """Uploads a file to the bucket."""
+    try:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(destination_blob_name)
+
+        blob.upload_from_filename(str(source_path))
+        logger.info("Uploaded %s to gs://%s/%s", source_path.name, bucket_name, destination_blob_name)
+        return True
+    except Exception as e:
+        logger.error("Failed to upload to GCS: %s", e)
+        return False
+
+def _download_file(url: str, filepath: Path) -> bool:
+    """Download file from URL to filepath."""
+    try:
+        logger.info("Downloading %s to %s", url, filepath)
+        response = requests.get(url, timeout=60, stream=True)
+        response.raise_for_status()
+
+        # For text-based files, save as UTF-8. For binary (like PDF), save as bytes.
+        content_type = response.headers.get("content-type", "")
+        if "text" in content_type:
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(response.content.decode(response.apparent_encoding or "utf-8", errors="replace"))
+        else:
+            with open(filepath, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+        return True
+    except Exception as e:
+        logger.error("Failed to download %s: %s", url, e)
+        return False
+
+def run_tracker_pipeline() -> int:
+    """
+    Run the WG21 tracker pipeline.
+    Returns the number of new papers downloaded and uploaded.
+    """
+    bucket_name = settings.WG21_GCS_BUCKET
+    if not bucket_name:
+        logger.warning("WG21_GCS_BUCKET not set. Will download but not upload to GCS.")
+
+    # 1. Get latest mailing from DB
+    latest_mailing = WG21Mailing.objects.order_by("-mailing_date").first()
+    latest_date = latest_mailing.mailing_date if latest_mailing else "1970-01"
+
+    # 2. Fetch all mailings
+    all_mailings = fetch_all_mailings()
+    if not all_mailings:
+        logger.warning("No mailings found on WG21 site.")
+        return 0
+
+    # Filter newer mailings
+    new_mailings = [m for m in all_mailings if m["mailing_date"] > latest_date]
+    # Also check the latest one again just in case new papers were added
+    if latest_mailing and latest_mailing.mailing_date not in [m["mailing_date"] for m in new_mailings]:
+        # We re-check the most recent mailing from the DB to catch late additions
+        # Find the matching dict from all_mailings
+        current_m = next((m for m in all_mailings if m["mailing_date"] == latest_mailing.mailing_date), None)
+        if current_m:
+            new_mailings.append(current_m)
+
+    # Sort chronologically (oldest to newest)
+    new_mailings.sort(key=lambda x: x["mailing_date"])
+
+    total_new_papers = 0
+
+    for m_info in new_mailings:
+        mailing_date = m_info["mailing_date"]
+        title = m_info["title"]
+        year = m_info["year"]
+
+        # Create/get mailing in DB
+        mailing_obj, _ = get_or_create_mailing(mailing_date, title)
+
+        # Fetch papers for this mailing
+        papers = fetch_papers_for_mailing(year, mailing_date)
+        if not papers:
+            continue
+
+        # Group papers by ID to prioritize PDF over HTML
+        papers_by_id = {}
+        for p in papers:
+            pid = p["paper_id"]
+            if pid not in papers_by_id:
+                papers_by_id[pid] = []
+            papers_by_id[pid].append(p)
+
+        def format_priority(ext: str) -> int:
+            priorities = {"pdf": 1, "html": 2, "adoc": 3, "ps": 4}
+            return priorities.get(ext.lower(), 100)
+
+        raw_dir = get_raw_dir(mailing_date)
+
+        for pid, p_list in papers_by_id.items():
+            # Check DB if this paper_id is already fully downloaded
+            existing_paper = WG21Paper.objects.filter(paper_id=pid).first()
+            if existing_paper and existing_paper.is_downloaded:
+                continue
+
+            # Pick the best format
+            p_list.sort(key=lambda x: format_priority(x["type"]))
+            best_paper = p_list[0]
+
+            filename = best_paper["filename"]
+            local_path = raw_dir / filename
+            url = best_paper["url"]
+
+            # Download
+            if _download_file(url, local_path):
+                uploaded = False
+                if bucket_name:
+                    gcs_path = f"raw/wg21_papers/{mailing_date}/{filename}"
+                    uploaded = _upload_to_gcs(bucket_name, local_path, gcs_path)
+                else:
+                    # If no GCS, simulate success so DB is updated
+                    uploaded = True
+                
+                # Persist DB
+                doc_date_str = best_paper["document_date"]
+                # Parse date if available
+                from django.utils.dateparse import parse_date
+                doc_date = None
+                if doc_date_str:
+                    try:
+                        doc_date = parse_date(doc_date_str)
+                    except:
+                        pass
+
+                paper_obj, created = get_or_create_paper(
+                    paper_id=pid,
+                    url=url,
+                    title=best_paper["title"],
+                    document_date=doc_date,
+                    mailing=mailing_obj,
+                    subgroup=best_paper["subgroup"],
+                    author_names=best_paper["authors"],
+                )
+                
+                if uploaded:
+                    paper_obj.is_downloaded = True
+                    paper_obj.save(update_fields=["is_downloaded"])
+                    total_new_papers += 1
+
+                # Clean up local file to save space
+                try:
+                    local_path.unlink()
+                except Exception as e:
+                    logger.warning("Could not delete temp file %s: %s", local_path, e)
+
+    return total_new_papers

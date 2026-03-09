@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "cppa_slack_transcript_tracker",
     "cppa_slack_tracker",
     "discord_activity_tracker",
+    "wg21_paper_tracker",
 ]
 
 MIDDLEWARE = [
@@ -140,6 +141,7 @@ _WORKSPACE_APP_SLUGS = (
     "cppa_slack_tracker",
     "discord_activity_tracker",
     "boost_mailing_list_tracker",
+    "wg21_paper_tracker",
     "shared",
 )
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
@@ -213,6 +215,12 @@ DISCORD_CONTEXT_REPO_PATH = Path(
         default=str(BASE_DIR.parent / "discord-cplusplus-together-context"),
     )
 ).resolve()
+
+# WG21 Paper Tracker Configuration
+WG21_GCS_BUCKET = (env("WG21_GCS_BUCKET", default="") or "").strip()
+GCP_PROJECT_ID = (env("GCP_PROJECT_ID", default="") or "").strip()
+GCP_LOCATION = (env("GCP_LOCATION", default="us-central1") or "").strip()
+WG21_CLOUD_RUN_JOB_NAME = (env("WG21_CLOUD_RUN_JOB_NAME", default="wg21-convert") or "").strip()
 
 # Logging - project-wide configuration for app commands (console + rotating file)
 LOG_DIR = Path(env("LOG_DIR", default=str(BASE_DIR / "logs")))
