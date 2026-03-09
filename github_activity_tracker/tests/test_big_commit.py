@@ -187,7 +187,7 @@ def test_get_full_commit_files_returns_files_list(tmp_path):
             "github_activity_tracker.big_commit.get_commit_file_changes",
             return_value=mock_files,
         ):
-            files = big_commit.get_full_commit_files("owner", "repo", commit_data)
+            files = big_commit.get_full_commit_files("owner", "repo", commit_sha="commit_sha", parent_shas=["parent_sha"])
 
     assert files == mock_files
 
@@ -222,7 +222,7 @@ def test_get_full_commit_files_initial_commit_diffs_against_empty_tree(tmp_path)
             "github_activity_tracker.big_commit.get_commit_file_changes",
             return_value=mock_files,
         ) as mock_get_changes:
-            files = big_commit.get_full_commit_files("owner", "repo", commit_data)
+            files = big_commit.get_full_commit_files("owner", "repo", commit_sha="abc123", parent_shas=[])
     assert files == mock_files
     # Initial commit: parent_sha should be the empty tree
     mock_get_changes.assert_called_once()
@@ -231,13 +231,8 @@ def test_get_full_commit_files_initial_commit_diffs_against_empty_tree(tmp_path)
     assert call_args[2] == "abc123"
 
 
-def test_get_full_commit_files_initial_commit_fallback_to_api_files_on_error(tmp_path):
-    """get_full_commit_files for initial commit falls back to API files when git diff fails (if not truncated)."""
-    commit_data = {
-        "sha": "abc123",
-        "parents": [],
-        "files": [{"filename": "api_file.txt"}],
-    }
+def test_get_full_commit_files_raises_on_git_failure(tmp_path):
+    """get_full_commit_files raises RuntimeError when git diff fails."""
     with patch(
         "github_activity_tracker.big_commit.ensure_repo_cloned", return_value=tmp_path
     ):
@@ -245,27 +240,7 @@ def test_get_full_commit_files_initial_commit_fallback_to_api_files_on_error(tmp
             "github_activity_tracker.big_commit.get_commit_file_changes",
             side_effect=RuntimeError("empty tree not found"),
         ):
-            files = big_commit.get_full_commit_files("owner", "repo", commit_data)
-    assert files == commit_data["files"]
-
-
-def test_get_full_commit_files_initial_commit_raises_when_api_truncated_and_git_fails(
-    tmp_path,
-):
-    """get_full_commit_files for initial commit raises when git diff fails and API files count is 300 (truncated)."""
-    commit_data = {
-        "sha": "abc123",
-        "parents": [],
-        "files": [{"filename": f"file{i}.txt"} for i in range(300)],
-    }
-    with patch(
-        "github_activity_tracker.big_commit.ensure_repo_cloned", return_value=tmp_path
-    ):
-        with patch(
-            "github_activity_tracker.big_commit.get_commit_file_changes",
-            side_effect=RuntimeError("empty tree not in shallow clone"),
-        ):
             with pytest.raises(RuntimeError) as exc_info:
-                big_commit.get_full_commit_files("owner", "repo", commit_data)
+                big_commit.get_full_commit_files("owner", "repo", commit_sha="abc123", parent_shas=[])
     assert "abc123" in str(exc_info.value)
-    assert "300" in str(exc_info.value) or "truncated" in str(exc_info.value).lower()
+    assert "empty tree not found" in str(exc_info.value)

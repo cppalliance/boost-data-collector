@@ -209,7 +209,8 @@ _GIT_EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 def get_full_commit_files(
     owner: str,
     repo: str,
-    commit_data: dict,
+    commit_sha: str,
+    parent_shas: list[str] | None = None,
 ) -> list[dict]:
     """
     Get full list of changed files for a commit via git (for commits with 300+ files).
@@ -221,12 +222,21 @@ def get_full_commit_files(
     Returns list of file dicts matching GitHub API shape.
     Raises exception if clone or git operations fail.
     """
-    commit_sha = commit_data.get("sha")
-    parents = commit_data.get("parents") or []
+    if parent_shas is None:
+        # Resolve parents using git log if not provided
+        clone_path = ensure_repo_cloned(owner, repo)
+        import subprocess
+        result = subprocess.run(
+            ["git", "-C", str(clone_path), "log", "--pretty=%P", "-n", "1", commit_sha],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        parent_shas = result.stdout.strip().split()
 
     # For initial commit, diff against empty tree to get all files as "added" with full patches
-    is_initial_commit = not parents
-    parent_sha = parents[0].get("sha") if parents else _GIT_EMPTY_TREE_SHA
+    is_initial_commit = len(parent_shas) == 0
+    parent_sha = parent_shas[0] if parent_shas else _GIT_EMPTY_TREE_SHA
     if is_initial_commit:
         logger.debug(
             "Commit %s is initial commit, diffing against empty tree",
@@ -241,34 +251,13 @@ def get_full_commit_files(
     try:
         files = get_commit_file_changes(clone_path, parent_sha, commit_sha)
     except Exception as e:
-        if is_initial_commit:
-            api_files = commit_data.get("files") or []
-            if len(api_files) == 300:
-                # API result may be truncated; do not silently violate full-file-list contract
-                logger.error(
-                    "Initial commit %s: git diff failed (%s); API files count is 300 (truncated?), re-raising",
-                    commit_sha[:7],
-                    e,
-                )
-                raise RuntimeError(
-                    "Initial commit %s: could not get full file list (git diff failed: %s); "
-                    "API returned 300 files (possibly truncated)" % (commit_sha[:7], e)
-                ) from e
-            files = api_files
-            logger.error(
-                "Initial commit %s: git diff failed (%s), using API files (%d)",
-                commit_sha[:7],
-                e,
-                len(files),
-            )
-        else:
-            logger.error(
-                "Commit %s: git diff failed (%s), re-raising",
-                commit_sha[:7],
-                e,
-            )
-            raise RuntimeError(
-                "Commit %s: could not get full file list via git (git diff failed: %s)"
-                % (commit_sha[:7], e)
-            ) from e
+        logger.error(
+            "Commit %s: git diff failed (%s), re-raising",
+            commit_sha[:7],
+            e,
+        )
+        raise RuntimeError(
+            "Commit %s: could not get full file list via git (git diff failed: %s)"
+            % (commit_sha[:7], e)
+        ) from e
     return files

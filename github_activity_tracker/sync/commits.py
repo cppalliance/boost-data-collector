@@ -44,11 +44,13 @@ _VALID_FILE_STATUSES = {c[0] for c in FileChangeStatus.choices}
 
 
 def _process_commit_files(
-    repo: GitHubRepository, commit_obj: GitCommit, commit_data: dict
+    repo: GitHubRepository, commit_obj: GitCommit, files: list[dict]
 ) -> None:
     """Create/update GitHubFile and GitCommitFileChange for each file in the commit."""
-    for file_info in commit_data.get("files") or []:
-        filename = file_info.get("filename") or file_info.get("previous_filename")
+    for file_info in files:
+        filename = file_info.get("filename") or file_info.get(
+            "previous_filename"
+        )
         if not (filename and filename.strip()):
             continue
         filename = filename.strip()
@@ -98,7 +100,9 @@ def _process_commit_data(repo: GitHubRepository, commit_data: dict) -> None:
         )
     else:
         name, email = _commit_author_name_and_email(commit_data)
-        account, _ = get_or_create_unknown_github_account(name=name, email=email)
+        account, _ = get_or_create_unknown_github_account(
+            name=name, email=email
+        )
 
     commit_hash = commit_data.get("sha")
     comment = commit_data.get("commit", {}).get("message", "")
@@ -114,7 +118,11 @@ def _process_commit_data(repo: GitHubRepository, commit_data: dict) -> None:
         comment=comment,
         commit_at=commit_at,
     )
-    _process_commit_files(repo, commit_obj, commit_data)
+    files = commit_data.get("files") or []
+    if files:
+        _process_commit_files(repo, commit_obj, files)
+    else:
+        logger.warning("Commit %s has no files", commit_hash)
     logger.debug("Commit %s: saved to DB", commit_hash)
 
 
@@ -135,7 +143,9 @@ def _process_existing_commit_jsons(repo: GitHubRepository) -> int:
     return count
 
 
-def _process_big_commit_worker(owner: str, repo_name: str, commit_data: dict) -> None:
+def _process_big_commit_worker(
+    owner: str, repo_name: str, commit_data: dict
+) -> None:
     """
     Background worker: get full file list for big commit (300+ files) via git clone.
 
@@ -155,7 +165,11 @@ def _process_big_commit_worker(owner: str, repo_name: str, commit_data: dict) ->
         )
 
         # Get full file list via git
-        full_files = big_commit.get_full_commit_files(owner, repo_name, commit_data)
+        parents = commit_data.get("parents") or []
+        parent_shas = [p.get("sha") for p in parents if p.get("sha")]
+        full_files = big_commit.get_full_commit_files(
+            owner, repo_name, commit_sha=sha, parent_shas=parent_shas
+        )
 
         # Build new commit_data with full files
         full_commit_data = commit_data.copy()
@@ -187,7 +201,9 @@ def _process_big_commit_worker(owner: str, repo_name: str, commit_data: dict) ->
         )
         # Write original commit data (with 300 files) so we don't lose the commit
         try:
-            json_path = get_commit_json_path(owner, repo_name, commit_data.get("sha"))
+            json_path = get_commit_json_path(
+                owner, repo_name, commit_data.get("sha")
+            )
             json_path.parent.mkdir(parents=True, exist_ok=True)
             json_path.write_text(
                 json.dumps(commit_data, indent=2, default=str),
@@ -198,7 +214,9 @@ def _process_big_commit_worker(owner: str, repo_name: str, commit_data: dict) ->
                 commit_data.get("sha")[:7],
             )
         except Exception as write_error:
-            logger.error("Failed to write fallback commit JSON: %s", write_error)
+            logger.error(
+                "Failed to write fallback commit JSON: %s", write_error
+            )
 
 
 def sync_commits(
@@ -219,7 +237,9 @@ def sync_commits(
         start_date: Override start date (default: last commit date + 1s, or None if no commits).
         end_date: Override end date (default: now).
     """
-    logger.info("sync_commits: starting for repo id=%s (%s)", repo.pk, repo.repo_name)
+    logger.info(
+        "sync_commits: starting for repo id=%s (%s)", repo.pk, repo.repo_name
+    )
 
     owner = repo.owner_account.username
     repo_name = repo.repo_name
@@ -243,7 +263,9 @@ def sync_commits(
             end_date = timezone.now()
 
         # Create thread pool for big commits (max 2-4 workers to avoid heavy disk/network load)
-        executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="big_commit")
+        executor = ThreadPoolExecutor(
+            max_workers=2, thread_name_prefix="big_commit"
+        )
         futures = []
 
         count_normal = 0
@@ -288,7 +310,9 @@ def sync_commits(
 
             # Phase 3: wait for all big commit tasks to finish
             if futures:
-                logger.info("Waiting for %d big commit task(s) to finish", len(futures))
+                logger.info(
+                    "Waiting for %d big commit task(s) to finish", len(futures)
+                )
                 executor.shutdown(wait=True)
 
                 # Check for exceptions in tasks
@@ -296,7 +320,9 @@ def sync_commits(
                     try:
                         future.result()  # Will raise if task raised
                     except Exception as e:
-                        logger.error("Big commit task %d raised exception: %s", i, e)
+                        logger.error(
+                            "Big commit task %d raised exception: %s", i, e
+                        )
 
                 # Phase 4: process big commit JSONs (written by workers)
                 logger.info("Processing big commit JSONs written by workers")
