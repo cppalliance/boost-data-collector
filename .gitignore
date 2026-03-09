@@ -45,3 +45,6 @@ discord_activity_tracker/tools/
 # macOS
 .DS_Store
 ._*
+
+# temp files
+temp/
