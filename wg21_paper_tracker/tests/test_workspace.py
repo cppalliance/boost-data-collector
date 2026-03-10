@@ -17,7 +17,9 @@ def mock_workspace_path(tmp_path):
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    with patch("wg21_paper_tracker.workspace.get_workspace_path", side_effect=_get_path):
+    with patch(
+        "wg21_paper_tracker.workspace.get_workspace_path", side_effect=_get_path
+    ):
         yield tmp_path
 
 
@@ -56,7 +58,9 @@ def test_get_raw_dir_creates_parents(mock_workspace_path):
     with patch("wg21_paper_tracker.workspace.get_workspace_path") as m:
         raw_root = mock_workspace_path / "raw_app"
         raw_root.mkdir(parents=True, exist_ok=True)
-        m.side_effect = lambda slug: raw_root if "raw" in slug else (mock_workspace_path / "app")
+        m.side_effect = lambda slug: (
+            raw_root if "raw" in slug else (mock_workspace_path / "app")
+        )
         path = get_raw_dir("2026-02")
     assert path.exists()
     assert path.name == "2026-02"

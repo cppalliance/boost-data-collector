@@ -41,11 +41,7 @@ def _normalize_title(raw: str) -> str:
     if not raw:
         return ""
     one_line = " ".join(raw.split())
-    return (
-        one_line[:TITLE_MAX_LENGTH]
-        if len(one_line) > TITLE_MAX_LENGTH
-        else one_line
-    )
+    return one_line[:TITLE_MAX_LENGTH] if len(one_line) > TITLE_MAX_LENGTH else one_line
 
 
 def _resolve_mailing_date(csv_mailing_date: str) -> tuple[str, str]:
@@ -117,9 +113,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        csv_path = options.get("csv_file") or (
-            get_workspace_root() / "metadata.csv"
-        )
+        csv_path = options.get("csv_file") or (get_workspace_root() / "metadata.csv")
         dry_run = options["dry_run"]
 
         if not csv_path.exists():
@@ -224,16 +218,25 @@ class Command(BaseCommand):
                             paper.year = year
                         paper.save()
                         if author_names:
-                            from cppa_user_tracker.services import get_or_create_wg21_paper_author_profile
+                            from cppa_user_tracker.services import (
+                                get_or_create_wg21_paper_author_profile,
+                            )
+
                             for name in author_names:
-                                profile, _ = get_or_create_wg21_paper_author_profile(name)
+                                profile, _ = get_or_create_wg21_paper_author_profile(
+                                    name
+                                )
                                 WG21PaperAuthor.objects.get_or_create(
                                     paper=paper,
                                     profile=profile,
                                 )
                 except Exception as inner:
                     stats["skipped"] += 1
-                    logger.error("Error for paper_id=%s (after IntegrityError): %s", paper_id, inner)
+                    logger.error(
+                        "Error for paper_id=%s (after IntegrityError): %s",
+                        paper_id,
+                        inner,
+                    )
             except Exception as e:
                 stats["skipped"] += 1
                 logger.error("Error for paper_id=%s: %s", paper_id, e)

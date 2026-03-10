@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from wg21_paper_tracker.models import WG21Mailing, WG21Paper, WG21PaperAuthor
+from wg21_paper_tracker.models import WG21Mailing, WG21Paper
 
 
 @pytest.mark.django_db

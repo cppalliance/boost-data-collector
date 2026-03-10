@@ -2,7 +2,6 @@
 
 from unittest.mock import patch, MagicMock
 
-import pytest
 
 from wg21_paper_tracker.fetcher import (
     BASE_URL,
@@ -174,6 +173,9 @@ def test_fetch_papers_for_mailing_returns_empty_when_no_table():
 def test_fetch_papers_for_mailing_calls_year_url():
     """fetch_papers_for_mailing calls BASE_URL/{year}/ with timeout."""
     with patch("wg21_paper_tracker.fetcher.requests.get") as m:
-        m.return_value = MagicMock(text="<html><body><span id='mailing2025-01'></span></body></html>", raise_for_status=MagicMock())
+        m.return_value = MagicMock(
+            text="<html><body><span id='mailing2025-01'></span></body></html>",
+            raise_for_status=MagicMock(),
+        )
         fetch_papers_for_mailing("2025", "2025-01")
     m.assert_called_once_with(f"{BASE_URL}/2025/", timeout=30)

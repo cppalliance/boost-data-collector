@@ -1,6 +1,5 @@
 """Tests for wg21_paper_tracker.pipeline."""
 
-import time
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -108,13 +107,16 @@ def test_run_tracker_pipeline_returns_zero_when_no_mailings():
 def test_run_tracker_pipeline_skips_when_no_new_mailings():
     """run_tracker_pipeline returns 0 when all mailings are older than or equal to latest in DB."""
     from wg21_paper_tracker.models import WG21Mailing
+
     WG21Mailing.objects.create(mailing_date="2025-02", title="Latest")
     with patch("wg21_paper_tracker.pipeline.fetch_all_mailings") as m:
         m.return_value = [
             {"mailing_date": "2025-01", "title": "Old", "year": "2025"},
             {"mailing_date": "2025-02", "title": "Latest", "year": "2025"},
         ]
-        with patch("wg21_paper_tracker.pipeline.fetch_papers_for_mailing", return_value=[]):
+        with patch(
+            "wg21_paper_tracker.pipeline.fetch_papers_for_mailing", return_value=[]
+        ):
             n = run_tracker_pipeline()
     assert n == 0
 
@@ -123,6 +125,7 @@ def test_run_tracker_pipeline_skips_when_no_new_mailings():
 def test_run_tracker_pipeline_downloads_new_papers(tmp_path):
     """run_tracker_pipeline downloads papers for new mailings and returns count."""
     from wg21_paper_tracker.models import WG21Mailing
+
     WG21Mailing.objects.create(mailing_date="2025-01", title="Previous")
     mailings = [
         {"mailing_date": "2025-01", "title": "Previous", "year": "2025"},
@@ -141,9 +144,17 @@ def test_run_tracker_pipeline_downloads_new_papers(tmp_path):
         },
     ]
     with patch("wg21_paper_tracker.pipeline.fetch_all_mailings", return_value=mailings):
-        with patch("wg21_paper_tracker.pipeline.fetch_papers_for_mailing", return_value=papers):
-            with patch("wg21_paper_tracker.pipeline.get_raw_dir", return_value=tmp_path):
-                with patch("wg21_paper_tracker.pipeline._download_file", return_value=True):
-                    with patch("wg21_paper_tracker.pipeline.settings.WG21_GCS_BUCKET", None):
+        with patch(
+            "wg21_paper_tracker.pipeline.fetch_papers_for_mailing", return_value=papers
+        ):
+            with patch(
+                "wg21_paper_tracker.pipeline.get_raw_dir", return_value=tmp_path
+            ):
+                with patch(
+                    "wg21_paper_tracker.pipeline._download_file", return_value=True
+                ):
+                    with patch(
+                        "wg21_paper_tracker.pipeline.settings.WG21_GCS_BUCKET", None
+                    ):
                         n = run_tracker_pipeline()
     assert n == 1

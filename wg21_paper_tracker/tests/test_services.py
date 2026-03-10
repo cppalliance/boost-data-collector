@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 import pytest
 
-from wg21_paper_tracker.models import WG21Mailing, WG21Paper
 from wg21_paper_tracker.services import (
     get_or_create_mailing,
     get_or_create_paper,
@@ -76,12 +75,15 @@ def test_get_or_create_paper_creates_new(mock_profile, db):
 def test_get_or_create_paper_calls_author_profile_for_each_author(mock_profile, db):
     """get_or_create_paper calls get_or_create_wg21_paper_author_profile for each author name."""
     from unittest.mock import MagicMock
+
     profile = MagicMock()
     profile.pk = 1
     mock_profile.return_value = (profile, True)
 
     mailing, _ = get_or_create_mailing("2025-01", "Title")
-    with patch("wg21_paper_tracker.services.WG21PaperAuthor.objects.get_or_create") as mock_link:
+    with patch(
+        "wg21_paper_tracker.services.WG21PaperAuthor.objects.get_or_create"
+    ) as mock_link:
         mock_link.return_value = (MagicMock(), True)
         paper, created = get_or_create_paper(
             paper_id="p1000r0",
