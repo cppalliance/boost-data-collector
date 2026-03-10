@@ -186,10 +186,14 @@ def run_tracker_pipeline() -> int:
         raw_dir = get_raw_dir(mailing_date)
 
         skipped_downloaded = 0
+        year_val = year if year is not None else 0
         for pid, p_list in papers_by_id.items():
-            # Check DB if this paper_id is already fully downloaded
-            existing_paper = WG21Paper.objects.filter(paper_id=pid).first()
-            if existing_paper and existing_paper.is_downloaded:
+            # Skip only if this (paper_id, year) is already downloaded
+            if WG21Paper.objects.filter(
+                paper_id=pid,
+                year=year_val,
+                is_downloaded=True,
+            ).exists():
                 skipped_downloaded += 1
                 continue
 
@@ -197,7 +201,15 @@ def run_tracker_pipeline() -> int:
             p_list.sort(key=lambda x: format_priority(x["type"]))
             best_paper = p_list[0]
 
-            filename = best_paper["filename"]
+            raw_filename = (best_paper.get("filename") or "").strip()
+            filename = Path(raw_filename).name
+            if not filename or filename != raw_filename:
+                logger.warning(
+                    "Skipping paper %s due to unsafe filename %r",
+                    pid,
+                    raw_filename,
+                )
+                continue
             local_path = raw_dir / filename
             url = best_paper["url"]
 

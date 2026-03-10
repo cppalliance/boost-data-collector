@@ -2,12 +2,17 @@
 Database logic for WG21 Paper Tracker.
 """
 
-from typing import Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Optional
 
 from django.db import transaction
 
 from cppa_user_tracker.services import get_or_create_wg21_paper_author_profile
 from wg21_paper_tracker.models import WG21Mailing, WG21Paper, WG21PaperAuthor
+
+if TYPE_CHECKING:
+    from cppa_user_tracker.models import WG21PaperAuthorProfile
 
 
 @transaction.atomic
@@ -30,10 +35,11 @@ def get_or_create_paper(
     mailing: WG21Mailing,
     subgroup: str = "",
     author_names: Optional[list[str]] = None,
+    author_emails: Optional[list[str]] = None,
     year: int | None = None,
 ) -> tuple[WG21Paper, bool]:
     paper_id = (paper_id or "").strip().lower()
-    year_val = None
+    year_val = 0
     if year:
         s = (year if isinstance(year, str) else str(year)).strip()[:4]
         if s.isdigit():
@@ -66,23 +72,49 @@ def get_or_create_paper(
         if paper.subgroup != subgroup:
             paper.subgroup = subgroup
             updated = True
-        if year_val is not None and paper.year != year_val:
+        if paper.year != year_val:
             paper.year = year_val
             updated = True
         if updated:
             paper.save()
 
     if author_names:
-        for name in author_names:
-            profile, _ = get_or_create_wg21_paper_author_profile(name)
-            WG21PaperAuthor.objects.get_or_create(
-                paper=paper,
-                profile=profile,
-            )
+        emails = author_emails or []
+        for i, name in enumerate(author_names):
+            email = emails[i] if i < len(emails) else None
+            profile, _ = get_or_create_wg21_paper_author_profile(name, email=email)
+            get_or_create_paper_author(paper, profile, i + 1)
 
     return paper, created
 
 
-def mark_paper_downloaded(paper_id: str):
+def get_or_create_paper_author(
+    paper: WG21Paper,
+    profile: WG21PaperAuthorProfile,
+    author_order: int,
+) -> tuple[WG21PaperAuthor, bool]:
+    """Get or create a WG21PaperAuthor link for (paper, profile), with author_order (1-based).
+    Updates author_order on existing link if it differs.
+    """
+    link, link_created = WG21PaperAuthor.objects.get_or_create(
+        paper=paper,
+        profile=profile,
+        defaults={"author_order": author_order},
+    )
+    if not link_created and link.author_order != author_order:
+        link.author_order = author_order
+        link.save(update_fields=["author_order"])
+    return link, link_created
+
+
+def mark_paper_downloaded(paper_id: str, year: int | None = None):
     paper_id = (paper_id or "").strip().lower()
-    WG21Paper.objects.filter(paper_id=paper_id).update(is_downloaded=True)
+    year_val = 0
+    if year is not None:
+        s = (year if isinstance(year, str) else str(year)).strip()[:4]
+        if s.isdigit():
+            year_val = int(s)
+    WG21Paper.objects.filter(
+        paper_id=paper_id,
+        year=year_val,
+    ).update(is_downloaded=True)

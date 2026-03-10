@@ -2,6 +2,7 @@
 
 from unittest.mock import patch, MagicMock
 
+import requests
 
 from wg21_paper_tracker.fetcher import (
     BASE_URL,
@@ -14,18 +15,18 @@ from wg21_paper_tracker.fetcher import (
 
 
 def test_fetch_all_mailings_returns_empty_on_request_failure():
-    """fetch_all_mailings returns [] when requests.get raises."""
+    """fetch_all_mailings returns [] when requests.get raises RequestException."""
     with patch("wg21_paper_tracker.fetcher.requests.get") as m:
-        m.side_effect = Exception("network error")
+        m.side_effect = requests.RequestException("network error")
         result = fetch_all_mailings()
     assert result == []
 
 
 def test_fetch_all_mailings_returns_empty_on_http_error():
-    """fetch_all_mailings returns [] when response.raise_for_status raises."""
+    """fetch_all_mailings returns [] when response.raise_for_status raises HTTPError."""
     with patch("wg21_paper_tracker.fetcher.requests.get") as m:
         resp = MagicMock()
-        resp.raise_for_status.side_effect = Exception("404")
+        resp.raise_for_status.side_effect = requests.HTTPError("404")
         m.return_value = resp
         result = fetch_all_mailings()
     assert result == []
@@ -68,9 +69,9 @@ def test_fetch_all_mailings_calls_index_url():
 
 
 def test_fetch_papers_for_mailing_returns_empty_on_request_failure():
-    """fetch_papers_for_mailing returns [] when requests.get raises."""
+    """fetch_papers_for_mailing returns [] when requests.get raises RequestException."""
     with patch("wg21_paper_tracker.fetcher.requests.get") as m:
-        m.side_effect = Exception("timeout")
+        m.side_effect = requests.RequestException("timeout")
         result = fetch_papers_for_mailing("2025", "2025-01")
     assert result == []
 

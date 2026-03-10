@@ -44,8 +44,10 @@ gcloud run jobs create wg21-convert \
   --memory 8Gi \
   --cpu 4 \
   --region us-central1 \
-  --set-env-vars WG21_GCS_BUCKET=wg21-data-collector,OPENROUTER_API_KEY=your_key
+  --set-env-vars WG21_GCS_BUCKET=wg21-data-collector
 ```
+
+Provide `OPENROUTER_API_KEY` via Cloud Run secret injection (e.g. [Secret Manager](https://cloud.google.com/run/docs/configuring/secrets)) rather than inline in `--set-env-vars`, to avoid leaking the key into shell history, CI logs, or audit trails.
 
 ## 4. Service Account & IAM Permissions
 

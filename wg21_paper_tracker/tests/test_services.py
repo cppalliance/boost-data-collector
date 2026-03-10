@@ -72,32 +72,35 @@ def test_get_or_create_paper_creates_new(mock_profile, db):
 
 @pytest.mark.django_db
 @patch("wg21_paper_tracker.services.get_or_create_wg21_paper_author_profile")
-def test_get_or_create_paper_calls_author_profile_for_each_author(mock_profile, db):
-    """get_or_create_paper calls get_or_create_wg21_paper_author_profile for each author name."""
+@patch("wg21_paper_tracker.services.get_or_create_paper_author")
+def test_get_or_create_paper_calls_author_profile_for_each_author(
+    mock_get_or_create_paper_author, mock_profile, db
+):
+    """get_or_create_paper calls get_or_create_wg21_paper_author_profile and get_or_create_paper_author for each author."""
     from unittest.mock import MagicMock
 
     profile = MagicMock()
     profile.pk = 1
     mock_profile.return_value = (profile, True)
+    mock_get_or_create_paper_author.return_value = (MagicMock(), True)
 
     mailing, _ = get_or_create_mailing("2025-01", "Title")
-    with patch(
-        "wg21_paper_tracker.services.WG21PaperAuthor.objects.get_or_create"
-    ) as mock_link:
-        mock_link.return_value = (MagicMock(), True)
-        paper, created = get_or_create_paper(
-            paper_id="p1000r0",
-            url="https://example.com/p1000r0.pdf",
-            title="A paper",
-            document_date=None,
-            mailing=mailing,
-            author_names=["Alice", "Bob"],
-            year=2025,
-        )
+    paper, created = get_or_create_paper(
+        paper_id="p1000r0",
+        url="https://example.com/p1000r0.pdf",
+        title="A paper",
+        document_date=None,
+        mailing=mailing,
+        author_names=["Alice", "Bob"],
+        year=2025,
+    )
     assert created is True
     assert mock_profile.call_count == 2
-    mock_profile.assert_any_call("Alice")
-    mock_profile.assert_any_call("Bob")
+    mock_profile.assert_any_call("Alice", email=None)
+    mock_profile.assert_any_call("Bob", email=None)
+    assert mock_get_or_create_paper_author.call_count == 2
+    mock_get_or_create_paper_author.assert_any_call(paper, profile, 1)
+    mock_get_or_create_paper_author.assert_any_call(paper, profile, 2)
 
 
 @pytest.mark.django_db
@@ -147,8 +150,8 @@ def test_get_or_create_paper_gets_existing_and_updates(db):
 
 
 @pytest.mark.django_db
-def test_get_or_create_paper_year_none_stored_as_null(db):
-    """get_or_create_paper with year=None stores null."""
+def test_get_or_create_paper_year_none_stored_as_zero(db):
+    """get_or_create_paper with year=None stores 0 for unknown year."""
     mailing, _ = get_or_create_mailing("2025-01", "Title")
     paper, _ = get_or_create_paper(
         paper_id="n5034",
@@ -158,7 +161,7 @@ def test_get_or_create_paper_year_none_stored_as_null(db):
         mailing=mailing,
         year=None,
     )
-    assert paper.year is None
+    assert paper.year == 0
 
 
 @pytest.mark.django_db
@@ -187,12 +190,32 @@ def test_get_or_create_paper_same_paper_id_different_year_creates_two(db):
     assert p1.year == 2024 and p2.year == 2025
 
 
+@pytest.mark.django_db
+def test_get_or_create_paper_sets_author_order(db):
+    """get_or_create_paper sets author_order (1-based) on WG21PaperAuthor links."""
+    mailing, _ = get_or_create_mailing("2025-01", "Title")
+    paper, _ = get_or_create_paper(
+        paper_id="p9999",
+        url="https://example.com/p9999.pdf",
+        title="Multi-author paper",
+        document_date=None,
+        mailing=mailing,
+        author_names=["First Author", "Second Author", "Third Author"],
+        year=2025,
+    )
+    links = list(paper.authors.order_by("author_order"))
+    assert len(links) == 3
+    assert links[0].author_order == 1
+    assert links[1].author_order == 2
+    assert links[2].author_order == 3
+
+
 # --- mark_paper_downloaded ---
 
 
 @pytest.mark.django_db
 def test_mark_paper_downloaded_sets_flag(db):
-    """mark_paper_downloaded sets is_downloaded=True for matching paper_id."""
+    """mark_paper_downloaded sets is_downloaded=True for matching (paper_id, year)."""
     mailing, _ = get_or_create_mailing("2025-01", "Title")
     paper, _ = get_or_create_paper(
         paper_id="p1000r0",
@@ -203,14 +226,14 @@ def test_mark_paper_downloaded_sets_flag(db):
         year=2025,
     )
     assert paper.is_downloaded is False
-    mark_paper_downloaded("p1000r0")
+    mark_paper_downloaded("p1000r0", year=2025)
     paper.refresh_from_db()
     assert paper.is_downloaded is True
 
 
 @pytest.mark.django_db
 def test_mark_paper_downloaded_normalizes_paper_id(db):
-    """mark_paper_downloaded matches case-insensitively (normalizes to lower)."""
+    """mark_paper_downloaded matches case-insensitively (normalizes to lower) and by year."""
     mailing, _ = get_or_create_mailing("2025-01", "Title")
     paper, _ = get_or_create_paper(
         paper_id="p1000r0",
@@ -220,6 +243,6 @@ def test_mark_paper_downloaded_normalizes_paper_id(db):
         mailing=mailing,
         year=2025,
     )
-    mark_paper_downloaded("  P1000R0  ")
+    mark_paper_downloaded("  P1000R0  ", year=2025)
     paper.refresh_from_db()
     assert paper.is_downloaded is True

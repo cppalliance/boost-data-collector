@@ -46,7 +46,7 @@ def convert_with_pdfplumber(pdf_path: Path) -> Optional[str]:
                     text = page.extract_text()
 
                     if text:
-                        markdown_parts.append(text)
+                        markdown_parts.append(text.replace("\n", "  \n"))
                         markdown_parts.append("\n\n")
 
                     # Extract tables if any
@@ -55,6 +55,7 @@ def convert_with_pdfplumber(pdf_path: Path) -> Optional[str]:
                         for table in tables:
                             if table:
                                 markdown_parts.append("\n### Table\n\n")
+                                first_row = True
                                 # Convert table to markdown format
                                 for row in table:
                                     if row:
@@ -66,6 +67,13 @@ def convert_with_pdfplumber(pdf_path: Path) -> Optional[str]:
                                             )
                                             + " |\n"
                                         )
+                                        if first_row:
+                                            markdown_parts.append(
+                                                "| "
+                                                + " | ".join("---" for _ in row)
+                                                + " |\n"
+                                            )
+                                            first_row = False
                                 markdown_parts.append("\n")
 
                 except Exception as e:
@@ -88,6 +96,7 @@ def convert_with_pdfplumber(pdf_path: Path) -> Optional[str]:
 
     except Exception as e:
         logger.error(
-            f"PDFPlumber conversion failed for {pdf_path.name}: {str(e)}", exc_info=True
+            f"PDFPlumber conversion failed for {pdf_path.name}: {str(e)}",
+            exc_info=True,
         )
         return None

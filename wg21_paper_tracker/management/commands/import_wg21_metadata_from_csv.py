@@ -16,10 +16,11 @@ from django.core.management.base import BaseCommand
 from django.db import IntegrityError
 from django.utils.dateparse import parse_date
 
-from wg21_paper_tracker.models import WG21Paper, WG21PaperAuthor
+from wg21_paper_tracker.models import WG21Paper
 from wg21_paper_tracker.services import (
     get_or_create_mailing,
     get_or_create_paper,
+    get_or_create_paper_author,
 )
 from wg21_paper_tracker.workspace import get_workspace_root
 
@@ -222,14 +223,11 @@ class Command(BaseCommand):
                                 get_or_create_wg21_paper_author_profile,
                             )
 
-                            for name in author_names:
+                            for i, name in enumerate(author_names):
                                 profile, _ = get_or_create_wg21_paper_author_profile(
                                     name
                                 )
-                                WG21PaperAuthor.objects.get_or_create(
-                                    paper=paper,
-                                    profile=profile,
-                                )
+                                get_or_create_paper_author(paper, profile, i + 1)
                 except Exception as inner:
                     stats["skipped"] += 1
                     logger.error(

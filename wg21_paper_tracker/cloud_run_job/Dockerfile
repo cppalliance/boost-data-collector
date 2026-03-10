@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd -r app && useradd -r -g app app
+
 # Copy requirements
 COPY requirements.txt .
 
@@ -18,7 +20,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
-COPY . .
+COPY --chown=app:app . .
+
+USER app
 
 # Run the main script
 CMD ["python", "main.py"]

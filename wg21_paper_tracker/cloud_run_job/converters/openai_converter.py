@@ -2,12 +2,16 @@
 OpenAI/OpenRouter-based PDF to Markdown converter with OCR.
 """
 
-import os
+from __future__ import annotations
+
 import base64
+import io
+import logging
+import os
 from pathlib import Path
 from typing import Optional
+
 import requests
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +25,6 @@ OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o")
 try:
     from pdf2image import convert_from_path
     from PIL import Image, ImageOps
-    import io
 
     PDF2IMAGE_AVAILABLE = True
 except ImportError:
@@ -211,6 +214,7 @@ def convert_with_openai(pdf_path: Path) -> Optional[str]:
 
         total_pages = len(images)
         markdown_parts = []
+        successful_pages = 0
 
         # Process each page
         for page_num, image in enumerate(images, 1):
@@ -226,6 +230,7 @@ def convert_with_openai(pdf_path: Path) -> Optional[str]:
                 if page_markdown:
                     markdown_parts.append(page_markdown)
                     markdown_parts.append("\n\n")
+                    successful_pages += 1
                 else:
                     logger.warning(f"Failed to convert page {page_num} with OpenAI")
                     markdown_parts.append(
@@ -243,17 +248,17 @@ def convert_with_openai(pdf_path: Path) -> Optional[str]:
 
         markdown_content = "".join(markdown_parts)
 
-        if markdown_content and len(markdown_content.strip()) > 0:
+        if successful_pages > 0 and markdown_content.strip():
             logger.info(f"OpenAI/OpenRouter conversion successful for: {pdf_path.name}")
             logger.info(
                 f"Extracted {len(markdown_content)} characters from {total_pages} pages"
             )
             return markdown_content
-        else:
-            logger.warning(
-                f"OpenAI/OpenRouter conversion returned empty content for: {pdf_path.name}"
-            )
-            return None
+        logger.warning(
+            "OpenAI/OpenRouter conversion produced no usable pages for: %s",
+            pdf_path.name,
+        )
+        return None
 
     except Exception as e:
         logger.error(

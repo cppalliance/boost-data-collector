@@ -41,6 +41,14 @@
 
 ---
 
+## WG21PaperAuthorProfile
+
+| Function                               | Parameter types                              | Return type                            | Description                                                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------- | -------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_or_create_wg21_paper_author_profile` | `display_name: str`, `email: str \| None = None` | `tuple[WG21PaperAuthorProfile, bool]` | Resolve by display_name. If no profile exists, creates one and adds email if provided. If one exists, returns it. If multiple exist, and email is provided, returns the one with that email if any; otherwise returns the first. Use this when linking paper authors so that same name + same email link to the same profile. |
+
+---
+
 ## DiscordProfile
 
 | Function                           | Parameter types                                                                                                                      | Return type                     | Description                                                                                                                   |

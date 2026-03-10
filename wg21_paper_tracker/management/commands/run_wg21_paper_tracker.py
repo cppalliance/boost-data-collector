@@ -65,9 +65,9 @@ class Command(BaseCommand):
             logger.info("Downloaded and uploaded %d new papers.", total_new_papers)
 
             if total_new_papers > 0:
-                project_id = settings.GCP_PROJECT_ID
-                location = settings.GCP_LOCATION
-                job_name = settings.WG21_CLOUD_RUN_JOB_NAME
+                project_id = getattr(settings, "GCP_PROJECT_ID", None)
+                location = getattr(settings, "GCP_LOCATION", "us-central1")
+                job_name = getattr(settings, "WG21_CLOUD_RUN_JOB_NAME", None)
 
                 if project_id and job_name:
                     try:

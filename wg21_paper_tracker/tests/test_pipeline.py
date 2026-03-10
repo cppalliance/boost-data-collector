@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
+import requests
 
 from wg21_paper_tracker.pipeline import (
     DOWNLOAD_TIMEOUT,
@@ -66,7 +67,7 @@ def test_download_file_retries_on_failure(tmp_path):
     url = "https://example.com/f"
     filepath = tmp_path / "f"
     with patch("wg21_paper_tracker.pipeline.requests.get") as m:
-        m.side_effect = Exception("connection error")
+        m.side_effect = requests.RequestException("connection error")
         with patch("wg21_paper_tracker.pipeline.time.sleep") as sleep_mock:
             result = _download_file(url, filepath)
     assert result is False
@@ -84,7 +85,7 @@ def test_download_file_succeeds_on_second_attempt(tmp_path):
     resp.content = b"ok"
     resp.apparent_encoding = "utf-8"
     with patch("wg21_paper_tracker.pipeline.requests.get") as m:
-        m.side_effect = [Exception("first fail"), resp]
+        m.side_effect = [requests.RequestException("first fail"), resp]
         with patch("wg21_paper_tracker.pipeline.time.sleep"):
             result = _download_file(url, filepath)
     assert result is True

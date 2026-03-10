@@ -8,6 +8,7 @@ from cppa_user_tracker.models import (
     GitHubAccountType,
     Identity,
     TempProfileIdentityRelation,
+    WG21PaperAuthorProfile,
 )
 from cppa_user_tracker import services
 
@@ -569,3 +570,79 @@ def test_get_or_create_mailing_list_profile_strips_display_name_and_email():
     assert created is True
     assert profile.display_name == "Trimmed"
     assert profile.emails.filter(email="trimmed@example.com").exists()
+
+
+# --- get_or_create_wg21_paper_author_profile ---
+
+
+@pytest.mark.django_db
+def test_get_or_create_wg21_paper_author_profile_no_candidates_creates():
+    """get_or_create_wg21_paper_author_profile creates new profile when none exist."""
+    profile, created = services.get_or_create_wg21_paper_author_profile(
+        display_name="New Author"
+    )
+    assert created is True
+    assert profile.display_name == "New Author"
+    assert WG21PaperAuthorProfile.objects.filter(display_name="New Author").count() == 1
+
+
+@pytest.mark.django_db
+def test_get_or_create_wg21_paper_author_profile_no_candidates_with_email_adds_email():
+    """get_or_create_wg21_paper_author_profile adds email to new profile when provided."""
+    profile, created = services.get_or_create_wg21_paper_author_profile(
+        display_name="Author With Email",
+        email="author@example.com",
+    )
+    assert created is True
+    assert profile.emails.filter(email="author@example.com").exists()
+
+
+@pytest.mark.django_db
+def test_get_or_create_wg21_paper_author_profile_one_candidate_returns_it():
+    """get_or_create_wg21_paper_author_profile returns existing profile when exactly one matches."""
+    existing = WG21PaperAuthorProfile.objects.create(display_name="Solo Author")
+    profile, created = services.get_or_create_wg21_paper_author_profile(
+        display_name="Solo Author"
+    )
+    assert created is False
+    assert profile.id == existing.id
+
+
+@pytest.mark.django_db
+def test_get_or_create_wg21_paper_author_profile_two_candidates_no_email_returns_first():
+    """get_or_create_wg21_paper_author_profile returns first profile when multiple match and no email."""
+    first = WG21PaperAuthorProfile.objects.create(display_name="Dup Name")
+    _second = WG21PaperAuthorProfile.objects.create(display_name="Dup Name")
+    profile, created = services.get_or_create_wg21_paper_author_profile(
+        display_name="Dup Name"
+    )
+    assert created is False
+    assert profile.id == first.id
+
+
+@pytest.mark.django_db
+def test_get_or_create_wg21_paper_author_profile_two_candidates_email_matches_second():
+    """get_or_create_wg21_paper_author_profile returns profile with matching email when multiple match."""
+    _first = WG21PaperAuthorProfile.objects.create(display_name="Same Name")
+    second = WG21PaperAuthorProfile.objects.create(display_name="Same Name")
+    services.add_email(second, "match@example.com", is_primary=True)
+    profile, created = services.get_or_create_wg21_paper_author_profile(
+        display_name="Same Name",
+        email="match@example.com",
+    )
+    assert created is False
+    assert profile.id == second.id
+
+
+@pytest.mark.django_db
+def test_get_or_create_wg21_paper_author_profile_two_candidates_email_matches_none_returns_first():
+    """get_or_create_wg21_paper_author_profile returns first when email provided but no match."""
+    first = WG21PaperAuthorProfile.objects.create(display_name="Other Name")
+    second = WG21PaperAuthorProfile.objects.create(display_name="Other Name")
+    services.add_email(second, "other@example.com", is_primary=True)
+    profile, created = services.get_or_create_wg21_paper_author_profile(
+        display_name="Other Name",
+        email="nomatch@example.com",
+    )
+    assert created is False
+    assert profile.id == first.id

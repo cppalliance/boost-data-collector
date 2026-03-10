@@ -1,4 +1,4 @@
-# Merged initial migration: WG21 Mailing, WG21 Paper (with year), WG21 Paper Author
+# Merged initial migration: WG21 Mailing, WG21 Paper (year not null), WG21 Paper Author
 
 from django.db import migrations, models
 import django.db.models.deletion
@@ -59,10 +59,7 @@ class Migration(migrations.Migration):
                     "document_date",
                     models.DateField(blank=True, db_index=True, null=True),
                 ),
-                (
-                    "year",
-                    models.IntegerField(blank=True, db_index=True, null=True),
-                ),
+                ("year", models.IntegerField(db_index=True, default=0)),
                 (
                     "subgroup",
                     models.CharField(
@@ -104,6 +101,7 @@ class Migration(migrations.Migration):
                         verbose_name="ID",
                     ),
                 ),
+                ("author_order", models.PositiveIntegerField(blank=True, null=True)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 (
                     "paper",

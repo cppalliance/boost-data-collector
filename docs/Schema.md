@@ -68,6 +68,7 @@ erDiagram
 
     WG21PaperAuthorProfile {
         string display_name "IX"
+        string author_alas "IX"
         datetime created_at
         datetime updated_at
     }
@@ -618,6 +619,7 @@ erDiagram
         int id PK
         int paper_id FK
         int profile_id FK
+        int author_order
         datetime created_at
     }
 
@@ -631,7 +633,8 @@ erDiagram
 
     WG21Paper {
         int id PK
-        string paper_id UK "IX"
+        string paper_id "IX"
+        int year "IX"
         string url
         string title "IX"
         date document_date "IX"
@@ -647,7 +650,9 @@ erDiagram
 
 **Note:** **WG21Mailing** stores information about the mailing release, identified by `mailing_date` (e.g. "2025-03"). `mailing_id` in WG21Paper references this mailing.
 
-**Note:** Composite unique constraint should be applied on (`paper_id`, `profile_id`) in WG21PaperAuthor.
+**Note:** **WG21Paper** is uniquely identified by the composite `(paper_id, year)`; `paper_id` is not globally unique. The same paper identifier may appear in different years (e.g. revisions).
+
+**Note:** Composite unique constraint should be applied on (`paper_id`, `profile_id`) in WG21PaperAuthor. `author_order` is optional and 1-based; it indicates the order of authors on the paper.
 
 ---
 
@@ -720,7 +725,7 @@ erDiagram
 | **GitHubAccount**                    | Profile for GitHub (user/org/enterprise); extends BaseProfile.                                           | 1       |
 | **SlackUser**                        | Profile for Slack; extends BaseProfile.                                                                  | 1       |
 | **MailingListProfile**               | Profile for mailing list; extends BaseProfile.                                                           | 1       |
-| **WG21PaperAuthorProfile**           | Profile for WG21 paper authors; extends BaseProfile.                                                     | 1       |
+| **WG21PaperAuthorProfile**           | Profile for WG21 paper authors; extends BaseProfile. Optional `author_alas`. | 1       |
 | **TmpIdentity**                      | Temporary identity for staging (CPPA User Tracker).                                                      | 1       |
 | **TempProfileIdentityRelation**     | Staging table: base_profile_id -> target_identity_id (CPPA User Tracker).                                | 1       |
 | **GitHubRepository**                 | Repository metadata (owner, repo_name, stars, forks, etc.). Base table for repo subtypes.                | 2       |
@@ -761,8 +766,8 @@ erDiagram
 | **SlackChannelMembership**           | Channel-member link (slack_user_id, is_restricted, is_deleted).                                          | 6       |
 | **SlackChannelMembershipChangeLog**  | Log of join/leave (slack_user_id, is_joined, created_at).                                                | 6       |
 | **WG21Mailing**                      | WG21 mailing release (mailing_date, title).                                                              | 7       |
-| **WG21Paper**                        | WG21 paper (paper_id, url, title, document_date, mailing, subgroup, is_downloaded).                      | 7       |
-| **WG21PaperAuthor**                  | Paper-author link (paper_id, profile_id->WG21PaperAuthorProfile).                                        | 7       |
+| **WG21Paper**                        | WG21 paper (paper_id, year, url, title, document_date, mailing, subgroup, is_downloaded). Unique on (paper_id, year). | 7       |
+| **WG21PaperAuthor**                  | Paper-author link (paper_id, profile_id→WG21PaperAuthorProfile). Optional `author_order` (1-based) for ordering. | 7       |
 | **Website**                          | Daily site visit total (stat_date, website_visit_count).                                                 | 8       |
 | **WebsiteVisitCount**                | Per-date, per-country visit count.                                                                       | 8       |
 | **WebsiteWordCount**                 | Per-date, per-word count.                                                                                | 8       |

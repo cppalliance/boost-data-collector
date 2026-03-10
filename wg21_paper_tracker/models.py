@@ -30,7 +30,7 @@ class WG21Paper(models.Model):
     url = models.URLField(max_length=1024)
     title = models.CharField(max_length=1024, db_index=True)
     document_date = models.DateField(db_index=True, null=True, blank=True)
-    year = models.IntegerField(null=True, blank=True, db_index=True)
+    year = models.IntegerField(default=0, db_index=True)
     mailing = models.ForeignKey(
         WG21Mailing,
         on_delete=models.CASCADE,
@@ -42,7 +42,7 @@ class WG21Paper(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = (("paper_id", "year"),)
+        unique_together = [["paper_id", "year"]]
         ordering = ["-document_date", "-paper_id", "-year"]
         verbose_name = "WG21 Paper"
         verbose_name_plural = "WG21 Papers"
@@ -66,6 +66,7 @@ class WG21PaperAuthor(models.Model):
         related_name="papers",
         db_column="profile_id",
     )
+    author_order = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

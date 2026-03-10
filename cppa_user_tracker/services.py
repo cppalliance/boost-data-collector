@@ -357,9 +357,35 @@ def get_or_create_discord_profile(
 
 def get_or_create_wg21_paper_author_profile(
     display_name: str,
-) -> tuple[Any, bool]:
-    """Get or create a WG21PaperAuthorProfile by display_name."""
+    email: Optional[str] = None,
+) -> tuple[WG21PaperAuthorProfile, bool]:
+    """Get or create a WG21PaperAuthorProfile by display_name, with optional email disambiguation.
+
+    Finds all profiles with the given display_name. If none exist, creates one and adds
+    email if provided. If one exists, returns it. If multiple exist, and email is
+    provided, returns the one with that email if any; otherwise returns the first.
+    """
     display_name_val = (display_name or "").strip()
-    return WG21PaperAuthorProfile.objects.get_or_create(
-        display_name=display_name_val,
+    email_val = (email or "").strip() or None
+
+    candidates = list(
+        WG21PaperAuthorProfile.objects.filter(display_name=display_name_val).order_by(
+            "id"
+        )
     )
+
+    if not candidates:
+        profile = WG21PaperAuthorProfile.objects.create(display_name=display_name_val)
+        if email_val:
+            add_email(profile, email_val, is_primary=True)
+        return profile, True
+
+    if len(candidates) == 1:
+        return candidates[0], False
+
+    # Two or more: disambiguate by email if provided
+    if email_val:
+        for p in candidates:
+            if p.emails.filter(email=email_val).exists():
+                return p, False
+    return candidates[0], False

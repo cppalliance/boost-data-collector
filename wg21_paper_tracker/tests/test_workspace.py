@@ -18,7 +18,8 @@ def mock_workspace_path(tmp_path):
         return p
 
     with patch(
-        "wg21_paper_tracker.workspace.get_workspace_path", side_effect=_get_path
+        "wg21_paper_tracker.workspace.get_workspace_path",
+        side_effect=_get_path,
     ):
         yield tmp_path
 
@@ -75,3 +76,20 @@ def test_get_raw_dir_idempotent(mock_workspace_path):
         p1 = get_raw_dir("2025-01")
         p2 = get_raw_dir("2025-01")
     assert p1 == p2
+    assert p1.parent == p2.parent
+
+
+def test_get_raw_dir_rejects_invalid_mailing_date():
+    """get_raw_dir raises ValueError for non-YYYY-MM mailing_date (path traversal, etc.)."""
+    with pytest.raises(ValueError, match="mailing_date must be in YYYY-MM format"):
+        get_raw_dir("../../tmp")
+    with pytest.raises(ValueError, match="mailing_date must be in YYYY-MM format"):
+        get_raw_dir("2025")
+    with pytest.raises(ValueError, match="mailing_date must be in YYYY-MM format"):
+        get_raw_dir("2025-1")
+    with pytest.raises(ValueError, match="mailing_date must be in YYYY-MM format"):
+        get_raw_dir("2025-13")
+    with pytest.raises(ValueError, match="mailing_date must be in YYYY-MM format"):
+        get_raw_dir("2025-00")
+    with pytest.raises(ValueError, match="mailing_date must be in YYYY-MM format"):
+        get_raw_dir("")

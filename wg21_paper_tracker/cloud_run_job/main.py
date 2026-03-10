@@ -2,6 +2,8 @@ import os
 import logging
 from pathlib import Path
 import tempfile
+from typing import Optional
+
 from google.cloud import storage
 
 from converters.docling_converter import convert_with_docling
@@ -16,7 +18,7 @@ logger = logging.getLogger(__name__)
 MIN_CONTENT_LENGTH = 50
 
 
-def is_content_valid(content: str) -> bool:
+def is_content_valid(content: Optional[str]) -> bool:
     if not content:
         return False
     content_stripped = content.strip()
