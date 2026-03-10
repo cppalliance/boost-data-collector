@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "cppa_slack_transcript_tracker",
     "cppa_slack_tracker",
     "discord_activity_tracker",
+    "slack_event_handler",
 ]
 
 MIDDLEWARE = [
@@ -179,12 +180,12 @@ GITHUB_SLACK_HUDDLE_REPO_NAME = (
 
 
 # Slack (bot + app token for operations.slack_ops and cppa_slack_transcript_tracker)
-# SLACK_BOT_TOKEN: built from env (prefixed vars). In settings it is a dict (team_id -> token).
-# Env: SLACK_TEAM_IDS=T01234,T05678 and SLACK_BOT_TOKEN_T01234=xoxb-..., etc.
+# SLACK_BOT_TOKEN: built from env (prefixed vars). In settings it is a dict (workspace_id -> token).
+# Env: SLACK_WORKSPACES=id1,id2 and SLACK_BOT_TOKEN_id1=xoxb-..., etc.
 def _slack_bot_token_from_env():
-    """Build a dict of team_id -> bot token from SLACK_TEAM_IDS and SLACK_BOT_TOKEN_<team_id> env vars."""
+    """Build a dict of workspace_id -> bot token from SLACK_WORKSPACES and SLACK_BOT_TOKEN_<id> env vars."""
     out = {}
-    ids_raw = (env("SLACK_TEAM_IDS", default="") or "").strip()
+    ids_raw = (env("SLACK_WORKSPACES", default="") or "").strip()
     if not ids_raw:
         return out
     for tid in ids_raw.split(","):
@@ -201,8 +202,6 @@ def _slack_bot_token_from_env():
 SLACK_BOT_TOKEN = _slack_bot_token_from_env()
 
 SLACK_APP_TOKEN = (env("SLACK_APP_TOKEN", default="") or "").strip()
-# Optional: for cppa_slack_transcript_tracker (huddle transcript, token extraction)
-SLACK_TEAM_ID = (env("SLACK_TEAM_ID", default="") or "").strip()
 
 # Internal session tokens
 _allow_internal_slack_tokens = (
@@ -233,6 +232,19 @@ _DEFAULT_CHROME_PROFILE = str(
 CHROME_PROFILE_PATH = (
     env("CHROME_PROFILE_PATH", default=_DEFAULT_CHROME_PROFILE) or ""
 ).strip()
+
+# Slack PR Bot configuration (for slack_event_handler)
+SLACK_PR_BOT_WORKSPACE = (env("SLACK_PR_BOT_WORKSPACE", default="") or "").strip()
+SLACK_PR_BOT_CHANNEL_NAME = (env("SLACK_PR_BOT_CHANNEL_NAME", default="slack-bot") or "slack-bot").strip()
+SLACK_PR_BOT_COMMENT_TEMPLATE = (
+    env("SLACK_PR_BOT_COMMENT_TEMPLATE", default="Automated comment from Slack bot.") or ""
+).strip() or "Automated comment from Slack bot."
+SLACK_PR_BOT_COMMENTS_MAX_PER_WINDOW = int(
+    env("SLACK_PR_BOT_COMMENTS_MAX_PER_WINDOW", default="5") or "5"
+)
+SLACK_PR_BOT_COMMENTS_WINDOW_SECONDS = int(
+    env("SLACK_PR_BOT_COMMENTS_WINDOW_SECONDS", default="3600") or "3600"
+)
 
 # Discord configuration (for discord_activity_tracker)
 DISCORD_TOKEN = (env("DISCORD_TOKEN", default="") or "").strip()

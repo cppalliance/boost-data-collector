@@ -1,8 +1,8 @@
 """
-Management command: run_cppa_slack_transcript_tracker
+Management command: run_slack_event_handler
 
-Runs the CPPA Slack Transcript Tracker (Slack listener + huddle processing).
-All functionality lives in this app.
+Runs the unified Slack Event Handler: huddle AI note transcript tracking and
+Slack PR comment bot, both in a single Socket Mode listener.
 """
 
 import logging
@@ -10,27 +10,30 @@ import logging
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from operations.slack_ops import get_slack_app_token, get_slack_bot_token
+from operations.slack_ops import get_slack_app_token, get_slack_bot_token, get_default_workspace_key
 
 logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
     help = (
-        "Run CPPA Slack Transcript Tracker: listen for huddle AI note events and process them. "
-        "Uses cppa_slack_transcript_tracker.utils and runner."
+        "Run the unified Slack Event Handler: listens for huddle AI note events "
+        "(transcript tracking) and GitHub PR URL messages (Slack PR comment bot)."
     )
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--dry-run",
             action="store_true",
-            help="Only check that SLACK_BOT_TOKEN and SLACK_APP_TOKEN are set; do not start the listener.",
+            help=(
+                "Only validate that SLACK_BOT_TOKEN and SLACK_APP_TOKEN are set; "
+                "do not start the listener."
+            ),
         )
 
     def handle(self, *args, **options):
         try:
-            team_id = getattr(settings, "SLACK_TEAM_ID", None) or None
+            team_id = get_default_workspace_key() or None
             bot_token = get_slack_bot_token(team_id=team_id)
         except ValueError:
             bot_token = None
@@ -48,16 +51,16 @@ class Command(BaseCommand):
                 logger.info("SLACK_APP_TOKEN is set")
             else:
                 logger.warning("SLACK_APP_TOKEN is not set")
-            logger.info("Would start Slack Event Listener (Socket Mode).")
+            logger.info("Would start unified Slack Event Handler (Socket Mode).")
             return
 
-        logger.info("Starting CPPA Slack Transcript Tracker (in-app runner)...")
+        logger.info("Starting unified Slack Event Handler...")
         try:
-            from cppa_slack_transcript_tracker.runner import run_slack_huddle
+            from slack_event_handler.runner import run_slack_event_handler
 
-            run_slack_huddle()
+            run_slack_event_handler()
         except KeyboardInterrupt:
             logger.info("Stopped by user (Ctrl+C).")
         except Exception as e:
-            logger.exception("run_cppa_slack_transcript_tracker: %s", e)
+            logger.exception("run_slack_event_handler: %s", e)
             raise
