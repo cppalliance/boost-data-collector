@@ -79,9 +79,14 @@ def test_get_or_create_paper_calls_author_profile_for_each_author(
     """get_or_create_paper calls get_or_create_wg21_paper_author_profile and get_or_create_paper_author for each author."""
     from unittest.mock import MagicMock
 
-    profile = MagicMock()
-    profile.pk = 1
-    mock_profile.return_value = (profile, True)
+    alice_profile = MagicMock()
+    alice_profile.pk = 1
+    bob_profile = MagicMock()
+    bob_profile.pk = 2
+    mock_profile.side_effect = [
+        (alice_profile, True),
+        (bob_profile, True),
+    ]
     mock_get_or_create_paper_author.return_value = (MagicMock(), True)
 
     mailing, _ = get_or_create_mailing("2025-01", "Title")
@@ -99,8 +104,8 @@ def test_get_or_create_paper_calls_author_profile_for_each_author(
     mock_profile.assert_any_call("Alice", email=None)
     mock_profile.assert_any_call("Bob", email=None)
     assert mock_get_or_create_paper_author.call_count == 2
-    mock_get_or_create_paper_author.assert_any_call(paper, profile, 1)
-    mock_get_or_create_paper_author.assert_any_call(paper, profile, 2)
+    mock_get_or_create_paper_author.assert_any_call(paper, alice_profile, 1)
+    mock_get_or_create_paper_author.assert_any_call(paper, bob_profile, 2)
 
 
 @pytest.mark.django_db
@@ -151,7 +156,7 @@ def test_get_or_create_paper_gets_existing_and_updates(db):
 
 @pytest.mark.django_db
 def test_get_or_create_paper_year_none_stored_as_zero(db):
-    """get_or_create_paper with year=None stores 0 for unknown year."""
+    """get_or_create_paper with year=None stores 0 so records can be updated later."""
     mailing, _ = get_or_create_mailing("2025-01", "Title")
     paper, _ = get_or_create_paper(
         paper_id="n5034",

@@ -37,7 +37,7 @@ def is_content_valid(content: Optional[str]) -> bool:
     first_part = content_lower[:1000]
     for pattern in error_patterns:
         if pattern in first_part:
-            if pattern.startswith("error:") or pattern.startswith("exception:"):
+            if pattern in ("error:", "exception:"):
                 return False
             idx = first_part.find(pattern)
             if idx < 100:

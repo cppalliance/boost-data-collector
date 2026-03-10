@@ -3,6 +3,7 @@
 from datetime import date
 
 import pytest
+from django.db import IntegrityError, transaction
 
 from wg21_paper_tracker.models import WG21Mailing, WG21Paper
 
@@ -56,7 +57,7 @@ def test_wg21_mailing_ordering():
 
 @pytest.mark.django_db
 def test_wg21_paper_unique_together_paper_id_year():
-    """WG21Paper allows same paper_id with different year."""
+    """WG21Paper allows same paper_id with different year; rejects duplicate (paper_id, year)."""
     m1 = WG21Mailing.objects.create(mailing_date="2024-11", title="M1")
     m2 = WG21Mailing.objects.create(mailing_date="2025-01", title="M2")
     WG21Paper.objects.create(
@@ -66,6 +67,15 @@ def test_wg21_paper_unique_together_paper_id_year():
         mailing=m1,
         year=2024,
     )
+    with pytest.raises(IntegrityError):
+        with transaction.atomic():
+            WG21Paper.objects.create(
+                paper_id="sd-1",
+                url="https://example.com/dup.pdf",
+                title="T1 dup",
+                mailing=m1,
+                year=2024,
+            )
     p2 = WG21Paper.objects.create(
         paper_id="sd-1",
         url="https://example.com/2.pdf",

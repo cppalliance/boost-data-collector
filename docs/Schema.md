@@ -68,7 +68,7 @@ erDiagram
 
     WG21PaperAuthorProfile {
         string display_name "IX"
-        string author_alas "IX"
+        string author_alias "IX"
         datetime created_at
         datetime updated_at
     }
@@ -725,7 +725,7 @@ erDiagram
 | **GitHubAccount**                    | Profile for GitHub (user/org/enterprise); extends BaseProfile.                                           | 1       |
 | **SlackUser**                        | Profile for Slack; extends BaseProfile.                                                                  | 1       |
 | **MailingListProfile**               | Profile for mailing list; extends BaseProfile.                                                           | 1       |
-| **WG21PaperAuthorProfile**           | Profile for WG21 paper authors; extends BaseProfile. Optional `author_alas`. | 1       |
+| **WG21PaperAuthorProfile**           | Profile for WG21 paper authors; extends BaseProfile. Optional `author_alias`. | 1       |
 | **TmpIdentity**                      | Temporary identity for staging (CPPA User Tracker).                                                      | 1       |
 | **TempProfileIdentityRelation**     | Staging table: base_profile_id -> target_identity_id (CPPA User Tracker).                                | 1       |
 | **GitHubRepository**                 | Repository metadata (owner, repo_name, stars, forks, etc.). Base table for repo subtypes.                | 2       |

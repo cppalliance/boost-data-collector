@@ -202,10 +202,13 @@ class Command(BaseCommand):
                 else:
                     stats["papers_updated"] += 1
             except IntegrityError as e:
-                # Duplicate (paper_id) or (paper_id, year): fetch existing and update
+                # Duplicate (paper_id, year): fetch existing by same key and update
                 stats["papers_updated"] += 1
                 try:
-                    paper = WG21Paper.objects.filter(paper_id=paper_id).first()
+                    lookup_year = year if year is not None else 0
+                    paper = WG21Paper.objects.filter(
+                        paper_id=paper_id, year=lookup_year
+                    ).first()
                     if paper is None:
                         stats["skipped"] += 1
                         logger.error("Error for paper_id=%s: %s", paper_id, e)

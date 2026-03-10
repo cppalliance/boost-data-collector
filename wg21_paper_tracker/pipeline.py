@@ -157,13 +157,36 @@ def run_tracker_pipeline() -> int:
     for m_info in new_mailings:
         mailing_date = m_info["mailing_date"]
         title = m_info["title"]
-        year = int(m_info["year"]) if m_info["year"] else None
+        # Normalize year once; use 0 when missing/empty/unparseable so you can fix later
+        year_raw = m_info.get("year")
+        if not year_raw or not str(year_raw).strip():
+            year = 0
+            logger.warning(
+                "Mailing %s: year missing or empty, using 0 (fix later).",
+                mailing_date,
+            )
+        else:
+            try:
+                year = int(str(year_raw).strip()[:4])
+                if year <= 0:
+                    year = 0
+                    logger.warning(
+                        "Mailing %s: year invalid, using 0 (fix later).",
+                        mailing_date,
+                    )
+            except (ValueError, TypeError):
+                year = 0
+                logger.warning(
+                    "Mailing %s: year not parseable %r, using 0 (fix later).",
+                    mailing_date,
+                    year_raw,
+                )
 
         # Create/get mailing in DB
         mailing_obj, _ = get_or_create_mailing(mailing_date, title)
 
         # Fetch papers for this mailing
-        papers = fetch_papers_for_mailing(year, mailing_date)
+        papers = fetch_papers_for_mailing(str(year), mailing_date)
         if not papers:
             logger.info(
                 "Mailing %s: no papers found (anchor/table may be missing).",
@@ -180,18 +203,17 @@ def run_tracker_pipeline() -> int:
             papers_by_id[pid].append(p)
 
         def format_priority(ext: str) -> int:
-            priorities = {"pdf": 1, "html": 2, "adoc": 3, "ps": 4}
+            priorities = {"adoc": 1, "html": 2, "ps": 3, "pdf": 4}
             return priorities.get(ext.lower(), 100)
 
         raw_dir = get_raw_dir(mailing_date)
 
         skipped_downloaded = 0
-        year_val = year if year is not None else 0
         for pid, p_list in papers_by_id.items():
             # Skip only if this (paper_id, year) is already downloaded
             if WG21Paper.objects.filter(
                 paper_id=pid,
-                year=year_val,
+                year=year,
                 is_downloaded=True,
             ).exists():
                 skipped_downloaded += 1
@@ -220,8 +242,10 @@ def run_tracker_pipeline() -> int:
                     gcs_path = f"raw/wg21_papers/{mailing_date}/{filename}"
                     uploaded = _upload_to_gcs(bucket_name, local_path, gcs_path)
                 else:
-                    # If no GCS, simulate success so DB is updated
-                    uploaded = True
+                    logger.warning(
+                        "WG21_GCS_BUCKET is not configured; leaving %s as not downloaded.",
+                        pid,
+                    )
 
                 # Persist DB
                 doc_date_str = best_paper["document_date"]

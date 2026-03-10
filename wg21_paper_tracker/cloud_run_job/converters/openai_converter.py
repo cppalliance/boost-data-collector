@@ -242,7 +242,7 @@ def convert_with_openai(pdf_path: Path) -> Optional[str]:
                     f"Error processing page {page_num}: {str(e)}", exc_info=True
                 )
                 markdown_parts.append(
-                    f"## Page {page_num}\n\n*[Error processing this page: {str(e)}]*\n\n"
+                    f"## Page {page_num}\n\n*[Error processing this page]*\n\n"
                 )
                 continue
 

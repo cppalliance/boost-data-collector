@@ -12,7 +12,7 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name="wg21paperauthorprofile",
-            name="author_alas",
+            name="author_alias",
             field=models.CharField(blank=True, db_index=True, default="", max_length=255),
             preserve_default=True,
         ),

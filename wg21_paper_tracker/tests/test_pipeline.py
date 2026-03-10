@@ -155,7 +155,12 @@ def test_run_tracker_pipeline_downloads_new_papers(tmp_path):
                     "wg21_paper_tracker.pipeline._download_file", return_value=True
                 ):
                     with patch(
-                        "wg21_paper_tracker.pipeline.settings.WG21_GCS_BUCKET", None
+                        "wg21_paper_tracker.pipeline.settings.WG21_GCS_BUCKET",
+                        "test-bucket",
                     ):
-                        n = run_tracker_pipeline()
+                        with patch(
+                            "wg21_paper_tracker.pipeline._upload_to_gcs",
+                            return_value=True,
+                        ):
+                            n = run_tracker_pipeline()
     assert n == 1

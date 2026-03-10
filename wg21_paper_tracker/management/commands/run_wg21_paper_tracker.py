@@ -51,7 +51,8 @@ class Command(BaseCommand):
 
         With --dry-run, logs and exits without running the pipeline or triggering Cloud Run.
         Otherwise runs the pipeline, then triggers the configured Cloud Run job when
-        total_new_papers > 0 and GCP_PROJECT_ID and WG21_CLOUD_RUN_JOB_NAME are set.
+        total_new_papers > 0 and GCP_PROJECT_ID, WG21_CLOUD_RUN_JOB_NAME, and
+        WG21_GCS_BUCKET are set (trigger is skipped if GCS upload is disabled).
         """
         dry_run = options.get("dry_run", False)
         if dry_run:
@@ -62,14 +63,15 @@ class Command(BaseCommand):
 
         try:
             total_new_papers = run_tracker_pipeline()
-            logger.info("Downloaded and uploaded %d new papers.", total_new_papers)
+            logger.info("Processed %d new papers.", total_new_papers)
 
             if total_new_papers > 0:
                 project_id = getattr(settings, "GCP_PROJECT_ID", None)
                 location = getattr(settings, "GCP_LOCATION", "us-central1")
                 job_name = getattr(settings, "WG21_CLOUD_RUN_JOB_NAME", None)
+                bucket = getattr(settings, "WG21_GCS_BUCKET", None)
 
-                if project_id and job_name:
+                if project_id and job_name and bucket:
                     try:
                         trigger_cloud_run_job(project_id, location, job_name)
                         logger.info(
@@ -79,7 +81,8 @@ class Command(BaseCommand):
                         logger.error("Failed to trigger Cloud Run job: %s", e)
                 else:
                     logger.warning(
-                        "GCP_PROJECT_ID not configured. Skipping Cloud Run trigger."
+                        "Skipping Cloud Run trigger because GCP_PROJECT_ID, "
+                        "WG21_CLOUD_RUN_JOB_NAME, or WG21_GCS_BUCKET is not configured."
                     )
             else:
                 logger.info("No new papers found. Skipping Cloud Run job.")
