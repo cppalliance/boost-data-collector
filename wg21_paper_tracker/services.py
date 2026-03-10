@@ -15,6 +15,16 @@ if TYPE_CHECKING:
     from cppa_user_tracker.models import WG21PaperAuthorProfile
 
 
+def _normalize_year(year: int | str | None) -> int:
+    """Return a 4-digit year as int, or 0 if missing/invalid."""
+    if year is None:
+        return 0
+    if isinstance(year, int):
+        return year if 0 < year <= 9999 else 0
+    s = str(year).strip()[:4]
+    return int(s) if s.isdigit() else 0
+
+
 @transaction.atomic
 def get_or_create_mailing(mailing_date: str, title: str) -> tuple[WG21Mailing, bool]:
     mailing, created = WG21Mailing.objects.get_or_create(
@@ -39,23 +49,9 @@ def get_or_create_paper(
     year: int | None = None,
 ) -> tuple[WG21Paper, bool]:
     paper_id = (paper_id or "").strip().lower()
-    year_val = 0
-    if year:
-        s = (year if isinstance(year, str) else str(year)).strip()[:4]
-        if s.isdigit():
-            year_val = int(s)
-    paper, created = WG21Paper.objects.get_or_create(
-        paper_id=paper_id,
-        year=year_val,
-        defaults={
-            "url": url,
-            "title": title,
-            "document_date": document_date,
-            "mailing": mailing,
-            "subgroup": subgroup,
-        },
-    )
-    if not created:
+    year_val = _normalize_year(year)
+
+    def _update_paper(paper: WG21Paper) -> bool:
         updated = False
         if paper.url != url:
             paper.url = url
@@ -77,6 +73,52 @@ def get_or_create_paper(
             updated = True
         if updated:
             paper.save()
+        return updated
+
+    if year_val > 0:
+        # Prefer exact (paper_id, year); else promote placeholder (paper_id, 0) to real year
+        paper = WG21Paper.objects.filter(paper_id=paper_id, year=year_val).first()
+        if paper:
+            _update_paper(paper)
+            created = False
+        else:
+            placeholder = WG21Paper.objects.filter(paper_id=paper_id, year=0).first()
+            if placeholder:
+                placeholder.url = url
+                placeholder.title = title
+                placeholder.document_date = document_date
+                placeholder.mailing = mailing
+                placeholder.subgroup = subgroup
+                placeholder.year = year_val
+                placeholder.save()
+                paper = placeholder
+                created = False
+            else:
+                paper, created = WG21Paper.objects.get_or_create(
+                    paper_id=paper_id,
+                    year=year_val,
+                    defaults={
+                        "url": url,
+                        "title": title,
+                        "document_date": document_date,
+                        "mailing": mailing,
+                        "subgroup": subgroup,
+                    },
+                )
+    else:
+        paper, created = WG21Paper.objects.get_or_create(
+            paper_id=paper_id,
+            year=0,
+            defaults={
+                "url": url,
+                "title": title,
+                "document_date": document_date,
+                "mailing": mailing,
+                "subgroup": subgroup,
+            },
+        )
+        if not created:
+            _update_paper(paper)
 
     if author_names:
         emails = author_emails or []
@@ -109,11 +151,7 @@ def get_or_create_paper_author(
 
 def mark_paper_downloaded(paper_id: str, year: int | None = None):
     paper_id = (paper_id or "").strip().lower()
-    year_val = 0
-    if year is not None:
-        s = (year if isinstance(year, str) else str(year)).strip()[:4]
-        if s.isdigit():
-            year_val = int(s)
+    year_val = _normalize_year(year)
     WG21Paper.objects.filter(
         paper_id=paper_id,
         year=year_val,

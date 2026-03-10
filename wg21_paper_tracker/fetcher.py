@@ -30,7 +30,7 @@ def fetch_all_mailings() -> list[dict]:
         response = requests.get(f"{BASE_URL}/", timeout=30)
         response.raise_for_status()
     except requests.RequestException:
-        logger.error("Failed to fetch WG21 index.")
+        logger.exception("Failed to fetch WG21 index.")
         return []
 
     # The mailings are listed in a markdown-like syntax or links
@@ -66,7 +66,7 @@ def fetch_papers_for_mailing(year: str, mailing_date: str) -> list[dict]:
         response = requests.get(url, timeout=30)
         response.raise_for_status()
     except requests.RequestException:
-        logger.error("Failed to fetch year page %s.", year)
+        logger.exception("Failed to fetch year page %s.", year)
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")

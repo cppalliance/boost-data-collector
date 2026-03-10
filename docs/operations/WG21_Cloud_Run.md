@@ -11,7 +11,8 @@ Create a GCS bucket (e.g., `wg21-data-collector`).
 Ensure your Django app has the following environment variables configured:
 - `WG21_GCS_BUCKET`: The name of the GCS bucket.
 - `GCP_PROJECT_ID`: Your GCP project ID.
-- `WG21_CLOUD_RUN_JOB_NAME`: (Optional, defaults to `wg21-convert`) The name of the deployed Cloud Run job.
+- `WG21_CLOUD_RUN_JOB_NAME`: (Optional) The name of the deployed Cloud Run job (e.g. `wg21-convert`). No default; leave unset if you only use GCS uploads without triggering the job.
+- `WG21_CLOUD_RUN_ENABLED`: (Optional, default `false`) Set to `true` to allow the tracker to trigger the Cloud Run conversion job when new papers are uploaded. Keeps the trigger optional even when project and bucket are set.
 - `GCP_LOCATION`: (Optional, defaults to `us-central1`) Region for the Cloud Run job.
 
 ## 2. Build and Push the Docker Image

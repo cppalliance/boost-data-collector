@@ -51,8 +51,8 @@ class Command(BaseCommand):
 
         With --dry-run, logs and exits without running the pipeline or triggering Cloud Run.
         Otherwise runs the pipeline, then triggers the configured Cloud Run job when
-        total_new_papers > 0 and GCP_PROJECT_ID, WG21_CLOUD_RUN_JOB_NAME, and
-        WG21_GCS_BUCKET are set (trigger is skipped if GCS upload is disabled).
+        total_new_papers > 0, WG21_CLOUD_RUN_ENABLED is True, and
+        GCP_PROJECT_ID, WG21_CLOUD_RUN_JOB_NAME, and WG21_GCS_BUCKET are set.
         """
         dry_run = options.get("dry_run", False)
         if dry_run:
@@ -70,19 +70,24 @@ class Command(BaseCommand):
                 location = getattr(settings, "GCP_LOCATION", "us-central1")
                 job_name = getattr(settings, "WG21_CLOUD_RUN_JOB_NAME", None)
                 bucket = getattr(settings, "WG21_GCS_BUCKET", None)
+                cloud_run_enabled = getattr(settings, "WG21_CLOUD_RUN_ENABLED", False)
 
-                if project_id and job_name and bucket:
+                if project_id and job_name and bucket and cloud_run_enabled:
                     try:
                         trigger_cloud_run_job(project_id, location, job_name)
                         logger.info(
                             "Successfully triggered Cloud Run job %s.", job_name
                         )
-                    except Exception as e:
-                        logger.error("Failed to trigger Cloud Run job: %s", e)
+                    except Exception:
+                        logger.exception(
+                            "Failed to trigger Cloud Run job %s.", job_name
+                        )
+                        raise
                 else:
                     logger.warning(
-                        "Skipping Cloud Run trigger because GCP_PROJECT_ID, "
-                        "WG21_CLOUD_RUN_JOB_NAME, or WG21_GCS_BUCKET is not configured."
+                        "Skipping Cloud Run trigger: set WG21_CLOUD_RUN_ENABLED=True "
+                        "and configure GCP_PROJECT_ID, WG21_CLOUD_RUN_JOB_NAME, and "
+                        "WG21_GCS_BUCKET to enable."
                     )
             else:
                 logger.info("No new papers found. Skipping Cloud Run job.")

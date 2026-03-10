@@ -203,7 +203,8 @@ def run_tracker_pipeline() -> int:
             papers_by_id[pid].append(p)
 
         def format_priority(ext: str) -> int:
-            priorities = {"adoc": 1, "html": 2, "ps": 3, "pdf": 4}
+            # Prefer PDF (Cloud Run converts PDFs); then html, adoc, ps
+            priorities = {"pdf": 1, "html": 2, "adoc": 3, "ps": 4}
             return priorities.get(ext.lower(), 100)
 
         raw_dir = get_raw_dir(mailing_date)
@@ -219,9 +220,8 @@ def run_tracker_pipeline() -> int:
                 skipped_downloaded += 1
                 continue
 
-            # Pick the best format
-            p_list.sort(key=lambda x: format_priority(x["type"]))
-            best_paper = p_list[0]
+            # Pick the best format (PDF first for conversion)
+            best_paper = min(p_list, key=lambda x: format_priority(x["type"]))
 
             raw_filename = (best_paper.get("filename") or "").strip()
             filename = Path(raw_filename).name

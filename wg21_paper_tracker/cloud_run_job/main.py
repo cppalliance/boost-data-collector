@@ -11,7 +11,8 @@ from converters.pdfplumber_converter import convert_with_pdfplumber
 from converters.openai_converter import convert_with_openai
 
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ def main():
     client = storage.Client()
     bucket = client.bucket(bucket_name)
 
-    raw_prefix = "raw/wg21_papers/"
+    raw_prefix = "raw/wg21_paper_tracker/"
     converted_prefix = "converted/wg21_papers/"
 
     blobs = client.list_blobs(bucket, prefix=raw_prefix)
@@ -83,31 +84,34 @@ def main():
             if not blob.name.lower().endswith(".pdf"):
                 continue
 
-            # e.g. raw/wg21_papers/2025-02/p0149r1.pdf -> 2025-02/p0149r1.pdf
-            relative_path = blob.name[len(raw_prefix) :]
-            md_relative_path = relative_path.rsplit(".", 1)[0] + ".md"
-            md_blob_name = f"{converted_prefix}{md_relative_path}"
-
-            md_blob = bucket.blob(md_blob_name)
-            if md_blob.exists():
-                logger.info("Skipping %s, MD already exists.", blob.name)
-                continue
-
             local_pdf_path = Path(tmpdir) / "temp.pdf"
-            logger.info("Downloading %s to process...", blob.name)
-            blob.download_to_filename(str(local_pdf_path))
+            try:
+                # e.g. raw/wg21_papers/2025-02/p0149r1.pdf -> 2025-02/p0149r1.pdf
+                relative_path = blob.name[len(raw_prefix) :]
+                md_relative_path = relative_path.rsplit(".", 1)[0] + ".md"
+                md_blob_name = f"{converted_prefix}{md_relative_path}"
 
-            logger.info("Converting %s...", blob.name)
-            md_content = convert_pdf_to_md(local_pdf_path)
+                md_blob = bucket.blob(md_blob_name)
+                if md_blob.exists():
+                    logger.info("Skipping %s, MD already exists.", blob.name)
+                    continue
 
-            if md_content:
-                md_blob.upload_from_string(md_content, content_type="text/markdown")
-                logger.info("Successfully converted and uploaded %s", md_blob_name)
-            else:
-                logger.error("Failed to convert %s", blob.name)
+                logger.info("Downloading %s to process...", blob.name)
+                blob.download_to_filename(str(local_pdf_path))
 
-            if local_pdf_path.exists():
-                local_pdf_path.unlink()
+                logger.info("Converting %s...", blob.name)
+                md_content = convert_pdf_to_md(local_pdf_path)
+
+                if md_content:
+                    md_blob.upload_from_string(md_content, content_type="text/markdown")
+                    logger.info("Successfully converted and uploaded %s", md_blob_name)
+                else:
+                    logger.error("Failed to convert %s", blob.name)
+            except Exception:
+                logger.exception("Failed processing %s", blob.name)
+            finally:
+                if local_pdf_path.exists():
+                    local_pdf_path.unlink()
 
 
 if __name__ == "__main__":
