@@ -13,8 +13,7 @@ from wg21_paper_tracker.models import WG21Mailing, WG21Paper, WG21PaperAuthor
 @transaction.atomic
 def get_or_create_mailing(mailing_date: str, title: str) -> tuple[WG21Mailing, bool]:
     mailing, created = WG21Mailing.objects.get_or_create(
-        mailing_date=mailing_date,
-        defaults={"title": title}
+        mailing_date=mailing_date, defaults={"title": title}
     )
     if not created and mailing.title != title:
         mailing.title = title
@@ -31,16 +30,24 @@ def get_or_create_paper(
     mailing: WG21Mailing,
     subgroup: str = "",
     author_names: Optional[list[str]] = None,
+    year: int | None = None,
 ) -> tuple[WG21Paper, bool]:
+    paper_id = (paper_id or "").strip().lower()
+    year_val = None
+    if year:
+        s = (year if isinstance(year, str) else str(year)).strip()[:4]
+        if s.isdigit():
+            year_val = int(s)
     paper, created = WG21Paper.objects.get_or_create(
         paper_id=paper_id,
+        year=year_val,
         defaults={
             "url": url,
             "title": title,
             "document_date": document_date,
             "mailing": mailing,
             "subgroup": subgroup,
-        }
+        },
     )
     if not created:
         updated = False
@@ -59,6 +66,9 @@ def get_or_create_paper(
         if paper.subgroup != subgroup:
             paper.subgroup = subgroup
             updated = True
+        if year_val is not None and paper.year != year_val:
+            paper.year = year_val
+            updated = True
         if updated:
             paper.save()
 
@@ -74,4 +84,5 @@ def get_or_create_paper(
 
 
 def mark_paper_downloaded(paper_id: str):
+    paper_id = (paper_id or "").strip().lower()
     WG21Paper.objects.filter(paper_id=paper_id).update(is_downloaded=True)

@@ -5,13 +5,12 @@ Scrapes the WG21 papers index and specific mailing tables.
 
 import re
 import urllib.parse
-from typing import Optional
 
 import requests
 from bs4 import BeautifulSoup
-from django.utils.dateparse import parse_date
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.open-std.org/jtc1/sc22/wg21/docs/papers"
@@ -39,22 +38,20 @@ def fetch_all_mailings() -> list[dict]:
     # Let's parse with BeautifulSoup
     soup = BeautifulSoup(response.text, "html.parser")
     mailings = []
-    
+
     # We look for links pointing to year/#mailingYYYY-MM
     pattern = re.compile(r"^(\d{4})/#mailing(\d{4}-\d{2})$")
-    
+
     for a in soup.find_all("a", href=True):
         href = a["href"]
         match = pattern.search(href)
         if match:
             year, mailing_date = match.groups()
             title = a.text.strip()
-            mailings.append({
-                "mailing_date": mailing_date,
-                "title": title,
-                "year": year
-            })
-            
+            mailings.append(
+                {"mailing_date": mailing_date, "title": title, "year": year}
+            )
+
     return mailings
 
 
@@ -74,7 +71,7 @@ def fetch_papers_for_mailing(year: str, mailing_date: str) -> list[dict]:
 
     soup = BeautifulSoup(response.text, "html.parser")
     anchor_id = f"mailing{mailing_date}"
-    anchor = soup.find(id=anchor_id)
+    anchor = soup.find(id=anchor_id) or soup.find(attrs={"name": anchor_id})
     if not anchor:
         logger.warning("Anchor %s not found on %s", anchor_id, url)
         return []
@@ -115,13 +112,17 @@ def fetch_papers_for_mailing(year: str, mailing_date: str) -> list[dict]:
                     title = ""
                     if len(cells) > 1:
                         title = cells[1].text.strip()
-                    
+
                     authors = []
                     if len(cells) > 2:
                         authors_raw = cells[2].text.strip()
                         # Split by comma or 'and' if multiple
                         if authors_raw:
-                            authors = [a.strip() for a in re.split(r",| and ", authors_raw) if a.strip()]
+                            authors = [
+                                a.strip()
+                                for a in re.split(r",| and ", authors_raw)
+                                if a.strip()
+                            ]
 
                     document_date = None
                     if len(cells) > 3:
@@ -133,16 +134,18 @@ def fetch_papers_for_mailing(year: str, mailing_date: str) -> list[dict]:
                     if len(cells) > 4:
                         subgroup = cells[4].text.strip()
 
-                    paper_urls.append({
-                        "url": paper_url,
-                        "filename": filename,
-                        "type": file_ext,
-                        "paper_id": paper_id,
-                        "title": title,
-                        "authors": authors,
-                        "document_date": document_date,
-                        "subgroup": subgroup,
-                    })
+                    paper_urls.append(
+                        {
+                            "url": paper_url,
+                            "filename": filename,
+                            "type": file_ext,
+                            "paper_id": paper_id,
+                            "title": title,
+                            "authors": authors,
+                            "document_date": document_date,
+                            "subgroup": subgroup,
+                        }
+                    )
                     break  # Only take the first paper link in the cell
 
     # Remove exact duplicates (same filename)

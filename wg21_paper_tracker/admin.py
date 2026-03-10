@@ -17,9 +17,17 @@ class WG21PaperAuthorInline(admin.TabularInline):
 
 @admin.register(WG21Paper)
 class WG21PaperAdmin(admin.ModelAdmin):
-    list_display = ("paper_id", "title", "document_date", "mailing", "subgroup", "is_downloaded")
+    list_display = (
+        "paper_id",
+        "year",
+        "title",
+        "document_date",
+        "mailing",
+        "subgroup",
+        "is_downloaded",
+    )
     search_fields = ("paper_id", "title", "url", "subgroup")
-    list_filter = ("is_downloaded", "subgroup", "mailing")
+    list_filter = ("is_downloaded", "subgroup", "mailing", "year")
     ordering = ("-document_date", "-paper_id")
     inlines = [WG21PaperAuthorInline]
 

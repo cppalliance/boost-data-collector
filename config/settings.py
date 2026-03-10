@@ -220,7 +220,9 @@ DISCORD_CONTEXT_REPO_PATH = Path(
 WG21_GCS_BUCKET = (env("WG21_GCS_BUCKET", default="") or "").strip()
 GCP_PROJECT_ID = (env("GCP_PROJECT_ID", default="") or "").strip()
 GCP_LOCATION = (env("GCP_LOCATION", default="us-central1") or "").strip()
-WG21_CLOUD_RUN_JOB_NAME = (env("WG21_CLOUD_RUN_JOB_NAME", default="wg21-convert") or "").strip()
+WG21_CLOUD_RUN_JOB_NAME = (
+    env("WG21_CLOUD_RUN_JOB_NAME", default="wg21-convert") or ""
+).strip()
 
 # Logging - project-wide configuration for app commands (console + rotating file)
 LOG_DIR = Path(env("LOG_DIR", default=str(BASE_DIR / "logs")))

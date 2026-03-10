@@ -24,12 +24,13 @@ class WG21Mailing(models.Model):
 
 
 class WG21Paper(models.Model):
-    """WG21 paper (paper_id, url, title, document_date, mailing, subgroup, is_downloaded)."""
+    """WG21 paper (paper_id, url, title, document_date, year, mailing, subgroup, is_downloaded)."""
 
-    paper_id = models.CharField(max_length=255, unique=True, db_index=True)
+    paper_id = models.CharField(max_length=255, db_index=True)
     url = models.URLField(max_length=1024)
     title = models.CharField(max_length=1024, db_index=True)
     document_date = models.DateField(db_index=True, null=True, blank=True)
+    year = models.IntegerField(null=True, blank=True, db_index=True)
     mailing = models.ForeignKey(
         WG21Mailing,
         on_delete=models.CASCADE,
@@ -41,7 +42,8 @@ class WG21Paper(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["-document_date", "-paper_id"]
+        unique_together = (("paper_id", "year"),)
+        ordering = ["-document_date", "-paper_id", "-year"]
         verbose_name = "WG21 Paper"
         verbose_name_plural = "WG21 Papers"
 

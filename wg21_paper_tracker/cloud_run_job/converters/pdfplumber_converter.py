@@ -5,6 +5,7 @@ PDFPlumber-based PDF to Markdown converter.
 from pathlib import Path
 from typing import Optional
 import logging
+
 logger = logging.getLogger(__name__)
 
 try:
