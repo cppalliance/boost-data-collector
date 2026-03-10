@@ -39,7 +39,9 @@ def test_get_library_name_uses_latest_relation(
     )
 
     now = timezone.now()
-    type(older_rel).objects.filter(pk=older_rel.pk).update(created_at=now - timedelta(days=1))
+    type(older_rel).objects.filter(pk=older_rel.pk).update(
+        created_at=now - timedelta(days=1)
+    )
     type(newer_rel).objects.filter(pk=newer_rel.pk).update(created_at=now)
 
     boost_doc_content.refresh_from_db()
