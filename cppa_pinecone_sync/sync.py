@@ -39,29 +39,31 @@ from django.db import transaction
 
 from . import services
 
-from .ingestion import PineconeIngestion
+from .ingestion import PineconeIngestion, PineconeInstance
 
 
 logger = logging.getLogger(__name__)
 
 
-# Module-level singleton; created on first use so that Django settings are
+# Module-level singletons keyed by instance; created on first use so that
+# Django settings are available and Pinecone libraries are imported only when
+# needed.
 
-# available and Pinecone libraries are imported only when needed.
-
-_ingestion: Optional[PineconeIngestion] = None
+_ingestion_pool: dict[str, PineconeIngestion] = {}
 
 
-def _get_ingestion() -> PineconeIngestion:
-    """Return (and lazily create) the module-level PineconeIngestion instance."""
+def _get_ingestion(
+    instance: PineconeInstance = PineconeInstance.PUBLIC,
+) -> PineconeIngestion:
+    """Return (and lazily create) a PineconeIngestion for *instance*."""
 
-    global _ingestion
+    key = instance.value
 
-    if _ingestion is None:
+    if key not in _ingestion_pool:
 
-        _ingestion = PineconeIngestion()
+        _ingestion_pool[key] = PineconeIngestion(instance=instance)
 
-    return _ingestion
+    return _ingestion_pool[key]
 
 
 # Type alias for the preprocessing function that callers must supply.
@@ -182,6 +184,7 @@ def sync_to_pinecone(
     app_type: str,
     namespace: str,
     preprocess_fn: PreprocessFn,
+    instance: PineconeInstance = PineconeInstance.PUBLIC,
 ) -> dict[str, Any]:
     """Run a full Pinecone sync cycle for *app_type*.
 
@@ -207,6 +210,10 @@ def sync_to_pinecone(
 
             ``doc_id`` or ``url``. See docs/Pinecone_preprocess_guideline.md.
 
+        instance: Which Pinecone API key to use (public or private).
+
+            Default is public.
+
 
 
     Returns:
@@ -218,7 +225,10 @@ def sync_to_pinecone(
     """
 
     logger.info(
-        "sync_to_pinecone: starting app_type=%s namespace=%s", app_type, namespace
+        "sync_to_pinecone: starting app_type=%s namespace=%s instance=%s",
+        app_type,
+        namespace,
+        instance.value,
     )
 
     failed_ids = services.get_failed_ids(app_type)
@@ -273,7 +283,7 @@ def sync_to_pinecone(
 
     attempted_source_ids = _extract_source_ids_from_documents(documents)
 
-    ingestion = _get_ingestion()
+    ingestion = _get_ingestion(instance)
 
     result = ingestion.upsert_documents(
         documents=documents, namespace=namespace, is_chunked=is_chunked

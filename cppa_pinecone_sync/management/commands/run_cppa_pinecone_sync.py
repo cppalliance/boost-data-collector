@@ -14,6 +14,7 @@ import logging
 
 from django.core.management.base import BaseCommand, CommandError
 
+from cppa_pinecone_sync.ingestion import PineconeInstance
 from cppa_pinecone_sync.sync import sync_to_pinecone
 
 logger = logging.getLogger(__name__)
@@ -60,11 +61,21 @@ class Command(BaseCommand):
             default=None,
             help="Dotted path to preprocess function (e.g. 'myapp.preprocessors.slack_preprocess'). Required when --app-type is set.",
         )
+        parser.add_argument(
+            "--pinecone-instance",
+            type=str,
+            choices=[i.value for i in PineconeInstance],
+            default=PineconeInstance.PUBLIC.value,
+            help="Pinecone API key instance to use: 'public' (default) or 'private'.",
+        )
 
     def handle(self, *args, **options):
         app_type = (options.get("app_type") or "").strip() or None
         namespace = (options.get("namespace") or "").strip() or None
         preprocessor_path = (options.get("preprocessor") or "").strip() or None
+        instance = PineconeInstance(
+            (options.get("pinecone_instance") or PineconeInstance.PUBLIC.value).strip()
+        )
 
         if app_type is not None and not (namespace and preprocessor_path):
             raise CommandError(
@@ -91,7 +102,9 @@ class Command(BaseCommand):
 
         try:
             preprocess_fn = _resolve_preprocessor(preprocessor_path)
-            result = sync_to_pinecone(app_type, namespace, preprocess_fn)
+            result = sync_to_pinecone(
+                app_type, namespace, preprocess_fn, instance=instance
+            )
             logger.info(
                 "CPPA Pinecone Sync completed: upserted=%s, total=%s, failed_count=%s",
                 result["upserted"],

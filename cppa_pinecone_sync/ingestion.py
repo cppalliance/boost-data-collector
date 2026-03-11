@@ -14,9 +14,17 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+from enum import Enum
 from typing import Any, Optional
 
 from django.conf import settings
+
+
+class PineconeInstance(str, Enum):
+    """Selects which Pinecone API key to use."""
+
+    PUBLIC = "public"
+    PRIVATE = "private"
 
 try:
     from pinecone import Pinecone
@@ -36,12 +44,22 @@ logger = logging.getLogger(__name__)
 class PineconeIngestion:
     """Handles Pinecone index creation, document chunking, and vector operations."""
 
-    def __init__(self) -> None:
-        """Initialize with configuration from Django settings."""
+    def __init__(
+        self, instance: PineconeInstance = PineconeInstance.PUBLIC
+    ) -> None:
+        """Initialize with configuration from Django settings.
+
+        Args:
+            instance: Which Pinecone API key to use (public or private).
+                Default is public.
+        """
         self._validate_imports()
 
-        # Read from Django settings (with defaults).
-        self.api_key: str = getattr(settings, "PINECONE_API_KEY", "")
+        self.instance = instance
+        self._api_key: str = getattr(settings, "PINECONE_API_KEY", "")
+        self._private_api_key: str = getattr(
+            settings, "PINECONE_PRIVATE_API_KEY", ""
+        )
         self.index_name: str = getattr(settings, "PINECONE_INDEX_NAME", "")
         self.environment: str = getattr(settings, "PINECONE_ENVIRONMENT", "us-east-1")
         self.cloud: str = getattr(settings, "PINECONE_CLOUD", "aws")
@@ -64,10 +82,18 @@ class PineconeIngestion:
         self._setup_indexes()
 
         logger.info(
-            "PineconeIngestion: dense_model=%s, sparse_model=%s",
+            "PineconeIngestion: dense_model=%s, sparse_model=%s, instance=%s",
             self.dense_model,
             self.sparse_model,
+            self.instance.value,
         )
+
+    @property
+    def _active_api_key(self) -> str:
+        """Return the API key for the selected instance."""
+        if self.instance == PineconeInstance.PRIVATE:
+            return self._private_api_key
+        return self._api_key
 
     # ------------------------------------------------------------------
     # Initialization helpers
@@ -108,9 +134,12 @@ class PineconeIngestion:
         """Initialize Pinecone client if needed."""
         if not self._pc_initialized:
             try:
-                self.pc = Pinecone(api_key=self.api_key)
+                self.pc = Pinecone(api_key=self._active_api_key)
                 self._pc_initialized = True
-                logger.info("Pinecone client initialized")
+                logger.info(
+                    "Pinecone client initialized (instance: %s)",
+                    self.instance.value,
+                )
             except Exception as e:
                 logger.error("Failed to initialize Pinecone client: %s", e)
                 raise ConnectionError(

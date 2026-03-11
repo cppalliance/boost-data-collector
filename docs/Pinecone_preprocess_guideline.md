@@ -13,6 +13,22 @@ result = sync_to_pinecone(
     app_type="slack",          # e.g. "slack", "mailing"
     namespace="your_namespace",
     preprocess_fn=your_preprocess_fn,
+    # instance defaults to PineconeInstance.PUBLIC; pass PRIVATE to use
+    # the private API key (PINECONE_PRIVATE_API_KEY in Django settings).
+)
+```
+
+To use the **private** API key instead:
+
+```python
+from cppa_pinecone_sync.ingestion import PineconeInstance
+from cppa_pinecone_sync.sync import sync_to_pinecone
+
+result = sync_to_pinecone(
+    app_type="slack",
+    namespace="your_namespace",
+    preprocess_fn=your_preprocess_fn,
+    instance=PineconeInstance.PRIVATE,
 )
 ```
 
@@ -114,6 +130,30 @@ If one logical “document” is built from several source records, pass their I
 
 ---
 
+## Choosing public vs private Pinecone instance
+
+The sync pipeline supports two Pinecone API keys: **public** (default) and **private**. Set via:
+
+- **Python API:** Pass `instance=PineconeInstance.PRIVATE` to `sync_to_pinecone()`.
+- **Management command:** Use `--pinecone-instance private`:
+
+```bash
+python manage.py run_cppa_pinecone_sync \
+    --app-type slack \
+    --namespace slack-Cpplang \
+    --preprocessor myapp.preprocessors.slack_preprocess \
+    --pinecone-instance private
+```
+
+| Instance   | Django setting read         | `.env` key                  |
+|------------|-----------------------------|-----------------------------|
+| `public`   | `PINECONE_API_KEY`          | `PINECONE_API_KEY`          |
+| `private`  | `PINECONE_PRIVATE_API_KEY`  | `PINECONE_PRIVATE_API_KEY`  |
+
+If no `instance` is specified, **public** is used.
+
+---
+
 ## Summary checklist
 
 - [ ] Signature: `(failed_ids: list[str], final_sync_at: datetime | None) -> tuple[list[dict], bool]`.
@@ -123,5 +163,6 @@ If one logical “document” is built from several source records, pass their I
 - [ ] Use `failed_ids` to re-include previously failed records.
 - [ ] Use `final_sync_at` for incremental sync when applicable.
 - [ ] Return `is_chunked=True` only if you are already emitting final chunks; otherwise `False`.
+- [ ] Choose `instance` (public/private) based on which Pinecone project you target.
 
 For the sync API and services (fail list, sync status), see [service_api/cppa_pinecone_sync.md](service_api/cppa_pinecone_sync.md).
