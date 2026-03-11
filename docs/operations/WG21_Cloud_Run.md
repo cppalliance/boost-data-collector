@@ -2,7 +2,7 @@
 
 The PDF-to-Markdown conversion for WG21 papers is computationally heavy and requires system packages like `poppler`. It is separated from the main Django project and runs as a Google Cloud Run Job.
 
-The Django tracker (`run_wg21_paper_tracker`) automatically triggers this job via the Google Cloud Run API when new papers are downloaded.
+When `WG21_CLOUD_RUN_ENABLED=true` and `WG21_CLOUD_RUN_JOB_NAME` is set, the Django tracker (`run_wg21_paper_tracker`) triggers the configured Cloud Run job after uploading new papers.
 
 ## 1. Setup Google Cloud Storage
 
@@ -61,5 +61,5 @@ Provide `OPENROUTER_API_KEY` via Cloud Run secret injection (e.g. [Secret Manage
 1. **Daily (e.g. 1 AM)**: The `run_wg21_paper_tracker` command runs.
 2. It checks the WG21 site for new mailings.
 3. If found, it downloads PDFs and uploads them directly to `gs://<bucket>/raw/wg21_paper_tracker/<year>/<mailing_date>/`.
-4. It calls the Cloud Run API to execute `wg21-convert`.
-5. The Cloud Run Job spins up, reads the new PDFs from GCS, converts them, and uploads the `.md` results to `gs://<bucket>/converted/wg21_papers/<mailing_date>/`.
+4. If Cloud Run triggering is enabled, it calls the configured Cloud Run job.
+5. The Cloud Run Job then spins up, reads the new PDFs from GCS, converts them, and uploads the `.md` results to `gs://<bucket>/converted/wg21_papers/<mailing_date>/`.

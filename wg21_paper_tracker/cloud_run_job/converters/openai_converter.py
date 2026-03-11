@@ -8,6 +8,8 @@ import base64
 import io
 import logging
 import os
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -34,32 +36,46 @@ except ImportError:
     )
 
 
-def pdf_to_images(pdf_path: Path) -> list[Image.Image]:
+def pdf_to_images(pdf_path: Path) -> tuple[Optional[Path], list[Path]]:
     """
-    Convert PDF pages to images.
+    Convert PDF pages to image files on disk (one per page) to avoid loading all into memory.
 
-    Note: pdf2image should automatically handle PDF rotation metadata,
-    but we also apply additional rotation correction in correct_image_rotation().
+    Writes images into a temporary directory and returns (tmp_dir, paths). Caller must process
+    each path and then remove tmp_dir (e.g. shutil.rmtree) so only the current page is resident.
+
+    Note: pdf2image should automatically handle PDF rotation metadata; we also apply
+    additional rotation correction in correct_image_rotation() when loading each image.
 
     Args:
         pdf_path: Path to the PDF file.
 
     Returns:
-        List of PIL Image objects.
+        (tmp_dir, list of image paths). tmp_dir is None on failure or if pdf2image unavailable;
+        paths are in page order. Caller must cleanup tmp_dir when not None.
     """
     if not PDF2IMAGE_AVAILABLE:
         logger.error("pdf2image is not available")
-        return []
+        return (None, [])
 
     try:
         logger.info(f"Converting PDF to images: {pdf_path.name}")
-        # pdf2image should respect PDF rotation, but we'll also check EXIF data
-        images = convert_from_path(pdf_path, dpi=200)
-        logger.info(f"Converted {len(images)} pages to images")
-        return images
+        tmp_dir = Path(tempfile.mkdtemp(prefix="wg21_pdf_"))
+        try:
+            path_strs = convert_from_path(
+                pdf_path,
+                dpi=200,
+                paths_only=True,
+                output_folder=str(tmp_dir),
+            )
+            paths = [Path(p) for p in path_strs]
+            logger.info(f"Converted {len(paths)} pages to images")
+            return (tmp_dir, paths)
+        except Exception:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            raise
     except Exception as e:
         logger.error(f"Failed to convert PDF to images: {str(e)}", exc_info=True)
-        return []
+        return (None, [])
 
 
 def correct_image_rotation(image: Image.Image) -> Image.Image:
@@ -206,46 +222,50 @@ def convert_with_openai(pdf_path: Path) -> Optional[str]:
     try:
         logger.info(f"Attempting OpenAI/OpenRouter conversion for: {pdf_path.name}")
 
-        # Convert PDF to images
-        images = pdf_to_images(pdf_path)
-        if not images:
+        # Convert PDF to image files on disk (avoids loading all pages into memory)
+        tmp_dir, paths = pdf_to_images(pdf_path)
+        if not paths:
             logger.error(f"Failed to convert PDF to images: {pdf_path.name}")
             return None
 
-        total_pages = len(images)
+        total_pages = len(paths)
         markdown_parts = []
         successful_pages = 0
 
-        # Process each page
-        for page_num, image in enumerate(images, 1):
-            try:
-                # Convert image to base64
-                image_base64 = image_to_base64(image)
+        try:
+            # Process each page: load one image at a time, convert, then move on
+            for page_num, image_path in enumerate(paths, 1):
+                try:
+                    with Image.open(image_path) as img:
+                        img.load()
+                        image_base64 = image_to_base64(img)
+                    # Convert page with OpenAI
+                    page_markdown = convert_page_with_openai(
+                        image_base64, page_num, total_pages
+                    )
 
-                # Convert page with OpenAI
-                page_markdown = convert_page_with_openai(
-                    image_base64, page_num, total_pages
-                )
+                    if page_markdown:
+                        markdown_parts.append(page_markdown)
+                        markdown_parts.append("\n\n")
+                        successful_pages += 1
+                    else:
+                        logger.warning(f"Failed to convert page {page_num} with OpenAI")
+                        markdown_parts.append(
+                            f"## Page {page_num}\n\n*[Page content unavailable]*\n\n"
+                        )
 
-                if page_markdown:
-                    markdown_parts.append(page_markdown)
-                    markdown_parts.append("\n\n")
-                    successful_pages += 1
-                else:
-                    logger.warning(f"Failed to convert page {page_num} with OpenAI")
+                except Exception as e:
+                    logger.error(
+                        f"Error processing page {page_num}: {str(e)}",
+                        exc_info=True,
+                    )
                     markdown_parts.append(
                         f"## Page {page_num}\n\n*[Page content unavailable]*\n\n"
                     )
-
-            except Exception as e:
-                logger.error(
-                    f"Error processing page {page_num}: {str(e)}",
-                    exc_info=True,
-                )
-                markdown_parts.append(
-                    f"## Page {page_num}\n\n*[Page content unavailable]*\n\n"
-                )
-                continue
+                    continue
+        finally:
+            if tmp_dir is not None:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
 
         markdown_content = "".join(markdown_parts)
 

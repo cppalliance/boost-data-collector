@@ -199,7 +199,14 @@ def run_tracker_pipeline() -> int:
         # Group papers by ID so we can choose the preferred source format per paper.
         papers_by_id = {}
         for p in papers:
-            pid = (p["paper_id"] or "").strip().lower()
+            pid = (p.get("paper_id") or "").strip().lower()
+            if not pid:
+                logger.warning(
+                    "Skipping paper entry without a paper_id in mailing %s: %r",
+                    mailing_date,
+                    p,
+                )
+                continue
             if pid not in papers_by_id:
                 papers_by_id[pid] = []
             papers_by_id[pid].append(p)
