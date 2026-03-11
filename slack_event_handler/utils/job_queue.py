@@ -186,7 +186,6 @@ def _process_job(job: dict) -> None:
 
 def _worker(team_id: Optional[str]) -> None:
     """Long-running FIFO worker daemon thread for one team."""
-    name = f"pr-job-queue-worker-{team_id or 'default'}"
     logger.debug("PR job queue worker started for team %s", team_id or "default")
     while True:
         state = load_state(team_id)
