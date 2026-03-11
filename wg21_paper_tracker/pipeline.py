@@ -243,6 +243,33 @@ def run_tracker_pipeline() -> int:
             local_path = raw_dir / filename
             url = best_paper["url"]
 
+            # Persist paper row before transfer so failed downloads remain retry candidates
+            doc_date_str = best_paper.get("document_date")
+            from django.utils.dateparse import parse_date
+
+            doc_date = None
+            if doc_date_str:
+                try:
+                    doc_date = parse_date(doc_date_str)
+                except Exception as e:
+                    logger.warning(
+                        "Failed to parse document date: %s: %s",
+                        doc_date_str,
+                        e,
+                    )
+                    doc_date = None
+
+            paper_obj, _created = get_or_create_paper(
+                paper_id=pid,
+                url=url,
+                title=best_paper["title"],
+                document_date=doc_date,
+                mailing=mailing_obj,
+                subgroup=best_paper["subgroup"],
+                author_names=best_paper["authors"],
+                year=year,
+            )
+
             # Download
             if _download_file(url, local_path):
                 uploaded = False
@@ -256,34 +283,6 @@ def run_tracker_pipeline() -> int:
                         "WG21_GCS_BUCKET is not configured; leaving %s as not downloaded.",
                         pid,
                     )
-
-                # Persist DB
-                doc_date_str = best_paper["document_date"]
-                # Parse date if available
-                from django.utils.dateparse import parse_date
-
-                doc_date = None
-                if doc_date_str:
-                    try:
-                        doc_date = parse_date(doc_date_str)
-                    except Exception as e:
-                        logger.warning(
-                            "Failed to parse document date: %s: %s",
-                            doc_date_str,
-                            e,
-                        )
-                        doc_date = None
-
-                paper_obj, _created = get_or_create_paper(
-                    paper_id=pid,
-                    url=url,
-                    title=best_paper["title"],
-                    document_date=doc_date,
-                    mailing=mailing_obj,
-                    subgroup=best_paper["subgroup"],
-                    author_names=best_paper["authors"],
-                    year=year,
-                )
 
                 if uploaded:
                     paper_obj.is_downloaded = True

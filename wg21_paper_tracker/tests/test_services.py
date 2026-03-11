@@ -219,6 +219,13 @@ def test_get_or_create_paper_sets_author_order(db):
 
 
 @pytest.mark.django_db
+def test_mark_paper_downloaded_requires_year(db):
+    """mark_paper_downloaded raises ValueError when year is omitted."""
+    with pytest.raises(ValueError, match="year is required"):
+        mark_paper_downloaded("p1000r0")
+
+
+@pytest.mark.django_db
 def test_mark_paper_downloaded_sets_flag(db):
     """mark_paper_downloaded sets is_downloaded=True for matching (paper_id, year)."""
     mailing, _ = get_or_create_mailing("2025-01", "Title")

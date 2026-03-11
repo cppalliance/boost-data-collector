@@ -7,10 +7,14 @@ import os
 from pathlib import Path
 
 from .settings import *  # noqa: F401, F403
+from .settings import env
 
-# Use SQLite in-memory for speed when DATABASE_URL not set (e.g. local pytest).
-# CI can set DATABASE_URL=sqlite:///test.sqlite3 or leave unset for :memory:
-if not os.environ.get("DATABASE_URL", "").strip():
+# Use SQLite in-memory for tests by default so no PostgreSQL is required.
+# Set TEST_DATABASE_URL to run tests against PostgreSQL (e.g. in CI).
+_test_db_url = os.environ.get("TEST_DATABASE_URL", "").strip()
+if _test_db_url:
+    DATABASES = {"default": env.db("TEST_DATABASE_URL")}
+else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",

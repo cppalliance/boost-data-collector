@@ -13,6 +13,7 @@ class WG21PaperAuthorInline(admin.TabularInline):
     model = WG21PaperAuthor
     extra = 1
     raw_id_fields = ("profile",)
+    ordering = ("author_order", "id")
 
 
 @admin.register(WG21Paper)
@@ -34,6 +35,7 @@ class WG21PaperAdmin(admin.ModelAdmin):
 
 @admin.register(WG21PaperAuthor)
 class WG21PaperAuthorAdmin(admin.ModelAdmin):
-    list_display = ("paper", "profile", "created_at")
+    list_display = ("paper", "profile", "author_order", "created_at")
     search_fields = ("paper__paper_id", "profile__display_name")
     raw_id_fields = ("paper", "profile")
+    ordering = ("paper", "author_order", "id")
