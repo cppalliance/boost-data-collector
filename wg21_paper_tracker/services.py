@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from cppa_user_tracker.services import get_or_create_wg21_paper_author_profile
 from wg21_paper_tracker.models import WG21Mailing, WG21Paper, WG21PaperAuthor
@@ -36,7 +36,6 @@ def get_or_create_mailing(mailing_date: str, title: str) -> tuple[WG21Mailing, b
     return mailing, created
 
 
-@transaction.atomic
 def get_or_create_paper(
     paper_id: str,
     url: str,
@@ -77,28 +76,49 @@ def get_or_create_paper(
             paper.save()
         return updated
 
-    if year_val > 0:
-        # Prefer exact (paper_id, year); else promote placeholder (paper_id, 0) to real year
-        paper = WG21Paper.objects.filter(paper_id=paper_id, year=year_val).first()
-        if paper:
-            _update_paper(paper)
-            created = False
-        else:
-            placeholder = WG21Paper.objects.filter(paper_id=paper_id, year=0).first()
-            if placeholder:
-                placeholder.url = url
-                placeholder.title = title
-                placeholder.document_date = document_date
-                placeholder.mailing = mailing
-                placeholder.subgroup = subgroup
-                placeholder.year = year_val
-                placeholder.save()
-                paper = placeholder
-                created = False
+    try:
+        with transaction.atomic():
+            if year_val > 0:
+                # Prefer exact (paper_id, year); else promote placeholder (paper_id, 0) to real year
+                paper = WG21Paper.objects.filter(
+                    paper_id=paper_id, year=year_val
+                ).first()
+                if paper:
+                    _update_paper(paper)
+                    created = False
+                else:
+                    placeholder = WG21Paper.objects.filter(
+                        paper_id=paper_id, year=0
+                    ).first()
+                    if placeholder:
+                        try:
+                            placeholder.url = url
+                            placeholder.title = title
+                            placeholder.document_date = document_date
+                            placeholder.mailing = mailing
+                            placeholder.subgroup = subgroup
+                            placeholder.year = year_val
+                            placeholder.save()
+                            paper = placeholder
+                            created = False
+                        except IntegrityError:
+                            raise  # Roll back this transaction; recovery runs below
+                    else:
+                        paper, created = WG21Paper.objects.get_or_create(
+                            paper_id=paper_id,
+                            year=year_val,
+                            defaults={
+                                "url": url,
+                                "title": title,
+                                "document_date": document_date,
+                                "mailing": mailing,
+                                "subgroup": subgroup,
+                            },
+                        )
             else:
                 paper, created = WG21Paper.objects.get_or_create(
                     paper_id=paper_id,
-                    year=year_val,
+                    year=0,
                     defaults={
                         "url": url,
                         "title": title,
@@ -107,20 +127,16 @@ def get_or_create_paper(
                         "subgroup": subgroup,
                     },
                 )
-    else:
-        paper, created = WG21Paper.objects.get_or_create(
-            paper_id=paper_id,
-            year=0,
-            defaults={
-                "url": url,
-                "title": title,
-                "document_date": document_date,
-                "mailing": mailing,
-                "subgroup": subgroup,
-            },
-        )
-        if not created:
+                if not created:
+                    _update_paper(paper)
+    except IntegrityError:
+        # Placeholder promotion hit (paper_id, year_val) unique constraint; fetch and update canonical row
+        with transaction.atomic():
+            paper = WG21Paper.objects.filter(paper_id=paper_id, year=year_val).first()
+            if not paper:
+                raise
             _update_paper(paper)
+            created = False
 
     if author_names:
         emails = author_emails or []

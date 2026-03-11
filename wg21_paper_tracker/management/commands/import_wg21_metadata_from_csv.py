@@ -135,7 +135,6 @@ class Command(BaseCommand):
             stats["rows"] += 1
             paper_id = (row.get("paper_id", "") or "").strip().lower()
             url = row.get("url", "")
-            document_date = row.get("date", "")
 
             if not paper_id or not url:
                 stats["skipped"] += 1
@@ -149,14 +148,14 @@ class Command(BaseCommand):
             mailing_date, mailing_title = _resolve_mailing_date(
                 row.get("mailing_date", "")
             )
-            year_str = (
-                mailing_date[:4]
-                if mailing_date and MAILING_DATE_PATTERN.match(mailing_date)
-                else (document_date[:4] if document_date else None)
-            )
-            year = int(year_str) if year_str and year_str.isdigit() else None
             try:
                 document_date = _parse_document_date(row.get("date", ""))
+                if mailing_date and MAILING_DATE_PATTERN.match(mailing_date):
+                    year = int(mailing_date[:4])
+                elif document_date is not None:
+                    year = document_date.year
+                else:
+                    year = None
                 title = row.get("title", "") or paper_id
                 subgroup = row.get("subgroup", "")
                 author_names = _author_names_from_csv(row.get("author", ""))

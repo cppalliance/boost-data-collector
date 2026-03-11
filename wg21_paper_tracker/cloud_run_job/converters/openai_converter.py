@@ -10,6 +10,7 @@ import logging
 import os
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -148,56 +149,105 @@ def convert_page_with_openai(
         logger.error("OpenRouter API key is not set")
         return None
 
-    try:
-        logger.info(f"Converting page {page_num}/{total_pages} with OpenAI/OpenRouter")
+    url = f"{OPENROUTER_BASE_URL}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+    }
 
-        url = f"{OPENROUTER_BASE_URL}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "Content-Type": "application/json",
-        }
+    payload = {
+        "model": OPENROUTER_MODEL,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a document conversion assistant. Convert the provided PDF page image to clean, well-formatted Markdown. Preserve the structure, formatting, tables, and content as accurately as possible. Use proper markdown syntax for headers, lists, tables, and code blocks. If the image appears rotated, read the text in its current orientation and convert it correctly.",
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Convert this PDF page ({page_num} of {total_pages}) to Markdown format. Preserve all text, structure, and formatting. If the page appears rotated, read and convert the text in its correct orientation.",
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{image_base64}"},
+                    },
+                ],
+            },
+        ],
+        "max_tokens": 4000,
+    }
 
-        payload = {
-            "model": OPENROUTER_MODEL,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are a document conversion assistant. Convert the provided PDF page image to clean, well-formatted Markdown. Preserve the structure, formatting, tables, and content as accurately as possible. Use proper markdown syntax for headers, lists, tables, and code blocks. If the image appears rotated, read the text in its current orientation and convert it correctly.",
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": f"Convert this PDF page ({page_num} of {total_pages}) to Markdown format. Preserve all text, structure, and formatting. If the page appears rotated, read and convert the text in its correct orientation.",
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{image_base64}"
-                            },
-                        },
-                    ],
-                },
-            ],
-            "max_tokens": 4000,
-        }
+    max_attempts = 3  # initial + 2 retries
+    retry_delays = [1, 2]  # exponential backoff in seconds
 
-        response = requests.post(url, json=payload, headers=headers, timeout=120)
-        response.raise_for_status()
+    for attempt in range(max_attempts):
+        try:
+            logger.info(
+                f"Converting page {page_num}/{total_pages} with OpenAI/OpenRouter"
+                + (f" (attempt {attempt + 1}/{max_attempts})" if attempt > 0 else "")
+            )
 
-        result = response.json()
-        markdown_content = result["choices"][0]["message"]["content"]
+            response = requests.post(url, json=payload, headers=headers, timeout=120)
+            response.raise_for_status()
 
-        logger.info(f"Successfully converted page {page_num} with OpenAI/OpenRouter")
-        return markdown_content
+            result = response.json()
+            markdown_content = result["choices"][0]["message"]["content"]
 
-    except Exception as e:
-        logger.error(
-            f"OpenAI/OpenRouter conversion failed for page {page_num}: {str(e)}",
-            exc_info=True,
-        )
-        return None
+            logger.info(
+                f"Successfully converted page {page_num} with OpenAI/OpenRouter"
+            )
+            return markdown_content
+
+        except (
+            requests.exceptions.Timeout,
+            requests.exceptions.ConnectionError,
+        ) as e:
+            retryable = attempt < max_attempts - 1
+            if retryable:
+                delay = retry_delays[attempt]
+                logger.warning(
+                    f"Transient error on page {page_num} ({type(e).__name__}), "
+                    f"retrying in {delay}s (attempt {attempt + 1}/{max_attempts})"
+                )
+                time.sleep(delay)
+            else:
+                logger.error(
+                    f"OpenAI/OpenRouter conversion failed for page {page_num}: {str(e)}",
+                    exc_info=True,
+                )
+                return None
+
+        except requests.exceptions.HTTPError as e:
+            status_code = e.response.status_code if e.response is not None else None
+            retryable = (
+                attempt < max_attempts - 1
+                and status_code is not None
+                and (status_code == 429 or 500 <= status_code < 600)
+            )
+            if retryable:
+                delay = retry_delays[attempt]
+                logger.warning(
+                    f"HTTP {status_code} on page {page_num}, "
+                    f"retrying in {delay}s (attempt {attempt + 1}/{max_attempts})"
+                )
+                time.sleep(delay)
+            else:
+                logger.error(
+                    f"OpenAI/OpenRouter conversion failed for page {page_num}: {str(e)}",
+                    exc_info=True,
+                )
+                return None
+
+        except Exception as e:
+            logger.error(
+                f"OpenAI/OpenRouter conversion failed for page {page_num}: {str(e)}",
+                exc_info=True,
+            )
+            return None
+
+    return None
 
 
 def convert_with_openai(pdf_path: Path) -> Optional[str]:
