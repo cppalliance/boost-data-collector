@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "cppa_slack_transcript_tracker",
     "cppa_slack_tracker",
     "discord_activity_tracker",
+    "cppa_youtube_script_tracker",
 ]
 
 MIDDLEWARE = [
@@ -140,6 +141,7 @@ _WORKSPACE_APP_SLUGS = (
     "cppa_slack_tracker",
     "discord_activity_tracker",
     "boost_mailing_list_tracker",
+    "cppa_youtube_script_tracker",
     "shared",
 )
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
@@ -307,3 +309,13 @@ if ENABLE_ERROR_NOTIFICATIONS:
             "level": "ERROR",
         }
         LOGGING["root"]["handlers"].append("slack")
+
+# YouTube (cppa_youtube_script_tracker)
+YOUTUBE_API_KEY = (env("YOUTUBE_API_KEY", default="") or "").strip()
+YOUTUBE_PINECONE_NAMESPACE = (
+    env("YOUTUBE_PINECONE_NAMESPACE", default="youtube-scripts") or "youtube-scripts"
+).strip()
+YOUTUBE_DEFAULT_PUBLISHED_AFTER = (
+    env("YOUTUBE_DEFAULT_PUBLISHED_AFTER", default="") or ""
+).strip()
+

@@ -11,6 +11,7 @@ Index of all app service modules. All writes to app models must go through the s
 | [boost_library_tracker.services](boost_library_tracker.md)       | boost_library_tracker   | Boost libraries, versions, dependencies, categories, maintainers/authors. |
 | [boost_usage_tracker.services](boost_usage_tracker.md)           | boost_usage_tracker     | External repos, Boost usage, missing-header tmp. |
 | [discord_activity_tracker.services](discord_activity_tracker.md) | discord_activity_tracker | Servers, channels, messages, reactions (user profiles in cppa_user_tracker). |
+| [cppa_youtube_script_tracker.services](cppa_youtube_script_tracker.md) | cppa_youtube_script_tracker | YouTube channels, videos, transcript state, and speaker links for C++ conference talks. |
 
 ---
 
@@ -21,5 +22,6 @@ Index of all app service modules. All writes to app models must go through the s
 - **boost_library_tracker** – Get-or-create BoostLibraryRepository, BoostLibrary, BoostVersion, BoostLibraryVersion; add dependencies, categories, and role relationships.
 - **boost_usage_tracker** – Get-or-create BoostExternalRepository, create/update BoostUsage, record missing headers (BoostMissingHeaderTmp).
 - **discord_activity_tracker** – Get-or-create DiscordServer, DiscordChannel; create/update DiscordMessage, DiscordReaction. Discord user profiles in cppa_user_tracker.
+- **cppa_youtube_script_tracker** – Get-or-create YouTubeChannel, YouTubeVideo; update transcript state; link speakers to videos. Speaker profiles (`YoutubeSpeaker`) in cppa_user_tracker.
 
 See [Contributing.md](../Contributing.md) for the rule that all writes go through the service layer.
