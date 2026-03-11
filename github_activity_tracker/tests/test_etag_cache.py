@@ -1,18 +1,18 @@
 """Tests for github_activity_tracker.sync.etag_cache."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 from github_activity_tracker.sync.etag_cache import (
     RedisListETagCache,
-    _redis_client,
     KEY_PREFIX,
 )
 
 
 def test_redis_list_etag_cache_key_format():
     """RedisListETagCache builds key with repo_id, list_type, page, since_iso, until_iso."""
-    with patch("github_activity_tracker.sync.etag_cache._redis_client", return_value=None):
+    with patch(
+        "github_activity_tracker.sync.etag_cache._redis_client", return_value=None
+    ):
         cache = RedisListETagCache(repo_id=42)
     assert cache._client is None
     key = cache._key("commits", 1, "2024-01-01", "2024-12-31")
@@ -21,7 +21,9 @@ def test_redis_list_etag_cache_key_format():
 
 def test_redis_list_etag_cache_get_returns_none_when_client_none():
     """When Redis client is unavailable, get returns None."""
-    with patch("github_activity_tracker.sync.etag_cache._redis_client", return_value=None):
+    with patch(
+        "github_activity_tracker.sync.etag_cache._redis_client", return_value=None
+    ):
         cache = RedisListETagCache(repo_id=1)
     assert cache.get("commits", 1) is None
     assert cache.get("issues", 2, "2024-01-01", "") is None
@@ -29,9 +31,11 @@ def test_redis_list_etag_cache_get_returns_none_when_client_none():
 
 def test_redis_list_etag_cache_set_no_op_when_client_none():
     """When Redis client is unavailable, set is a no-op."""
-    with patch("github_activity_tracker.sync.etag_cache._redis_client", return_value=None):
+    with patch(
+        "github_activity_tracker.sync.etag_cache._redis_client", return_value=None
+    ):
         cache = RedisListETagCache(repo_id=1)
-    cache.set("commits", 1, "", "", "W/\"etag\"")
+    cache.set("commits", 1, "", "", 'W/"etag"')
     # No exception, no-op
 
 

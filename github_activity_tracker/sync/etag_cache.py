@@ -22,9 +22,8 @@ def _redis_client():
     """Return Redis client or None if unavailable."""
     try:
         import redis
-        url = getattr(
-            settings, "GITHUB_ETAG_REDIS_URL", "redis://localhost:6379/1"
-        )
+
+        url = getattr(settings, "GITHUB_ETAG_REDIS_URL", "redis://localhost:6379/1")
         return redis.Redis.from_url(url, decode_responses=True)
     except Exception as e:
         logger.debug("ETag cache Redis unavailable: %s", e)
