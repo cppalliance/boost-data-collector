@@ -5,15 +5,45 @@ Scrapes the WG21 papers index and specific mailing tables.
 
 import re
 import urllib.parse
+from typing import Optional
 
 import requests
 from bs4 import BeautifulSoup
+from bs4.element import Tag
 
 import logging
 
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.open-std.org/jtc1/sc22/wg21/docs/papers"
+
+_MAILING_ANCHOR_RE = re.compile(r"^mailing\d{4}-\d{2}$")
+
+
+def _find_table_in_section(anchor) -> Optional[Tag]:
+    """
+    Find the first <table> that belongs to the current mailing section.
+    Stops at the next mailing anchor (id/name matching mailingYYYY-MM) so we
+    do not attribute another mailing's table to this section.
+    """
+    if not anchor:
+        return None
+    anchor_id = anchor.get("id") or anchor.get("name") or ""
+    if not _MAILING_ANCHOR_RE.match(anchor_id):
+        return None
+    for elem in anchor.next_elements:
+        if not hasattr(elem, "name"):  # NavigableString, etc.
+            continue
+        if elem is anchor:
+            continue
+        if elem.name == "table":
+            return elem
+        if not hasattr(elem, "get"):  # e.g. NavigableString
+            continue
+        next_id = elem.get("id") or elem.get("name") or ""
+        if next_id and _MAILING_ANCHOR_RE.match(next_id) and next_id != anchor_id:
+            return None  # next section start; no table in this section
+    return None
 
 
 def fetch_all_mailings() -> list[dict]:
@@ -76,7 +106,7 @@ def fetch_papers_for_mailing(year: str, mailing_date: str) -> list[dict]:
         logger.warning("Anchor %s not found on %s", anchor_id, url)
         return []
 
-    table = anchor.find_next("table")
+    table = _find_table_in_section(anchor)
     if not table:
         logger.warning("No table found after anchor %s", anchor_id)
         return []
@@ -96,14 +126,15 @@ def fetch_papers_for_mailing(year: str, mailing_date: str) -> list[dict]:
                 href = link.get("href", "")
                 match = paper_pattern.search(href)
                 if match:
-                    if href.startswith("../"):
-                        paper_url = urllib.parse.urljoin(url, href)
-                    elif href.startswith("/"):
-                        paper_url = urllib.parse.urljoin(BASE_URL, href)
-                    elif not href.startswith("http"):
-                        paper_url = urllib.parse.urljoin(url, href)
-                    else:
-                        paper_url = href
+                    paper_url = urllib.parse.urljoin(url, href)
+                    parsed = urllib.parse.urlparse(paper_url)
+                    base = urllib.parse.urlparse(BASE_URL)
+                    if (
+                        parsed.scheme not in ("https", "http")
+                        or parsed.netloc != base.netloc
+                    ):
+                        logger.warning("Skipping off-origin paper URL %s", paper_url)
+                        continue
 
                     paper_id = match.group(1).lower()
                     file_ext = match.group(2).lower()

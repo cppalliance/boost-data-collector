@@ -171,6 +171,30 @@ def test_fetch_papers_for_mailing_returns_empty_when_no_table():
     assert result == []
 
 
+def test_fetch_papers_for_mailing_does_not_use_next_mailings_table():
+    """First mailing with no table returns []; second mailing's table is not used."""
+    html = """
+    <html><body>
+    <h2 id="mailing2025-02">2025-02</h2>
+    <p>No papers this month.</p>
+    <h2 id="mailing2025-01">2025-01</h2>
+    <table>
+    <tr><td><a href="p1234r1.pdf">p1234r1.pdf</a></td><td>Paper</td><td>A. Author</td><td>2025-01-10</td><td>SG1</td></tr>
+    </table>
+    </body></html>
+    """
+    with patch("wg21_paper_tracker.fetcher.requests.get") as m:
+        resp = MagicMock()
+        resp.text = html
+        resp.raise_for_status = MagicMock()
+        m.return_value = resp
+        first = fetch_papers_for_mailing("2025", "2025-02")
+        second = fetch_papers_for_mailing("2025", "2025-01")
+    assert first == [], "2025-02 has no table; must not attribute 2025-01's table"
+    assert len(second) == 1
+    assert second[0]["paper_id"] == "p1234r1"
+
+
 def test_fetch_papers_for_mailing_calls_year_url():
     """fetch_papers_for_mailing calls BASE_URL/{year}/ with timeout."""
     with patch("wg21_paper_tracker.fetcher.requests.get") as m:

@@ -12,7 +12,7 @@ import logging
 import re
 from pathlib import Path
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import IntegrityError
 from django.utils.dateparse import parse_date
 
@@ -118,8 +118,7 @@ class Command(BaseCommand):
         dry_run = options["dry_run"]
 
         if not csv_path.exists():
-            logger.error("File not found: %s", csv_path)
-            return
+            raise CommandError(f"File not found: {csv_path}")
 
         if dry_run:
             logger.info("Dry run: no DB writes.")

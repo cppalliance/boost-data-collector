@@ -41,27 +41,19 @@ def test_get_workspace_root_calls_get_workspace_path_with_slug():
 
 
 def test_get_raw_dir_returns_mailing_date_subdir(mock_workspace_path):
-    """get_raw_dir returns raw/wg21_paper_tracker/<year/<mailing_date>/."""
-    with patch("wg21_paper_tracker.workspace.get_workspace_path") as m:
-        raw_root = mock_workspace_path / "raw_wg21_paper_tracker"
-        raw_root.mkdir(parents=True, exist_ok=True)
-        m.side_effect = lambda slug: {
-            "wg21_paper_tracker": mock_workspace_path / "wg21_paper_tracker",
-            "raw/wg21_paper_tracker": raw_root,
-        }[slug]
+    """get_raw_dir returns RAW_DIR/wg21_paper_tracker/<year>/<mailing_date>/."""
+    with patch("wg21_paper_tracker.workspace.settings") as mock_settings:
+        mock_settings.RAW_DIR = mock_workspace_path
         path = get_raw_dir("2025-01", 2025)
-    assert path == raw_root / "2025" / "2025-01"
+    expected = mock_workspace_path / "wg21_paper_tracker" / "2025" / "2025-01"
+    assert path == expected
     assert path.is_dir()
 
 
 def test_get_raw_dir_creates_parents(mock_workspace_path):
     """get_raw_dir creates parent directories."""
-    with patch("wg21_paper_tracker.workspace.get_workspace_path") as m:
-        raw_root = mock_workspace_path / "raw_app"
-        raw_root.mkdir(parents=True, exist_ok=True)
-        m.side_effect = lambda slug: (
-            raw_root if "raw" in slug else (mock_workspace_path / "app")
-        )
+    with patch("wg21_paper_tracker.workspace.settings") as mock_settings:
+        mock_settings.RAW_DIR = mock_workspace_path
         path = get_raw_dir("2026-02", 2026)
     assert path.exists()
     assert path.parent.name == "2026"
@@ -70,10 +62,8 @@ def test_get_raw_dir_creates_parents(mock_workspace_path):
 
 def test_get_raw_dir_idempotent(mock_workspace_path):
     """get_raw_dir can be called twice for same mailing_date without error."""
-    with patch("wg21_paper_tracker.workspace.get_workspace_path") as m:
-        raw_root = mock_workspace_path / "raw"
-        raw_root.mkdir(parents=True, exist_ok=True)
-        m.side_effect = lambda slug: raw_root
+    with patch("wg21_paper_tracker.workspace.settings") as mock_settings:
+        mock_settings.RAW_DIR = mock_workspace_path
         p1 = get_raw_dir("2025-01", 2025)
         p2 = get_raw_dir("2025-01", 2025)
     assert p1 == p2
