@@ -1,7 +1,6 @@
 """Tests for wg21_paper_tracker management commands."""
 
 import pytest
-from pathlib import Path
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
