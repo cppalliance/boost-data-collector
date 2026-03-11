@@ -112,6 +112,49 @@ def test_fetch_commits_from_github_includes_since_until_params():
     assert "until" in params
 
 
+def test_fetch_commits_from_github_with_etag_cache_304_yields_nothing():
+    """When etag_cache is passed and rest_request_conditional returns 304, no items yielded and set not called."""
+    client = MagicMock()
+    client.rest_request_conditional.return_value = (None, 'W/"cached"')
+    etag_cache = MagicMock()
+    etag_cache.get.return_value = 'W/"cached"'
+    items = list(fetch_commits_from_github(client, "o", "r", etag_cache=etag_cache))
+    assert items == []
+    client.rest_request_conditional.assert_called_once()
+    etag_cache.set.assert_not_called()
+
+
+def test_fetch_commits_from_github_with_etag_cache_200_yields_and_sets():
+    """When etag_cache is passed and rest_request_conditional returns 200, yields items and calls set."""
+    client = MagicMock()
+    client.rest_request_conditional.side_effect = [
+        (
+            [
+                {
+                    "sha": "abc",
+                    "commit": {"author": {"date": "2024-06-01T00:00:00Z"}},
+                }
+            ],
+            "W/new_etag",
+        ),
+    ]
+    client.rest_request.return_value = {
+        "sha": "abc",
+        "commit": {"message": "msg"},
+        "stats": {"additions": 1},
+    }
+    etag_cache = MagicMock()
+    etag_cache.get.return_value = None
+    items = list(fetch_commits_from_github(client, "o", "r", etag_cache=etag_cache))
+    assert len(items) == 1
+    assert items[0]["sha"] == "abc"
+    etag_cache.set.assert_called_once()
+    call_args = etag_cache.set.call_args[0]
+    assert call_args[0] == "commits"
+    assert call_args[1] == 1
+    assert call_args[4] == "W/new_etag"
+
+
 def test_fetch_commits_from_github_skips_commit_on_502_503_504():
     """fetch_commits_from_github skips commit and continues when full-commit fetch returns 502/503/504."""
     import requests as req

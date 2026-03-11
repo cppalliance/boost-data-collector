@@ -129,35 +129,34 @@ def test_client_init_default_retry_settings():
 # --- rest_request ---
 
 
+def _make_resp(status_code=200, json_data=None, headers=None):
+    """Build a MagicMock response for use with session.request mocks."""
+    resp = MagicMock()
+    resp.status_code = status_code
+    resp.headers = headers or {}
+    resp.json = MagicMock(return_value=json_data if json_data is not None else {})
+    resp.raise_for_status = MagicMock()
+    return resp
+
+
 def test_rest_request_success_returns_json():
     """rest_request returns JSON when GET returns 200."""
     client = GitHubAPIClient("token")
-    client._check_rate_limit = MagicMock()
-    client.session.get = MagicMock(
-        return_value=MagicMock(
-            status_code=200,
-            json=lambda: {"id": 1},
-            headers={},
-            raise_for_status=MagicMock(),
-        )
-    )
+    client.session.request = MagicMock(return_value=_make_resp(200, {"id": 1}))
     out = client.rest_request("/repos/foo/bar")
     assert out == {"id": 1}
+    client.session.request.assert_called_once()
+    assert client.session.request.call_args[0][0] == "GET"
 
 
 def test_rest_request_updates_rate_limit_headers():
     """rest_request updates rate_limit_remaining and rate_limit_reset_time from headers."""
     client = GitHubAPIClient("token")
-    client._check_rate_limit = MagicMock()
-    client.session.get = MagicMock(
-        return_value=MagicMock(
-            status_code=200,
-            json=lambda: {},
-            headers={
-                "X-RateLimit-Remaining": "99",
-                "X-RateLimit-Reset": "12345",
-            },
-            raise_for_status=MagicMock(),
+    client.session.request = MagicMock(
+        return_value=_make_resp(
+            200,
+            {},
+            {"X-RateLimit-Remaining": "99", "X-RateLimit-Reset": "12345"},
         )
     )
     client.rest_request("/repos/foo/bar")
@@ -170,8 +169,7 @@ def test_rest_request_connection_error_after_retries_raises():
     from requests.exceptions import ConnectionError as ReqConnectionError
 
     client = GitHubAPIClient("token")
-    client._check_rate_limit = MagicMock()
-    client.session.get = MagicMock(side_effect=ReqConnectionError("network down"))
+    client.session.request = MagicMock(side_effect=ReqConnectionError("network down"))
     with pytest.raises(ConnectionException, match="retries"):
         client.rest_request("/repos/foo/bar")
 
@@ -179,16 +177,13 @@ def test_rest_request_connection_error_after_retries_raises():
 def test_rest_request_retries_on_502_then_succeeds():
     """rest_request retries on 502/503/504 and returns JSON when a later attempt succeeds."""
     client = GitHubAPIClient("token")
-    client._check_rate_limit = MagicMock()
-    resp_502 = MagicMock(status_code=502, headers={})
-    resp_502.raise_for_status = MagicMock()
-    resp_200 = MagicMock(status_code=200, headers={}, json=lambda: {"id": 1})
-    resp_200.raise_for_status = MagicMock()
-    client.session.get = MagicMock(side_effect=[resp_502, resp_200])
+    resp_502 = _make_resp(502)
+    resp_200 = _make_resp(200, {"id": 1})
+    client.session.request = MagicMock(side_effect=[resp_502, resp_200])
     with patch("github_ops.client.time.sleep"):
         out = client.rest_request("/repos/foo/bar")
     assert out == {"id": 1}
-    assert client.session.get.call_count == 2
+    assert client.session.request.call_count == 2
 
 
 def test_rest_request_502_after_max_retries_raises():
@@ -197,16 +192,71 @@ def test_rest_request_502_after_max_retries_raises():
 
     client = GitHubAPIClient("token")
     client.max_retries = 2
-    client._check_rate_limit = MagicMock()
-    resp_502 = MagicMock(status_code=502, headers={})
+    resp_502 = _make_resp(502)
     resp_502.raise_for_status = MagicMock(
         side_effect=req.exceptions.HTTPError("Bad Gateway", response=resp_502)
     )
-    client.session.get = MagicMock(return_value=resp_502)
+    client.session.request = MagicMock(return_value=resp_502)
     with patch("github_ops.client.time.sleep"):
         with pytest.raises(req.exceptions.HTTPError):
             client.rest_request("/repos/foo/bar")
-    assert client.session.get.call_count == 2
+    assert client.session.request.call_count == 2
+
+
+# --- rest_request_conditional ---
+
+
+def test_rest_request_conditional_200_returns_data_and_etag():
+    """rest_request_conditional returns (data, response_etag) when GET returns 200."""
+    client = GitHubAPIClient("token")
+    client.session.request = MagicMock(
+        return_value=_make_resp(
+            200,
+            {"items": [1, 2]},
+            {"ETag": 'W/"abc123"'},
+        )
+    )
+    data, etag = client.rest_request_conditional("/repos/foo/bar/commits", etag=None)
+    assert data == {"items": [1, 2]}
+    assert etag == 'W/"abc123"'
+
+
+def test_rest_request_conditional_304_returns_none_and_etag():
+    """rest_request_conditional returns (None, etag) when GET returns 304."""
+    client = GitHubAPIClient("token")
+    client.session.request = MagicMock(return_value=_make_resp(304, None, {}))
+    data, etag = client.rest_request_conditional(
+        "/repos/foo/bar/commits", etag='W/"cached"'
+    )
+    assert data is None
+    assert etag == 'W/"cached"'
+
+
+def test_rest_request_conditional_sends_if_none_match_when_etag_provided():
+    """rest_request_conditional sends If-None-Match header when etag is provided."""
+    client = GitHubAPIClient("token")
+    client.session.request = MagicMock(
+        return_value=_make_resp(200, {}, {"ETag": "new"})
+    )
+    client.rest_request_conditional("/repos/x/y/commits", etag='W/"old"')
+    call_kwargs = client.session.request.call_args[1]
+    assert "headers" in call_kwargs
+    assert call_kwargs["headers"]["If-None-Match"] == 'W/"old"'
+
+
+def test_rest_request_conditional_no_etag_behaves_like_normal_get():
+    """rest_request_conditional with etag=None returns (data, response_etag) on 200."""
+    client = GitHubAPIClient("token")
+    client.session.request = MagicMock(
+        return_value=_make_resp(200, {"data": 1}, {"ETag": "xyz"})
+    )
+    data, response_etag = client.rest_request_conditional("/repos/a/b/issues")
+    assert data == {"data": 1}
+    assert response_etag == "xyz"
+    call_kwargs = client.session.request.call_args[1]
+    assert call_kwargs.get("headers") is None or "If-None-Match" not in (
+        call_kwargs.get("headers") or {}
+    )
 
 
 # --- rest_post ---
@@ -215,15 +265,7 @@ def test_rest_request_502_after_max_retries_raises():
 def test_rest_post_success_returns_json():
     """rest_post returns JSON when POST returns 200."""
     client = GitHubAPIClient("token")
-    client._check_rate_limit = MagicMock()
-    client.session.post = MagicMock(
-        return_value=MagicMock(
-            status_code=200,
-            json=lambda: {"number": 42},
-            headers={},
-            raise_for_status=MagicMock(),
-        )
-    )
+    client.session.request = MagicMock(return_value=_make_resp(200, {"number": 42}))
     out = client.rest_post("/repos/foo/bar/issues", json_data={"title": "Hi"})
     assert out == {"number": 42}
 
@@ -231,20 +273,13 @@ def test_rest_post_success_returns_json():
 def test_rest_post_sends_json_data():
     """rest_post sends given json_data in request body."""
     client = GitHubAPIClient("token")
-    client._check_rate_limit = MagicMock()
-    post_mock = MagicMock(
-        return_value=MagicMock(
-            status_code=200,
-            json=lambda: {},
-            headers={},
-            raise_for_status=MagicMock(),
-        )
-    )
-    client.session.post = post_mock
+    post_mock = MagicMock(return_value=_make_resp(200, {}))
+    client.session.request = post_mock
     client.rest_post("/repos/a/b/issues", json_data={"title": "T", "body": "B"})
     post_mock.assert_called_once()
     call_kw = post_mock.call_args[1]
     assert call_kw["json"] == {"title": "T", "body": "B"}
+    assert post_mock.call_args[0][0] == "POST"
 
 
 def test_rest_post_connection_error_after_retries_raises():
@@ -252,8 +287,7 @@ def test_rest_post_connection_error_after_retries_raises():
     from requests.exceptions import ConnectionError as ReqConnectionError
 
     client = GitHubAPIClient("token")
-    client._check_rate_limit = MagicMock()
-    client.session.post = MagicMock(side_effect=ReqConnectionError("fail"))
+    client.session.request = MagicMock(side_effect=ReqConnectionError("fail"))
     with pytest.raises(ConnectionException, match="retries"):
         client.rest_post("/repos/foo/bar/issues", json_data={"title": "x"})
 
@@ -402,14 +436,8 @@ def test_create_issue_comment_returns_rest_post_response():
 def test_graphql_request_success_returns_data():
     """graphql_request returns data when response has no errors."""
     client = GitHubAPIClient("token")
-    client._check_rate_limit = MagicMock()
-    client.session.post = MagicMock(
-        return_value=MagicMock(
-            status_code=200,
-            json=lambda: {"data": {"repository": {"name": "r"}}},
-            headers={},
-            raise_for_status=MagicMock(),
-        )
+    client.session.request = MagicMock(
+        return_value=_make_resp(200, {"data": {"repository": {"name": "r"}}})
     )
     out = client.graphql_request("query { x }")
     assert out["data"]["repository"]["name"] == "r"
@@ -418,13 +446,10 @@ def test_graphql_request_success_returns_data():
 def test_graphql_request_errors_in_response_raises():
     """graphql_request raises Exception when response contains 'errors'."""
     client = GitHubAPIClient("token")
-    client._check_rate_limit = MagicMock()
-    client.session.post = MagicMock(
-        return_value=MagicMock(
-            status_code=200,
-            json=lambda: {"errors": [{"message": "Something went wrong"}]},
-            headers={},
-            raise_for_status=MagicMock(),
+    client.session.request = MagicMock(
+        return_value=_make_resp(
+            200,
+            {"errors": [{"message": "Something went wrong"}]},
         )
     )
     with pytest.raises(Exception, match="GraphQL errors"):
@@ -434,20 +459,13 @@ def test_graphql_request_errors_in_response_raises():
 def test_graphql_request_sends_query_and_variables():
     """graphql_request sends query and optional variables in payload."""
     client = GitHubAPIClient("token")
-    client._check_rate_limit = MagicMock()
-    post_mock = MagicMock(
-        return_value=MagicMock(
-            status_code=200,
-            json=lambda: {"data": {}},
-            headers={},
-            raise_for_status=MagicMock(),
-        )
-    )
-    client.session.post = post_mock
+    post_mock = MagicMock(return_value=_make_resp(200, {"data": {}}))
+    client.session.request = post_mock
     client.graphql_request("query Q($x: Int) { f(x: $x) }", variables={"x": 1})
     call_kw = post_mock.call_args[1]
     assert call_kw["json"]["query"] == "query Q($x: Int) { f(x: $x) }"
     assert call_kw["json"]["variables"] == {"x": 1}
+    assert post_mock.call_args[0][0] == "POST"
 
 
 def test_graphql_request_connection_error_after_retries_raises():
@@ -455,8 +473,7 @@ def test_graphql_request_connection_error_after_retries_raises():
     from requests.exceptions import ConnectionError as ReqConnectionError
 
     client = GitHubAPIClient("token")
-    client._check_rate_limit = MagicMock()
-    client.session.post = MagicMock(side_effect=ReqConnectionError("fail"))
+    client.session.request = MagicMock(side_effect=ReqConnectionError("fail"))
     with pytest.raises(ConnectionException, match="retries"):
         client.graphql_request("query { x }")
 

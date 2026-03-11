@@ -33,7 +33,7 @@ def sync_github(
     Args:
         repo: Repository to sync.
         start_date: Override start date for commits/issues/PRs (default: auto from DB).
-        end_date: Override end date for commits/issues/PRs (default: now).
+        end_date: Override end date for commits/issues/PRs (default: None = no end; stable ETag cache).
     """
     sync_repos(repo)
     sync_commits(repo, start_date=start_date, end_date=end_date)
