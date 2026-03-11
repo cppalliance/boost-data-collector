@@ -254,7 +254,9 @@ def fetch_huddle_transcript(file_id):
     if not xoxc_token or not xoxd_token:
         logger.debug("Tokens not found in .env, extracting from Slack...")
         if not team_id:
-            logger.error("No default workspace. Set SLACK_WORKSPACES and SLACK_BOT_TOKEN_<id> in .env.")
+            logger.error(
+                "No default workspace. Set SLACK_WORKSPACES and SLACK_BOT_TOKEN_<id> in .env."
+            )
             return None
         from cppa_slack_transcript_tracker.utils.slack_tokens import (
             extract_slack_tokens_auto,

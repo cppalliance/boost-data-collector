@@ -131,7 +131,9 @@ class SlackListener:
                 res = self.app.client.conversations_list(**kwargs)
                 for ch in res.get("channels", []):
                     if ch.get("name") == clean:
-                        logger.debug("PR bot channel resolved: #%s → %s", clean, ch["id"])
+                        logger.debug(
+                            "PR bot channel resolved: #%s → %s", clean, ch["id"]
+                        )
                         return ch["id"]
                 cursor = res.get("response_metadata", {}).get("next_cursor")
                 if not cursor:
@@ -166,7 +168,9 @@ class SlackListener:
         is_dm: bool,
     ) -> None:
         """Full PR comment request pipeline: parse → deduplicate → enqueue → ack."""
-        allowed_org: str = (getattr(settings, "SLACK_PR_BOT_WORKSPACE", "") or "").strip()
+        allowed_org: str = (
+            getattr(settings, "SLACK_PR_BOT_WORKSPACE", "") or ""
+        ).strip()
         valid, invalid_org = extract_pr_urls(text)
 
         org_hint = (
@@ -297,7 +301,9 @@ class SlackListener:
                 save_event_to_file("huddle_ai_note", body)
                 file_id = self._extract_file_id_from_event(event)
                 if not file_id:
-                    logger.warning("Could not extract file ID from huddle AI note event")
+                    logger.warning(
+                        "Could not extract file ID from huddle AI note event"
+                    )
                     return
                 if not self._mark_file_processed(file_id):
                     logger.debug("File %s already processed, skipping", file_id)
@@ -310,6 +316,7 @@ class SlackListener:
                         from slack_event_handler.utils.huddle_processor import (
                             process_huddle_canvas,
                         )
+
                         result = process_huddle_canvas(fid)
                         if result and result.get("success"):
                             logger.debug("Processed huddle canvas %s", fid)
@@ -319,12 +326,17 @@ class SlackListener:
                             logger.error("Failed to process huddle canvas: %s", fid)
                             self._unmark_file_processed(fid)
                     except Exception as e:
-                        logger.exception("Error processing huddle canvas %s: %s", fid, e)
+                        logger.exception(
+                            "Error processing huddle canvas %s: %s", fid, e
+                        )
                         self._unmark_file_processed(fid)
 
-                threading.Thread(target=_process_later, args=(file_id,), daemon=True).start()
+                threading.Thread(
+                    target=_process_later, args=(file_id,), daemon=True
+                ).start()
                 logger.debug(
-                    "Huddle AI note for file_id %s queued for processing in 30s", file_id
+                    "Huddle AI note for file_id %s queued for processing in 30s",
+                    file_id,
                 )
                 return
 

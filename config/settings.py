@@ -235,9 +235,12 @@ CHROME_PROFILE_PATH = (
 
 # Slack PR Bot configuration (for slack_event_handler)
 SLACK_PR_BOT_WORKSPACE = (env("SLACK_PR_BOT_WORKSPACE", default="") or "").strip()
-SLACK_PR_BOT_CHANNEL_NAME = (env("SLACK_PR_BOT_CHANNEL_NAME", default="slack-bot") or "slack-bot").strip()
+SLACK_PR_BOT_CHANNEL_NAME = (
+    env("SLACK_PR_BOT_CHANNEL_NAME", default="slack-bot") or "slack-bot"
+).strip()
 SLACK_PR_BOT_COMMENT_TEMPLATE = (
-    env("SLACK_PR_BOT_COMMENT_TEMPLATE", default="Automated comment from Slack bot.") or ""
+    env("SLACK_PR_BOT_COMMENT_TEMPLATE", default="Automated comment from Slack bot.")
+    or ""
 ).strip() or "Automated comment from Slack bot."
 SLACK_PR_BOT_COMMENTS_MAX_PER_WINDOW = int(
     env("SLACK_PR_BOT_COMMENTS_MAX_PER_WINDOW", default="5") or "5"

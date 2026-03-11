@@ -11,7 +11,6 @@ import json
 import os
 import re
 from copy import deepcopy
-from pathlib import Path
 from typing import Any, Optional
 
 _DEFAULT_STATE: dict[str, Any] = {"postedAt": [], "queue": []}

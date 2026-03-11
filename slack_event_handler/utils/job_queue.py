@@ -168,7 +168,13 @@ def _process_job(job: dict) -> None:
     record_posted(team_id)
     with _worker_busy_lock:
         _worker_busy_by_team[team_id] = False
-    _send_reply(team_id, channel, message_ts, is_dm, f"✅ Comment posted to `{owner}/{repo}#{pull_number}`.")
+    _send_reply(
+        team_id,
+        channel,
+        message_ts,
+        is_dm,
+        f"✅ Comment posted to `{owner}/{repo}#{pull_number}`.",
+    )
     logger.debug("%s – comment posted", label)
 
     with _slack_app_by_team_lock:

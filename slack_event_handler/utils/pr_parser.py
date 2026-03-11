@@ -31,7 +31,9 @@ def extract_pr_urls(text: str) -> tuple[list[dict], list[dict]]:
         pull_number = int(match.group(3))
 
         if owner.lower() == allowed_org.lower():
-            valid.append({"url": url, "owner": owner, "repo": repo, "pull_number": pull_number})
+            valid.append(
+                {"url": url, "owner": owner, "repo": repo, "pull_number": pull_number}
+            )
         else:
             invalid_org.append({"url": url, "owner": owner})
 
