@@ -14,7 +14,6 @@ import os
 from datetime import datetime, timezone
 from typing import Optional
 
-from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from operations.slack_ops import get_default_team_key

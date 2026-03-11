@@ -168,9 +168,7 @@ class SlackListener:
         is_dm: bool,
     ) -> None:
         """Full PR comment request pipeline: parse → deduplicate → enqueue → ack."""
-        allowed_org: str = (
-            getattr(settings, "SLACK_PR_BOT_TEAM", "") or ""
-        ).strip()
+        allowed_org: str = (getattr(settings, "SLACK_PR_BOT_TEAM", "") or "").strip()
         valid, invalid_org = extract_pr_urls(text)
 
         org_hint = (

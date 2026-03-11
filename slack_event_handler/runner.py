@@ -78,7 +78,5 @@ def run_slack_event_handler(bot_token=None, app_token=None):
                 "Missing SLACK_BOT_TOKEN in .env file (set SLACK_TEAMS and SLACK_BOT_TOKEN_<id>)"
             )
             return
-        logger.info(
-            "Starting Slack Event Listener for team=%s", team_id or "default"
-        )
+        logger.info("Starting Slack Event Listener for team=%s", team_id or "default")
         start_slack_listener(bot_token=token, app_token=app_token, team_id=team_id)
