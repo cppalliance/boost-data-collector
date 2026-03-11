@@ -153,6 +153,8 @@ def get_or_create_paper_author(
 
 def mark_paper_downloaded(paper_id: str, year: int | None = None):
     paper_id = (paper_id or "").strip().lower()
+    if not paper_id:
+        raise ValueError("paper_id is required")
     if year is None:
         raise ValueError("year is required; pass 0 explicitly for placeholder papers")
     year_val = _normalize_year(year)

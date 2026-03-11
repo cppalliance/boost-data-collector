@@ -228,8 +228,61 @@ def run_tracker_pipeline() -> int:
                 skipped_downloaded += 1
                 continue
 
+            # Filter to entries with required keys and valid types; skip malformed.
+            valid_list = []
+            for p in p_list:
+                type_val = (
+                    (p.get("type") or "").strip()
+                    if isinstance(p.get("type"), str)
+                    else ""
+                )
+                url_val = (
+                    (p.get("url") or "").strip()
+                    if isinstance(p.get("url"), str)
+                    else ""
+                )
+                title_val = (
+                    (p.get("title") or "").strip()
+                    if isinstance(p.get("title"), str)
+                    else ""
+                )
+                if not type_val or not url_val or not title_val:
+                    logger.debug(
+                        "Skipping malformed paper entry for %s in mailing %s: %r",
+                        pid,
+                        mailing_date,
+                        p,
+                    )
+                    continue
+                valid_list.append(p)
+
+            if not valid_list:
+                logger.warning(
+                    "Skipping paper %s in mailing %s: no valid entries (type, url, title)",
+                    pid,
+                    mailing_date,
+                )
+                continue
+
             # Pick the preferred format: adoc > html > ps > pdf.
-            best_paper = min(p_list, key=lambda x: format_priority(x["type"]))
+            best_paper = min(
+                valid_list,
+                key=lambda x: format_priority(str(x.get("type") or "").strip()),
+            )
+            url = (best_paper.get("url") or "").strip()
+            title = (best_paper.get("title") or "").strip()
+            subgroup = (best_paper.get("subgroup") or "").strip()
+            authors = best_paper.get("authors")
+            if not isinstance(authors, list):
+                authors = []
+            if not url or not title:
+                logger.warning(
+                    "Skipping paper %s in mailing %s due to missing required fields: %r",
+                    pid,
+                    mailing_date,
+                    best_paper,
+                )
+                continue
 
             raw_filename = (best_paper.get("filename") or "").strip()
             filename = Path(raw_filename).name
@@ -241,7 +294,6 @@ def run_tracker_pipeline() -> int:
                 )
                 continue
             local_path = raw_dir / filename
-            url = best_paper["url"]
 
             # Persist paper row before transfer so failed downloads remain retry candidates
             doc_date_str = best_paper.get("document_date")
@@ -262,11 +314,11 @@ def run_tracker_pipeline() -> int:
             paper_obj, _created = get_or_create_paper(
                 paper_id=pid,
                 url=url,
-                title=best_paper["title"],
+                title=title,
                 document_date=doc_date,
                 mailing=mailing_obj,
-                subgroup=best_paper["subgroup"],
-                author_names=best_paper["authors"],
+                subgroup=subgroup,
+                author_names=authors,
                 year=year,
             )
 
