@@ -286,7 +286,7 @@ def run_tracker_pipeline() -> int:
 
                 if uploaded:
                     paper_obj.is_downloaded = True
-                    paper_obj.save(update_fields=["is_downloaded"])
+                    paper_obj.save(update_fields=["is_downloaded", "updated_at"])
                     total_new_papers += 1
 
                 # Clean up local file to save space

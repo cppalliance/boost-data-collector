@@ -56,8 +56,6 @@ def convert_with_docling(pdf_path: Path) -> Optional[str]:
             )
             return None
 
-    except Exception as e:
-        logger.error(
-            f"Docling conversion failed for {pdf_path.name}: {str(e)}", exc_info=True
-        )
+    except Exception:
+        logger.error(f"Docling conversion failed for {pdf_path.name}", exc_info=True)
         return None

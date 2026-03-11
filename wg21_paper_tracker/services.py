@@ -49,6 +49,8 @@ def get_or_create_paper(
     year: int | None = None,
 ) -> tuple[WG21Paper, bool]:
     paper_id = (paper_id or "").strip().lower()
+    if not paper_id:
+        raise ValueError("paper_id is required")
     year_val = _normalize_year(year)
 
     def _update_paper(paper: WG21Paper) -> bool:

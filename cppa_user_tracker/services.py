@@ -395,11 +395,7 @@ def get_or_create_wg21_paper_author_profile(
         for p in candidates:
             if p.emails.filter(email=email_val).exists():
                 return p, False
-    profile = candidates[0]
-    if email_val and not profile.emails.filter(email=email_val).exists():
-        add_email(
-            profile,
-            email_val,
-            is_primary=not profile.emails.filter(is_active=True).exists(),
-        )
-    return profile, False
+        profile = WG21PaperAuthorProfile.objects.create(display_name=display_name_val)
+        add_email(profile, email_val, is_primary=True)
+        return profile, True
+    return candidates[0], False

@@ -201,6 +201,8 @@ class Command(BaseCommand):
                 else:
                     stats["papers_updated"] += 1
             except IntegrityError as e:
+                # Re-resolve mailing (IntegrityError may have come from get_or_create_mailing race)
+                mailing, _ = get_or_create_mailing(mailing_date, mailing_title)
                 # Duplicate (paper_id, year): fetch existing by same key and update
                 try:
                     lookup_year = year if year is not None else 0
@@ -230,12 +232,11 @@ class Command(BaseCommand):
                                     name
                                 )
                                 get_or_create_paper_author(paper, profile, i + 1)
-                except Exception as inner:
+                except Exception:
                     stats["skipped"] += 1
-                    logger.error(
-                        "Error for paper_id=%s (after IntegrityError): %s",
+                    logger.exception(
+                        "Error for paper_id=%s (after IntegrityError).",
                         paper_id,
-                        inner,
                     )
             except Exception as e:
                 stats["skipped"] += 1

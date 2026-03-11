@@ -609,6 +609,19 @@ def test_get_or_create_wg21_paper_author_profile_one_candidate_returns_it():
 
 
 @pytest.mark.django_db
+def test_get_or_create_wg21_paper_author_profile_one_candidate_with_new_email_adds_email():
+    """Existing single match gets the supplied email attached."""
+    existing = WG21PaperAuthorProfile.objects.create(display_name="Solo Author")
+    profile, created = services.get_or_create_wg21_paper_author_profile(
+        display_name="Solo Author",
+        email="solo@example.com",
+    )
+    assert created is False
+    assert profile.id == existing.id
+    assert profile.emails.filter(email="solo@example.com").exists()
+
+
+@pytest.mark.django_db
 def test_get_or_create_wg21_paper_author_profile_two_candidates_no_email_returns_first():
     """get_or_create_wg21_paper_author_profile returns first profile when multiple match and no email."""
     first = WG21PaperAuthorProfile.objects.create(display_name="Dup Name")
@@ -635,8 +648,8 @@ def test_get_or_create_wg21_paper_author_profile_two_candidates_email_matches_se
 
 
 @pytest.mark.django_db
-def test_get_or_create_wg21_paper_author_profile_two_candidates_email_matches_none_returns_first():
-    """get_or_create_wg21_paper_author_profile returns first when email provided but no match."""
+def test_get_or_create_wg21_paper_author_profile_two_candidates_email_matches_none_creates_new_profile():
+    """When multiple match and email matches none, a new profile is created with that email."""
     first = WG21PaperAuthorProfile.objects.create(display_name="Other Name")
     second = WG21PaperAuthorProfile.objects.create(display_name="Other Name")
     services.add_email(second, "other@example.com", is_primary=True)
@@ -644,5 +657,7 @@ def test_get_or_create_wg21_paper_author_profile_two_candidates_email_matches_no
         display_name="Other Name",
         email="nomatch@example.com",
     )
-    assert created is False
-    assert profile.id == first.id
+    assert created is True
+    assert profile.id not in (first.id, second.id)
+    assert profile.display_name == "Other Name"
+    assert profile.emails.filter(email="nomatch@example.com").exists()

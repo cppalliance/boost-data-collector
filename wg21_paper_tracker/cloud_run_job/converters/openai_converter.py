@@ -222,17 +222,16 @@ def convert_with_openai(pdf_path: Path) -> Optional[str]:
     try:
         logger.info(f"Attempting OpenAI/OpenRouter conversion for: {pdf_path.name}")
 
-        # Convert PDF to image files on disk (avoids loading all pages into memory)
-        tmp_dir, paths = pdf_to_images(pdf_path)
-        if not paths:
-            logger.error(f"Failed to convert PDF to images: {pdf_path.name}")
-            return None
-
-        total_pages = len(paths)
-        markdown_parts = []
-        successful_pages = 0
-
         try:
+            # Convert PDF to image files on disk (avoids loading all pages into memory)
+            tmp_dir, paths = pdf_to_images(pdf_path)
+            if not paths:
+                logger.error(f"Failed to convert PDF to images: {pdf_path.name}")
+                return None
+
+            total_pages = len(paths)
+            markdown_parts = []
+            successful_pages = 0
             # Process each page: load one image at a time, convert, then move on
             for page_num, image_path in enumerate(paths, 1):
                 try:
