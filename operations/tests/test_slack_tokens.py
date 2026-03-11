@@ -9,6 +9,7 @@ from operations.slack_ops.tokens import (
     get_slack_bot_token,
     get_slack_app_token,
     get_slack_client,
+    get_default_workspace_key,
 )
 from operations.slack_ops.client import SlackAPIClient
 
@@ -20,30 +21,58 @@ def test_get_slack_bot_token_from_env():
     assert token == "xoxb-from-env"
 
 
-def test_get_slack_bot_token_no_args_uses_slack_team_id_fallback():
-    """get_slack_bot_token() with no args uses SLACK_TEAM_ID from settings/env when set."""
+def test_get_slack_bot_token_no_args_uses_single_workspace():
+    """get_slack_bot_token() with no args uses the only key in SLACK_BOT_TOKEN."""
     with patch.object(settings, "SLACK_BOT_TOKEN", {"T99": "xoxb-fallback"}):
-        with patch.object(settings, "SLACK_TEAM_ID", "T99"):
-            token = get_slack_bot_token()
+        token = get_slack_bot_token()
     assert token == "xoxb-fallback"
 
 
+def test_get_slack_bot_token_no_args_uses_first_workspace_when_multiple():
+    """get_slack_bot_token() with no args uses the first key in SLACK_BOT_TOKEN when multiple."""
+    with patch.object(
+        settings, "SLACK_BOT_TOKEN", {"first": "xoxb-first", "second": "xoxb-second"}
+    ):
+        token = get_slack_bot_token()
+    assert token == "xoxb-first"
+
+
+def test_get_default_workspace_key_single():
+    """get_default_workspace_key() returns the only key when one workspace."""
+    with patch.object(settings, "SLACK_BOT_TOKEN", {"only": "xoxb"}):
+        key = get_default_workspace_key()
+    assert key == "only"
+
+
+def test_get_default_workspace_key_first_when_multiple():
+    """get_default_workspace_key() returns first key when multiple workspaces."""
+    with patch.object(settings, "SLACK_BOT_TOKEN", {"A": "x", "B": "y"}):
+        key = get_default_workspace_key()
+    assert key == "A"
+
+
+def test_get_default_workspace_key_empty_when_none():
+    """get_default_workspace_key() returns empty string when no workspaces."""
+    with patch.object(settings, "SLACK_BOT_TOKEN", {}):
+        key = get_default_workspace_key()
+    assert key == ""
+
+
 def test_get_slack_bot_token_missing_team_id_raises():
-    """get_slack_bot_token raises ValueError when team_id and SLACK_TEAM_ID fallback are missing."""
-    with patch.object(settings, "SLACK_TEAM_ID", ""):
-        with patch.dict("os.environ", {"SLACK_TEAM_ID": ""}, clear=False):
-            with pytest.raises(
-                ValueError, match="team_id is required for get_slack_bot_token"
-            ):
-                get_slack_bot_token()
-            with pytest.raises(
-                ValueError, match="team_id is required for get_slack_bot_token"
-            ):
-                get_slack_bot_token(None)
-            with pytest.raises(
-                ValueError, match="team_id is required for get_slack_bot_token"
-            ):
-                get_slack_bot_token("   ")
+    """get_slack_bot_token raises ValueError when no workspace configured (empty SLACK_BOT_TOKEN)."""
+    with patch.object(settings, "SLACK_BOT_TOKEN", {}):
+        with pytest.raises(
+            ValueError, match="workspace id is required for get_slack_bot_token"
+        ):
+            get_slack_bot_token()
+        with pytest.raises(
+            ValueError, match="workspace id is required for get_slack_bot_token"
+        ):
+            get_slack_bot_token(None)
+        with pytest.raises(
+            ValueError, match="workspace id is required for get_slack_bot_token"
+        ):
+            get_slack_bot_token("   ")
 
 
 def test_get_slack_bot_token_missing_raises():
@@ -86,31 +115,30 @@ def test_get_slack_client_without_token_uses_get_slack_bot_token():
     assert client.token == "xoxb-env-token"
 
 
-def test_get_slack_client_no_args_uses_slack_team_id_fallback():
-    """get_slack_client() with no args uses SLACK_TEAM_ID from settings/env when set."""
+def test_get_slack_client_no_args_uses_default_workspace():
+    """get_slack_client() with no args uses default workspace key (single/first in SLACK_BOT_TOKEN)."""
     with patch.object(settings, "SLACK_BOT_TOKEN", {"T99": "xoxb-fallback-token"}):
-        with patch.object(settings, "SLACK_TEAM_ID", "T99"):
-            client = get_slack_client()
+        client = get_slack_client()
     assert isinstance(client, SlackAPIClient)
     assert client.token == "xoxb-fallback-token"
 
 
-def test_get_slack_client_no_args_fallback_from_os_environ():
-    """get_slack_client() with no args uses SLACK_TEAM_ID from os.environ when settings not set."""
-    with patch.object(settings, "SLACK_BOT_TOKEN", {"T88": "xoxb-env-fallback"}):
-        with patch.object(settings, "SLACK_TEAM_ID", ""):
-            with patch.dict("os.environ", {"SLACK_TEAM_ID": "T88"}, clear=False):
-                client = get_slack_client()
+def test_get_slack_client_no_args_uses_first_when_multiple():
+    """get_slack_client() with no args uses first workspace key when multiple."""
+    with patch.object(
+        settings,
+        "SLACK_BOT_TOKEN",
+        {"T88": "xoxb-first", "T99": "xoxb-second"},
+    ):
+        client = get_slack_client()
     assert isinstance(client, SlackAPIClient)
-    assert client.token == "xoxb-env-fallback"
+    assert client.token == "xoxb-first"
 
 
-def test_get_slack_client_no_args_no_fallback_raises():
-    """get_slack_client() with no args and no SLACK_TEAM_ID raises ValueError."""
-    with patch.object(settings, "SLACK_BOT_TOKEN", {"T01234": "xoxb-ok"}):
-        with patch.object(settings, "SLACK_TEAM_ID", ""):
-            with patch.dict("os.environ", {"SLACK_TEAM_ID": ""}, clear=False):
-                with pytest.raises(
-                    ValueError, match="team_id is required for get_slack_bot_token"
-                ):
-                    get_slack_client()
+def test_get_slack_client_no_args_no_workspace_raises():
+    """get_slack_client() with no args raises when SLACK_BOT_TOKEN is empty."""
+    with patch.object(settings, "SLACK_BOT_TOKEN", {}):
+        with pytest.raises(
+            ValueError, match="workspace id is required for get_slack_bot_token"
+        ):
+            get_slack_client()
