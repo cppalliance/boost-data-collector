@@ -95,6 +95,8 @@ def _create_blob_with_retry(
             if attempt < _UPLOAD_FOLDER_BLOB_RETRIES - 1:
                 time.sleep(1)
     raise last_err or RuntimeError(f"Blob creation failed for {repo_path}")
+
+
 # Timeout (seconds) for top-level git diff subprocess calls (--name-status, --numstat)
 GIT_DIFF_TIMEOUT = 60
 # Timeout (seconds) for git clone and push (network I/O)
@@ -483,6 +485,8 @@ def upload_folder_to_github(
     except Exception as e:
         logger.exception("upload_folder_to_github failed")
         return {"success": False, "message": str(e)}
+
+
 def get_commit_file_changes(
     repo_dir: str | Path,
     parent_sha: str,

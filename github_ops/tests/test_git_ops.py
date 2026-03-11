@@ -486,6 +486,8 @@ def test_create_blob_with_retry_returns_sha_on_success():
     assert out == ("path/file.txt", "abc123")
     mock_path.read_bytes.assert_called_once()
     mock_session.post.assert_called_once()
+
+
 # --- get_commit_file_changes ---
 
 
