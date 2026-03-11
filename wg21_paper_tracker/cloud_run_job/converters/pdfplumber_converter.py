@@ -62,7 +62,7 @@ def convert_with_pdfplumber(pdf_path: Path) -> Optional[str]:
                                         markdown_parts.append(
                                             "| "
                                             + " | ".join(
-                                                str(cell) if cell else ""
+                                                "" if cell is None else str(cell)
                                                 for cell in row
                                             )
                                             + " |\n"

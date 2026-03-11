@@ -1,6 +1,5 @@
 """Tests for wg21_paper_tracker.pipeline."""
 
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -47,10 +46,10 @@ def test_download_file_success_binary(tmp_path):
     assert filepath.read_bytes() == b"\x25\x50\x44\x46"
 
 
-def test_download_file_uses_timeout():
+def test_download_file_uses_timeout(tmp_path):
     """_download_file calls requests.get with DOWNLOAD_TIMEOUT."""
     url = "https://example.com/f"
-    filepath = Path("/tmp/out")
+    filepath = tmp_path / "out"
     resp = MagicMock()
     resp.raise_for_status = MagicMock()
     resp.headers = {"content-type": "text/plain"}

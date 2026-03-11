@@ -234,15 +234,16 @@ def convert_with_openai(pdf_path: Path) -> Optional[str]:
                 else:
                     logger.warning(f"Failed to convert page {page_num} with OpenAI")
                     markdown_parts.append(
-                        f"## Page {page_num}\n\n*[Conversion failed for this page]*\n\n"
+                        f"## Page {page_num}\n\n*[Page content unavailable]*\n\n"
                     )
 
             except Exception as e:
                 logger.error(
-                    f"Error processing page {page_num}: {str(e)}", exc_info=True
+                    f"Error processing page {page_num}: {str(e)}",
+                    exc_info=True,
                 )
                 markdown_parts.append(
-                    f"## Page {page_num}\n\n*[Error processing this page]*\n\n"
+                    f"## Page {page_num}\n\n*[Page content unavailable]*\n\n"
                 )
                 continue
 

@@ -126,21 +126,23 @@ def run_tracker_pipeline() -> int:
 
     # Filter newer mailings
     new_mailings = [m for m in all_mailings if m["mailing_date"] > latest_date]
-    # Also check the latest one again just in case new papers were added
-    if latest_mailing and latest_mailing.mailing_date not in [
-        m["mailing_date"] for m in new_mailings
-    ]:
-        # We re-check the most recent mailing from the DB to catch late additions
-        # Find the matching dict from all_mailings
-        current_m = next(
-            (
-                m
-                for m in all_mailings
-                if m["mailing_date"] == latest_mailing.mailing_date
-            ),
-            None,
+    # Requeue incomplete mailings so transient failures get retried (not just the latest)
+    retry_dates = set(
+        WG21Mailing.objects.filter(papers__isnull=True).values_list(
+            "mailing_date", flat=True
         )
-        if current_m:
+    )
+    retry_dates.update(
+        WG21Mailing.objects.filter(papers__is_downloaded=False).values_list(
+            "mailing_date", flat=True
+        )
+    )
+    if latest_mailing:
+        retry_dates.add(latest_mailing.mailing_date)
+    for current_m in all_mailings:
+        if current_m["mailing_date"] in retry_dates and current_m[
+            "mailing_date"
+        ] not in [x["mailing_date"] for x in new_mailings]:
             new_mailings.append(current_m)
 
     # Sort chronologically (oldest to newest)
@@ -194,7 +196,7 @@ def run_tracker_pipeline() -> int:
             )
             continue
 
-        # Group papers by ID to prioritize PDF over HTML (paper_id is case-insensitive)
+        # Group papers by ID so we can choose the preferred source format per paper.
         papers_by_id = {}
         for p in papers:
             pid = (p["paper_id"] or "").strip().lower()
@@ -219,7 +221,7 @@ def run_tracker_pipeline() -> int:
                 skipped_downloaded += 1
                 continue
 
-            # Pick the best format (PDF first for conversion)
+            # Pick the preferred format: adoc > html > ps > pdf.
             best_paper = min(p_list, key=lambda x: format_priority(x["type"]))
 
             raw_filename = (best_paper.get("filename") or "").strip()

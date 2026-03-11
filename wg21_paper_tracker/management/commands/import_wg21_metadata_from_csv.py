@@ -202,7 +202,6 @@ class Command(BaseCommand):
                     stats["papers_updated"] += 1
             except IntegrityError as e:
                 # Duplicate (paper_id, year): fetch existing by same key and update
-                stats["papers_updated"] += 1
                 try:
                     lookup_year = year if year is not None else 0
                     paper = WG21Paper.objects.filter(
@@ -220,6 +219,7 @@ class Command(BaseCommand):
                         if year is not None:
                             paper.year = year
                         paper.save()
+                        stats["papers_updated"] += 1
                         if author_names:
                             from cppa_user_tracker.services import (
                                 get_or_create_wg21_paper_author_profile,

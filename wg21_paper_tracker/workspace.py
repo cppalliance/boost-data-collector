@@ -21,7 +21,7 @@ def get_workspace_root() -> Path:
 
 def get_raw_dir(mailing_date: str | None, year: int) -> Path:
     """Return workspace/raw/wg21_paper_tracker/<year>/<mailing_date>/; creates if missing."""
-    if not _MAILING_DATE_RE.fullmatch(mailing_date):
+    if mailing_date is not None and not _MAILING_DATE_RE.fullmatch(mailing_date):
         raise ValueError("mailing_date must be in YYYY-MM format")
     if getattr(settings, "RAW_DIR", None):
         raw_root = Path(settings.RAW_DIR) / _APP_SLUG

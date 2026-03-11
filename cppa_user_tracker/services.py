@@ -381,11 +381,25 @@ def get_or_create_wg21_paper_author_profile(
         return profile, True
 
     if len(candidates) == 1:
-        return candidates[0], False
+        profile = candidates[0]
+        if email_val and not profile.emails.filter(email=email_val).exists():
+            add_email(
+                profile,
+                email_val,
+                is_primary=not profile.emails.filter(is_active=True).exists(),
+            )
+        return profile, False
 
     # Two or more: disambiguate by email if provided
     if email_val:
         for p in candidates:
             if p.emails.filter(email=email_val).exists():
                 return p, False
-    return candidates[0], False
+    profile = candidates[0]
+    if email_val and not profile.emails.filter(email=email_val).exists():
+        add_email(
+            profile,
+            email_val,
+            is_primary=not profile.emails.filter(is_active=True).exists(),
+        )
+    return profile, False
