@@ -9,6 +9,7 @@ The Django tracker (`run_wg21_paper_tracker`) automatically triggers this job vi
 Create a GCS bucket (e.g., `wg21-data-collector`).
 
 Ensure your Django app has the following environment variables configured:
+
 - `WG21_GCS_BUCKET`: The name of the GCS bucket.
 - `GCP_PROJECT_ID`: Your GCP project ID.
 - `WG21_CLOUD_RUN_JOB_NAME`: (Optional) The name of the deployed Cloud Run job (e.g. `wg21-convert`). No default; leave unset if you only use GCS uploads without triggering the job.
@@ -59,6 +60,6 @@ Provide `OPENROUTER_API_KEY` via Cloud Run secret injection (e.g. [Secret Manage
 
 1. **Daily (e.g. 1 AM)**: The `run_wg21_paper_tracker` command runs.
 2. It checks the WG21 site for new mailings.
-3. If found, it downloads PDFs and uploads them directly to `gs://<bucket>/raw/wg21_papers/<mailing_date>/`.
+3. If found, it downloads PDFs and uploads them directly to `gs://<bucket>/raw/wg21_paper_tracker/<year>/<mailing_date>/`.
 4. It calls the Cloud Run API to execute `wg21-convert`.
 5. The Cloud Run Job spins up, reads the new PDFs from GCS, converts them, and uploads the `.md` results to `gs://<bucket>/converted/wg21_papers/<mailing_date>/`.

@@ -203,11 +203,10 @@ def run_tracker_pipeline() -> int:
             papers_by_id[pid].append(p)
 
         def format_priority(ext: str) -> int:
-            # Prefer PDF (Cloud Run converts PDFs); then html, adoc, ps
-            priorities = {"pdf": 1, "html": 2, "adoc": 3, "ps": 4}
+            priorities = {"adoc": 1, "html": 2, "ps": 3, "pdf": 4}
             return priorities.get(ext.lower(), 100)
 
-        raw_dir = get_raw_dir(mailing_date)
+        raw_dir = get_raw_dir(mailing_date, year)
 
         skipped_downloaded = 0
         for pid, p_list in papers_by_id.items():
@@ -239,7 +238,9 @@ def run_tracker_pipeline() -> int:
             if _download_file(url, local_path):
                 uploaded = False
                 if bucket_name:
-                    gcs_path = f"raw/wg21_papers/{mailing_date}/{filename}"
+                    gcs_path = (
+                        f"raw/wg21_paper_tracker/{year}/{mailing_date}/{filename}"
+                    )
                     uploaded = _upload_to_gcs(bucket_name, local_path, gcs_path)
                 else:
                     logger.warning(

@@ -41,7 +41,7 @@ def test_get_workspace_root_calls_get_workspace_path_with_slug():
 
 
 def test_get_raw_dir_returns_mailing_date_subdir(mock_workspace_path):
-    """get_raw_dir returns raw/wg21_paper_tracker/<mailing_date>/."""
+    """get_raw_dir returns raw/wg21_paper_tracker/<year/<mailing_date>/."""
     with patch("wg21_paper_tracker.workspace.get_workspace_path") as m:
         raw_root = mock_workspace_path / "raw_wg21_paper_tracker"
         raw_root.mkdir(parents=True, exist_ok=True)
@@ -49,8 +49,8 @@ def test_get_raw_dir_returns_mailing_date_subdir(mock_workspace_path):
             "wg21_paper_tracker": mock_workspace_path / "wg21_paper_tracker",
             "raw/wg21_paper_tracker": raw_root,
         }[slug]
-        path = get_raw_dir("2025-01")
-    assert path == raw_root / "2025-01"
+        path = get_raw_dir("2025-01", 2025)
+    assert path == raw_root / "2025" / "2025-01"
     assert path.is_dir()
 
 
@@ -62,8 +62,9 @@ def test_get_raw_dir_creates_parents(mock_workspace_path):
         m.side_effect = lambda slug: (
             raw_root if "raw" in slug else (mock_workspace_path / "app")
         )
-        path = get_raw_dir("2026-02")
+        path = get_raw_dir("2026-02", 2026)
     assert path.exists()
+    assert path.parent.name == "2026"
     assert path.name == "2026-02"
 
 
@@ -73,8 +74,8 @@ def test_get_raw_dir_idempotent(mock_workspace_path):
         raw_root = mock_workspace_path / "raw"
         raw_root.mkdir(parents=True, exist_ok=True)
         m.side_effect = lambda slug: raw_root
-        p1 = get_raw_dir("2025-01")
-        p2 = get_raw_dir("2025-01")
+        p1 = get_raw_dir("2025-01", 2025)
+        p2 = get_raw_dir("2025-01", 2025)
     assert p1 == p2
     assert p1.parent == p2.parent
 
@@ -82,14 +83,14 @@ def test_get_raw_dir_idempotent(mock_workspace_path):
 def test_get_raw_dir_rejects_invalid_mailing_date():
     """get_raw_dir raises ValueError for non-YYYY-MM mailing_date (path traversal, etc.)."""
     with pytest.raises(ValueError, match="mailing_date must be in YYYY-MM format"):
-        get_raw_dir("../../tmp")
+        get_raw_dir("../../tmp", 2025)
     with pytest.raises(ValueError, match="mailing_date must be in YYYY-MM format"):
-        get_raw_dir("2025")
+        get_raw_dir("2025", 2025)
     with pytest.raises(ValueError, match="mailing_date must be in YYYY-MM format"):
-        get_raw_dir("2025-1")
+        get_raw_dir("2025-1", 2025)
     with pytest.raises(ValueError, match="mailing_date must be in YYYY-MM format"):
-        get_raw_dir("2025-13")
+        get_raw_dir("2025-13", 2025)
     with pytest.raises(ValueError, match="mailing_date must be in YYYY-MM format"):
-        get_raw_dir("2025-00")
+        get_raw_dir("2025-00", 2025)
     with pytest.raises(ValueError, match="mailing_date must be in YYYY-MM format"):
-        get_raw_dir("")
+        get_raw_dir("", 2025)

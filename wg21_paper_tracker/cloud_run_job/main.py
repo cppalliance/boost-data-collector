@@ -69,7 +69,7 @@ def main():
     bucket_name = os.getenv("WG21_GCS_BUCKET")
     if not bucket_name:
         logger.error("WG21_GCS_BUCKET env var not set.")
-        return
+        raise RuntimeError("WG21_GCS_BUCKET env var not set.")
 
     client = storage.Client()
     bucket = client.bucket(bucket_name)
@@ -86,7 +86,7 @@ def main():
 
             local_pdf_path = Path(tmpdir) / "temp.pdf"
             try:
-                # e.g. raw/wg21_papers/2025-02/p0149r1.pdf -> 2025-02/p0149r1.pdf
+                # e.g. raw/wg21_paper_tracker/2025/2025-02/p0149r1.pdf -> 2025/2025-02/p0149r1.pdf
                 relative_path = blob.name[len(raw_prefix) :]
                 md_relative_path = relative_path.rsplit(".", 1)[0] + ".md"
                 md_blob_name = f"{converted_prefix}{md_relative_path}"
