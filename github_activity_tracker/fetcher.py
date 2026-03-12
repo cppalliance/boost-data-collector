@@ -69,17 +69,18 @@ def fetch_commits_from_github(
         if end_time:
             params["until"] = end_time.isoformat()
 
+        response_etag = None
         if etag_cache is not None:
             etag = etag_cache.get("commits", page, since_iso, until_iso)
             data, response_etag = client.rest_request_conditional(
                 f"/repos/{owner}/{repo}/commits", params=params, etag=etag
             )
             if data is None:
-                logger.debug("Commits list page %s: 304 Not Modified, breaking", page)
-                break
+                logger.debug("Commits list page %s: 304 Not Modified, skipping", page)
+                page += 1
+                time.sleep(0.2)
+                continue
             commits = data
-            if response_etag:
-                etag_cache.set("commits", page, since_iso, until_iso, response_etag)
         else:
             commits = client.rest_request(f"/repos/{owner}/{repo}/commits", params)
 
@@ -138,6 +139,9 @@ def fetch_commits_from_github(
                     continue
                 raise
             yield commit_with_stats
+
+        if etag_cache is not None and response_etag:
+            etag_cache.set("commits", page, since_iso, until_iso, response_etag)
 
         if len(commits) < per_page:
             logger.debug(
@@ -251,17 +255,18 @@ def fetch_issues_from_github(
         if start_time:
             params["since"] = start_time.isoformat()
 
+        response_etag = None
         if etag_cache is not None:
             etag = etag_cache.get("issues", page, since_iso, "")
             data, response_etag = client.rest_request_conditional(
                 f"/repos/{owner}/{repo}/issues", params=params, etag=etag
             )
             if data is None:
-                logger.debug("Issues list page %s: 304 Not Modified, breaking", page)
-                break
+                logger.debug("Issues list page %s: 304 Not Modified, skipping", page)
+                page += 1
+                time.sleep(0.2)
+                continue
             issues = data
-            if response_etag:
-                etag_cache.set("issues", page, since_iso, "", response_etag)
         else:
             issues = client.rest_request(f"/repos/{owner}/{repo}/issues", params)
 
@@ -320,6 +325,9 @@ def fetch_issues_from_github(
                 )
                 # Yield nested format: { issue_info: <detail>, comments: [...] }
                 yield {"issue_info": issue, "comments": comments}
+
+        if etag_cache is not None and response_etag:
+            etag_cache.set("issues", page, since_iso, "", response_etag)
 
         if len(issues) < per_page:
             logger.debug(
@@ -427,17 +435,18 @@ def fetch_pull_requests_from_github(
             "sort": "updated",
             "direction": "desc",
         }
+        response_etag = None
         if etag_cache is not None:
             etag = etag_cache.get("pulls", page, "", "")
             data, response_etag = client.rest_request_conditional(
                 f"/repos/{owner}/{repo}/pulls", params=params, etag=etag
             )
             if data is None:
-                logger.debug("Pulls list page %s: 304 Not Modified, breaking", page)
-                break
+                logger.debug("Pulls list page %s: 304 Not Modified, skipping", page)
+                page += 1
+                time.sleep(0.2)
+                continue
             prs = data
-            if response_etag:
-                etag_cache.set("pulls", page, "", "", response_etag)
         else:
             prs = client.rest_request(f"/repos/{owner}/{repo}/pulls", params)
 
@@ -501,6 +510,9 @@ def fetch_pull_requests_from_github(
             time.sleep(0.2)
             # Yield nested format: { pr_info: <detail>, comments: [...], reviews: [...] }
             yield {"pr_info": pr, "comments": comments, "reviews": reviews}
+
+        if etag_cache is not None and response_etag:
+            etag_cache.set("pulls", page, "", "", response_etag)
 
         if len(prs) < per_page or flag:
             logger.debug(f"Last page reached (got {len(prs)} PRs, expected {per_page})")

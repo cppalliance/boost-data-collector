@@ -227,7 +227,7 @@ class GitHubAPIClient:
         """
         Shared GET logic: 403 wait+retry, 304/200 handling.
         _do_request already retries 5xx and connection errors.
-        Returns (response, response_etag). On 304 returns (None, etag).
+        Returns (response, response_etag). On 304 returns (None, response ETag or caller's etag).
         Caller gets response body from response.json() when response is not None.
         """
         url = f"{self.rest_base_url}{endpoint}"
@@ -248,7 +248,8 @@ class GitHubAPIClient:
             self._handle_rate_limit(wait)
             return self._rest_get(endpoint, params=params, etag=etag)
         if response.status_code == 304:
-            return (None, etag)
+            self._update_rate_limit_from_response(response)
+            return (None, response.headers.get("ETag", etag))
         try:
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
