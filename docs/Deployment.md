@@ -19,42 +19,40 @@ SSH into server → pull latest code → restart containers
 
 ---
 
-## GitHub Secrets
+## GitHub Environments and Secrets
 
-Set these in your GitHub repo under **Settings → Secrets and variables → Actions**.
+The deploy workflow uses **GitHub Environments** so that each branch uses the right server. Secrets are stored **per environment**, not as separate PROD_* / DEV_* repository secrets.
 
-### Production (`main` branch)
+### 1. Create the environments
+
+Go to **Settings → Environments** and create two environments:
+
+- **`production`** — used when the deploy is triggered from the `main` branch.
+- **`staging`** — used when the deploy is triggered from the `develop` branch.
+
+For **production**, it is recommended to enable **Required reviewers** to add a manual approval gate before each production deploy.
+
+### 2. Add environment secrets
+
+In each environment (**production** and **staging**), add the following **Environment secrets** (same names in both; different values per server):
 
 | Secret | Description |
 |--------|-------------|
-| `PROD_SSH_HOST` | IP address or hostname of the production server |
-| `PROD_SSH_USER` | SSH username |
-| `PROD_SSH_PRIVATE_KEY` | SSH private key (full content, including header/footer) |
-| `PROD_SSH_PORT` | SSH port (optional, defaults to `22`) |
+| `SSH_HOST` | IP address or hostname of the server |
+| `SSH_USER` | SSH username |
+| `SSH_PRIVATE_KEY` | SSH private key (full content, including header/footer) |
+| `SSH_PORT` | SSH port (optional, defaults to `22`) |
 
-### Staging (`develop` branch)
+GitHub injects the correct set based on the branch: `main` → production environment secrets, `develop` → staging environment secrets.
 
-| Secret | Description |
-|--------|-------------|
-| `DEV_SSH_HOST` | IP address or hostname of the staging server |
-| `DEV_SSH_USER` | SSH username |
-| `DEV_SSH_PRIVATE_KEY` | SSH private key |
-| `DEV_SSH_PORT` | SSH port (optional, defaults to `22`) |
+### 3. Optional repository secrets
 
-### Optional
+These can stay as **Repository secrets** (Settings → Secrets and variables → Actions) if you use them:
 
 | Secret | Description |
 |--------|-------------|
 | `DEPLOY_SCRIPT_TOKEN` | Token to authenticate downloading a custom `deploy.sh`. Required only if `DEPLOY_SCRIPT_URL` is set and needs authentication. |
 | `DEPLOY_SCRIPT_URL` | Override the deploy script URL. Defaults to `deploy.sh` at the current commit SHA. |
-
----
-
-## GitHub Environments
-
-The deploy workflow uses GitHub Environments (`production` and `staging`). Create them at **Settings → Environments**.
-
-For `production`, it is recommended to enable **Required reviewers** to add a manual approval gate before any production deploy runs.
 
 ---
 
@@ -99,7 +97,7 @@ Copy the public key to the server:
 ssh-copy-id -i ~/.ssh/deploy_key.pub user@your-server
 ```
 
-Add the private key content (`~/.ssh/deploy_key`) as the `PROD_SSH_PRIVATE_KEY` (or `DEV_SSH_PRIVATE_KEY`) GitHub secret.
+Add the private key content (`~/.ssh/deploy_key`) as the **`SSH_PRIVATE_KEY`** secret in the **production** or **staging** environment, depending on which server you use.
 
 ---
 
