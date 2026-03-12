@@ -66,7 +66,7 @@ def task_fetch_github_activity(
     Args:
         dry_run: If True, only show what would be done.
         start_date: Start date for sync (default: auto from DB).
-        end_date: End date for sync (default: now).
+        end_date: End date for sync (default: None = no end; fetcher uses stable cache key).
         from_library: If set, start at this repo (including main when 'boost') and sync it and all after.
             Use 'boost' for main repo or a submodule name (e.g. 'build', 'algorithm'). Default: sync all.
     """
@@ -277,7 +277,7 @@ class Command(BaseCommand):
             "--to-date",
             type=str,
             default=None,
-            help="End date for sync (ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). Default: now.",
+            help="End date for sync (ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). Default: None (no end; fetcher uses stable cache key).",
         )
         parser.add_argument(
             "--from-library",
