@@ -3,69 +3,46 @@ name: Deploy
 on:
   workflow_run:
     workflows: ["CI"]
-    branches: [main]
+    branches: [main, develop]
     types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ github.event.workflow_run.head_branch == 'main' && 'production' || 'staging' }}
+    env:
+      BRANCH: ${{ github.event.workflow_run.head_branch }}
+      SSH_HOST: ${{ github.event.workflow_run.head_branch == 'main' && secrets.PROD_SSH_HOST || secrets.DEV_SSH_HOST }}
+      SSH_USER: ${{ github.event.workflow_run.head_branch == 'main' && secrets.PROD_SSH_USER || secrets.DEV_SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ github.event.workflow_run.head_branch == 'main' && secrets.PROD_SSH_PRIVATE_KEY || secrets.DEV_SSH_PRIVATE_KEY }}
+      SSH_PORT: ${{ github.event.workflow_run.head_branch == 'main' && secrets.PROD_SSH_PORT || secrets.DEV_SSH_PORT || 22 }}
+      REPO_URL: https://github.com/${{ github.repository }}.git
+      SCRIPT_URL: ${{ secrets.DEPLOY_SCRIPT_URL || format('https://raw.githubusercontent.com/{0}/{1}/.github/workflows/deploy-script/deploy.sh', github.repository, github.event.workflow_run.head_sha) }}
     steps:
-      - name: Determine script source
-        id: script-source
-        run: |
-          use_custom="${{ secrets.DEPLOY_SCRIPT_REPO != '' && 'true' || 'false' }}"
-          echo "use_custom=${use_custom}" >> $GITHUB_OUTPUT
-
-      # ── Default: script from this repo ─────────────────────────────────────
-      - name: Checkout this repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-
-      - name: Copy default deploy script to server
-        if: steps.script-source.outputs.use_custom != 'true'
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          source: ".github/workflows/deploy-script/deploy.sh"
-          target: "/tmp"
-
-      # ── Optional: script from your private repo ────────────────────────────
-      # Set secrets: DEPLOY_SCRIPT_REPO (e.g. my-org/my-private-repo),
-      #              DEPLOY_SCRIPT_FILE (e.g. deploy.sh, default),
-      #              DEPLOY_SCRIPT_TOKEN (PAT with read access to that repo).
-      - name: Checkout private repo
-        if: steps.script-source.outputs.use_custom == 'true'
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ secrets.DEPLOY_SCRIPT_REPO }}
-          token: ${{ secrets.DEPLOY_SCRIPT_TOKEN }}
-          path: deploy-script-private
-          ref: ${{ secrets.DEPLOY_SCRIPT_REF || 'main' }}
-
-      - name: Copy custom deploy script to server
-        if: steps.script-source.outputs.use_custom == 'true'
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          source: "deploy-script-private/${{ secrets.DEPLOY_SCRIPT_FILE || 'deploy.sh' }}"
-          target: "/tmp"
-
-      # ── Run deploy on server ──────────────────────────────────────────────
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          DEPLOY_SCRIPT_TOKEN: ${{ secrets.DEPLOY_SCRIPT_TOKEN }}
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          port: ${{ env.SSH_PORT }}
+          envs: SCRIPT_URL,DEPLOY_SCRIPT_TOKEN,BRANCH,REPO_URL
           script: |
-            export REPO_URL="https://github.com/${{ github.repository }}.git" BRANCH="main"
+            if [ -n "$DEPLOY_SCRIPT_TOKEN" ]; then
+              curl -sSL -f -H "Authorization: token $DEPLOY_SCRIPT_TOKEN" "$SCRIPT_URL" -o /tmp/deploy.sh
+            else
+              curl -sSL -f "$SCRIPT_URL" -o /tmp/deploy.sh
+            fi
             bash /tmp/deploy.sh
+            rm -f /tmp/deploy.sh
