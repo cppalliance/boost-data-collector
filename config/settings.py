@@ -199,7 +199,25 @@ def _slack_bot_token_from_env():
 
 SLACK_BOT_TOKEN = _slack_bot_token_from_env()
 
-SLACK_APP_TOKEN = (env("SLACK_APP_TOKEN", default="") or "").strip()
+
+def _slack_app_token_from_env():
+    """Build a dict of team_id -> app token from SLACK_TEAM_IDS and SLACK_APP_TOKEN_<id> env vars."""
+    out = {}
+    ids_raw = (env("SLACK_TEAM_IDS", default="") or "").strip()
+    if not ids_raw:
+        return out
+    for tid in ids_raw.split(","):
+        tid = tid.strip()
+        if not tid:
+            continue
+        key = f"SLACK_APP_TOKEN_{tid}"
+        token = (env(key, default="") or "").strip()
+        if token:
+            out[tid] = token
+    return out
+
+
+SLACK_APP_TOKEN = _slack_app_token_from_env()
 
 # Internal session tokens
 _allow_internal_slack_tokens = (

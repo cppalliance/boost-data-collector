@@ -7,6 +7,7 @@ Slack PR comment bot, both in a single Socket Mode listener.
 
 import logging
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from operations.slack_ops import (
@@ -29,31 +30,52 @@ class Command(BaseCommand):
             "--dry-run",
             action="store_true",
             help=(
-                "Only validate that SLACK_BOT_TOKEN and SLACK_APP_TOKEN are set; "
+                "Only validate that SLACK_BOT_TOKEN_<id> and SLACK_APP_TOKEN_<id> are set per team; "
                 "do not start the listener."
             ),
         )
 
     def handle(self, *args, **options):
-        try:
-            team_id = get_default_team_key() or None
-            bot_token = get_slack_bot_token(team_id=team_id)
-        except ValueError:
-            bot_token = None
-        try:
-            app_token = get_slack_app_token()
-        except ValueError:
-            app_token = None
+        tokens_map = getattr(settings, "SLACK_BOT_TOKEN", None) or {}
+        if not isinstance(tokens_map, dict):
+            tokens_map = {}
+        team_ids = list(tokens_map.keys()) if tokens_map else []
+        if not team_ids:
+            try:
+                team_id = get_default_team_key() or None
+                if team_id:
+                    team_ids = [team_id]
+            except ValueError:
+                pass
+
+        bot_results = []
+        app_results = []
+        for tid in team_ids:
+            try:
+                bot_token = get_slack_bot_token(team_id=tid)
+                bot_results.append((tid, bool(bot_token)))
+            except ValueError:
+                bot_results.append((tid, False))
+            try:
+                app_token = get_slack_app_token(team_id=tid)
+                app_results.append((tid, bool(app_token)))
+            except ValueError:
+                app_results.append((tid, False))
 
         if options["dry_run"]:
-            if bot_token:
-                logger.info("SLACK_BOT_TOKEN is set")
-            else:
-                logger.warning("SLACK_BOT_TOKEN is not set")
-            if app_token:
-                logger.info("SLACK_APP_TOKEN is set")
-            else:
-                logger.warning("SLACK_APP_TOKEN is not set")
+            for tid in team_ids:
+                bot_ok = next((r for t, r in bot_results if t == tid), False)
+                app_ok = next((r for t, r in app_results if t == tid), False)
+                if bot_ok:
+                    logger.info("SLACK_BOT_TOKEN_%s is set", tid)
+                else:
+                    logger.warning("SLACK_BOT_TOKEN_%s is not set", tid)
+                if app_ok:
+                    logger.info("SLACK_APP_TOKEN_%s is set", tid)
+                else:
+                    logger.warning("SLACK_APP_TOKEN_%s is not set", tid)
+            if not team_ids:
+                logger.warning("No teams configured (set SLACK_TEAM_IDS and SLACK_BOT_TOKEN_<id>)")
             logger.info("Would start unified Slack Event Handler (Socket Mode).")
             return
 

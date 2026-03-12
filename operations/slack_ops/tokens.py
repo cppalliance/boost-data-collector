@@ -5,7 +5,6 @@ Slack token resolution: get bot or app token from Django settings or env.
 from __future__ import annotations
 
 import logging
-import os
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -75,24 +74,45 @@ def get_slack_bot_token(team_id: Optional[str] = None) -> str:
     return token
 
 
-def get_slack_app_token() -> str:
+def get_slack_app_token(team_id: Optional[str] = None) -> str:
     """
-    Return SLACK_APP_TOKEN from Django settings or os.environ.
-    Raises ValueError if not set.
+    Return the Slack app token for the given team (team_id).
+
+    SLACK_APP_TOKEN in settings is a dict (team_id -> token), built from env via
+    SLACK_TEAM_IDS and SLACK_APP_TOKEN_<id>. When team_id is missing or empty,
+    falls back to the default team key (single or first in SLACK_TEAM_IDS).
+    Raises ValueError if the token for that team is not set.
     """
+    tid = (team_id or "").strip()
+    if not tid:
+        tid = _slack_team_fallback()
+    if not tid:
+        logger.error("team id is missing for Slack app token lookup")
+        raise ValueError("team id is required for get_slack_app_token")
+
     try:
         from django.conf import settings
 
-        token = getattr(settings, "SLACK_APP_TOKEN", None) or ""
+        tokens_map = getattr(settings, "SLACK_APP_TOKEN", None)
     except Exception:
-        token = ""
-    if not token:
-        token = os.environ.get("SLACK_APP_TOKEN", "")
-    token = (token or "").strip()
-    if not token:
-        raise ValueError(
-            "SLACK_APP_TOKEN is not set. Set it in Django settings or SLACK_APP_TOKEN env."
+        tokens_map = None
+
+    if not isinstance(tokens_map, dict) or tid not in tokens_map:
+        logger.error(
+            "team %s is missing from SLACK_APP_TOKEN. Set SLACK_TEAM_IDS and SLACK_APP_TOKEN_%s in .env",
+            tid,
+            tid,
         )
+        raise ValueError(
+            f"team {tid!r} not found in SLACK_APP_TOKEN. "
+            f"Add {tid!r} to SLACK_TEAM_IDS and set SLACK_APP_TOKEN_{tid} in .env"
+        )
+
+    token = (tokens_map[tid] or "").strip()
+    if not token:
+        logger.error("token for team %s is missing in SLACK_APP_TOKEN", tid)
+        raise ValueError(f"token for team {tid!r} is missing in SLACK_APP_TOKEN")
+
     return token
 
 

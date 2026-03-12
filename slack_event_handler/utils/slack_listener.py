@@ -83,12 +83,14 @@ class SlackListener:
                 self._team_id = fallback_id
 
         app_token = (app_token or "").strip()
-        self.app_token = app_token or get_slack_app_token()
+        self.app_token = app_token or get_slack_app_token(self._team_id)
 
         if not self.bot_token:
             raise ValueError("Missing SLACK_BOT_TOKEN. Set it in .env file.")
         if not self.app_token:
-            raise ValueError("Missing SLACK_APP_TOKEN. Set it in .env file.")
+            raise ValueError(
+                "Missing SLACK_APP_TOKEN_<id>. Set SLACK_TEAM_IDS and SLACK_APP_TOKEN_<id> in .env."
+            )
 
         self.app = App(token=self.bot_token)
 

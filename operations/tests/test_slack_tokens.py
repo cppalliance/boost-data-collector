@@ -83,20 +83,27 @@ def test_get_slack_bot_token_missing_raises():
 
 
 def test_get_slack_app_token_from_env():
-    """get_slack_app_token returns value from env when set."""
-    with patch.object(settings, "SLACK_APP_TOKEN", None):
-        with patch.dict(
-            "os.environ", {"SLACK_APP_TOKEN": "xapp-from-env"}, clear=False
-        ):
-            token = get_slack_app_token()
+    """get_slack_app_token returns value from settings dict when team_id is set."""
+    with patch.object(settings, "SLACK_APP_TOKEN", {"T01234": "xapp-from-env"}):
+        token = get_slack_app_token("T01234")
     assert token == "xapp-from-env"
 
 
+def test_get_slack_app_token_no_args_uses_single_team():
+    """get_slack_app_token() with no args uses the only key in SLACK_APP_TOKEN."""
+    with patch.object(settings, "SLACK_APP_TOKEN", {"T99": "xapp-fallback"}):
+        token = get_slack_app_token()
+    assert token == "xapp-fallback"
+
+
 def test_get_slack_app_token_missing_raises():
-    """get_slack_app_token raises ValueError when not set."""
-    with patch.object(settings, "SLACK_APP_TOKEN", None):
-        with patch.dict("os.environ", {"SLACK_APP_TOKEN": ""}, clear=False):
-            with pytest.raises(ValueError, match="SLACK_APP_TOKEN"):
+    """get_slack_app_token raises ValueError when token for team is not set."""
+    with patch.object(settings, "SLACK_APP_TOKEN", {}):
+        with pytest.raises(ValueError, match="SLACK_APP_TOKEN"):
+            get_slack_app_token("T01234")
+    with patch.object(settings, "SLACK_BOT_TOKEN", {}):
+        with patch.object(settings, "SLACK_APP_TOKEN", {}):
+            with pytest.raises(ValueError, match="team id is required"):
                 get_slack_app_token()
 
 

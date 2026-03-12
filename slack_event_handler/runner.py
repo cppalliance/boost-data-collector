@@ -27,30 +27,27 @@ def run_slack_event_handler(bot_token=None, app_token=None):
     except Exception as e:
         logger.exception("Failed to resolve workspace root: %s", e)
 
-    try:
-        app_token = (app_token or "").strip() or get_slack_app_token()
-    except ValueError:
-        app_token = None
-    if not app_token:
-        logger.error(
-            "Missing SLACK_APP_TOKEN in .env file. "
-            "To get App Token: api.slack.com/apps > Your App > Basic Information > "
-            "App-Level Tokens > Generate token with 'connections:write' scope"
-        )
-        return
-
     tokens_map = getattr(settings, "SLACK_BOT_TOKEN", None) or {}
     if not isinstance(tokens_map, dict):
         tokens_map = {}
 
     if tokens_map:
-        # Multiple (or single) teams from SLACK_TEAM_IDS + SLACK_BOT_TOKEN_<id>
+        # Multiple (or single) teams from SLACK_TEAM_IDS + SLACK_BOT_TOKEN_<id> and SLACK_APP_TOKEN_<id>
         from slack_event_handler.utils.slack_listener import start_slack_listener
 
         started = 0
         for team_id, token in tokens_map.items():
             token = (token or "").strip()
             if not token:
+                continue
+            try:
+                app_token = (app_token or "").strip() or get_slack_app_token(team_id)
+            except ValueError:
+                logger.warning(
+                    "Skipping team %s: SLACK_APP_TOKEN_%s not set in .env",
+                    team_id,
+                    team_id,
+                )
                 continue
             logger.info("Starting Slack Event Listener for team=%s", team_id)
             t = threading.Thread(
@@ -62,7 +59,9 @@ def run_slack_event_handler(bot_token=None, app_token=None):
             t.start()
             started += 1
         if started == 0:
-            logger.error("No valid SLACK_BOT_TOKEN_<team_id> in .env")
+            logger.error(
+                "No valid team with both SLACK_BOT_TOKEN_<id> and SLACK_APP_TOKEN_<id> in .env"
+            )
     else:
         # Single team: use default key from SLACK_TEAM_IDS (only key or first key)
         from operations.slack_ops import get_default_team_key
@@ -73,9 +72,18 @@ def run_slack_event_handler(bot_token=None, app_token=None):
             token = (bot_token or "").strip() or get_slack_bot_token(team_id=team_id)
         except ValueError:
             token = None
+        try:
+            app_token = (app_token or "").strip() or get_slack_app_token(team_id)
+        except ValueError:
+            app_token = None
         if not token:
             logger.error(
                 "Missing SLACK_BOT_TOKEN in .env file (set SLACK_TEAM_IDS and SLACK_BOT_TOKEN_<id>)"
+            )
+            return
+        if not app_token:
+            logger.error(
+                "Missing SLACK_APP_TOKEN_<id> in .env file. Set SLACK_TEAM_IDS and SLACK_APP_TOKEN_<id> for the default team."
             )
             return
         logger.info("Starting Slack Event Listener for team=%s", team_id or "default")
