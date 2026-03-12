@@ -282,14 +282,15 @@ def test_rest_post_sends_json_data():
     assert post_mock.call_args[0][0] == "POST"
 
 
-def test_rest_post_connection_error_after_retries_raises():
-    """rest_post raises ConnectionException after max retries."""
+def test_rest_post_connection_error_raises_without_retry():
+    """rest_post raises ConnectionException immediately on connection error (no retries for mutating methods)."""
     from requests.exceptions import ConnectionError as ReqConnectionError
 
     client = GitHubAPIClient("token")
     client.session.request = MagicMock(side_effect=ReqConnectionError("fail"))
-    with pytest.raises(ConnectionException, match="retries"):
+    with pytest.raises(ConnectionException):
         client.rest_post("/repos/foo/bar/issues", json_data={"title": "x"})
+    assert client.session.request.call_count == 1
 
 
 # --- get_file_content ---
@@ -468,14 +469,15 @@ def test_graphql_request_sends_query_and_variables():
     assert post_mock.call_args[0][0] == "POST"
 
 
-def test_graphql_request_connection_error_after_retries_raises():
-    """graphql_request raises ConnectionException after max retries."""
+def test_graphql_request_connection_error_raises_without_retry():
+    """graphql_request raises ConnectionException immediately on connection error (no retries for mutating methods)."""
     from requests.exceptions import ConnectionError as ReqConnectionError
 
     client = GitHubAPIClient("token")
     client.session.request = MagicMock(side_effect=ReqConnectionError("fail"))
-    with pytest.raises(ConnectionException, match="retries"):
+    with pytest.raises(ConnectionException):
         client.graphql_request("query { x }")
+    assert client.session.request.call_count == 1
 
 
 # --- get_repository_info ---

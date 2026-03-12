@@ -24,7 +24,9 @@ def _redis_client():
         import redis
 
         url = getattr(settings, "GITHUB_ETAG_REDIS_URL", "redis://localhost:6379/1")
-        return redis.Redis.from_url(url, decode_responses=True)
+        client = redis.Redis.from_url(url, decode_responses=True)
+        client.ping()
+        return client
     except Exception as e:
         logger.debug("ETag cache Redis unavailable: %s", e)
         return None

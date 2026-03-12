@@ -141,9 +141,15 @@ class GitHubAPIClient:
         json_data: Optional[dict] = None,
         headers: Optional[dict] = None,
         timeout: int = 30,
+        allow_retry: bool = False,
     ) -> requests.Response:
-        """Perform one HTTP request with connection/timeout retries. Returns response."""
-        for attempt in range(self.max_retries):
+        """Perform one HTTP request. Retries on 5xx/connection errors only when allow_retry=True.
+
+        Mutating methods (POST, DELETE, GraphQL) must NOT pass allow_retry=True to avoid
+        replaying writes that may have succeeded on the server despite a transient failure.
+        """
+        attempts = self.max_retries if allow_retry else 1
+        for attempt in range(attempts):
             try:
                 resp = self.session.request(
                     method,
@@ -153,40 +159,49 @@ class GitHubAPIClient:
                     headers=headers,
                     timeout=timeout,
                 )
-                if resp.status_code in (500, 502, 503, 504):
-                    if attempt < self.max_retries - 1:
+                if allow_retry and resp.status_code in (500, 502, 503, 504):
+                    if attempt < attempts - 1:
                         wait_time = self.retry_delay * (2**attempt)
                         logger.warning(
                             "HTTP %s on %s (attempt %s/%s), retrying in %ss...",
                             resp.status_code,
                             endpoint_for_log,
                             attempt + 1,
-                            self.max_retries,
+                            attempts,
                             wait_time,
                         )
                         time.sleep(wait_time)
                         continue
                 return resp
             except (ConnectionError, ProtocolError, Timeout) as e:
-                if attempt < self.max_retries - 1:
+                if allow_retry and attempt < attempts - 1:
                     wait_time = self.retry_delay * (2**attempt)
                     logger.warning(
                         "Connection error on %s (attempt %s/%s): %s",
                         endpoint_for_log,
                         attempt + 1,
-                        self.max_retries,
+                        attempts,
                         e,
                     )
                     time.sleep(wait_time)
-                else:
+                elif allow_retry:
                     logger.error(
-                        "Failed %s after %s attempts: %s",
+                        "Failed %s after %s retries: %s",
                         endpoint_for_log,
                         self.max_retries,
                         e,
                     )
                     raise ConnectionException(
                         f"Connection error after {self.max_retries} retries for {endpoint_for_log}: {e}"
+                    )
+                else:
+                    logger.error(
+                        "Connection error on %s (no retries): %s",
+                        endpoint_for_log,
+                        e,
+                    )
+                    raise ConnectionException(
+                        f"Connection error for {endpoint_for_log}: {e}"
                     )
 
         raise ConnectionException(
@@ -226,6 +241,7 @@ class GitHubAPIClient:
             params=params,
             headers=headers or None,
             timeout=30,
+            allow_retry=True,
         )
         wait = self._parse_rate_limit_wait(response)
         if wait is not None:
