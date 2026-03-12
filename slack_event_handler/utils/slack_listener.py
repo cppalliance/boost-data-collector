@@ -304,7 +304,9 @@ class SlackListener:
                 return
 
             # -- Huddle AI note path (only if scope includes 0) --
-            if SCOPE_HUDDLE in self._team_scope and self._is_huddle_ai_note_event(event):
+            if SCOPE_HUDDLE in self._team_scope and self._is_huddle_ai_note_event(
+                event
+            ):
                 logger.debug("Huddle AI note event detected")
                 save_event_to_file("huddle_ai_note", body)
                 file_id = self._extract_file_id_from_event(event)
@@ -350,7 +352,9 @@ class SlackListener:
 
             # -- PR bot path (only if scope includes 1) --
             if SCOPE_PR_BOT not in self._team_scope:
-                logger.debug("Unhandled regular message event (PR bot disabled for this team)")
+                logger.debug(
+                    "Unhandled regular message event (PR bot disabled for this team)"
+                )
                 return
 
             channel_type = event.get("channel_type")

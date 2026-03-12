@@ -75,7 +75,9 @@ class Command(BaseCommand):
                 else:
                     logger.warning("SLACK_APP_TOKEN_%s is not set", tid)
             if not team_ids:
-                logger.warning("No teams configured (set SLACK_TEAM_IDS and SLACK_BOT_TOKEN_<id>)")
+                logger.warning(
+                    "No teams configured (set SLACK_TEAM_IDS and SLACK_BOT_TOKEN_<id>)"
+                )
             logger.info("Would start unified Slack Event Handler (Socket Mode).")
             return
 

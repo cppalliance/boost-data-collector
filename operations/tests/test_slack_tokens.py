@@ -91,8 +91,9 @@ def test_get_slack_app_token_from_env():
 
 def test_get_slack_app_token_no_args_uses_single_team():
     """get_slack_app_token() with no args uses the only key in SLACK_APP_TOKEN."""
-    with patch.object(settings, "SLACK_APP_TOKEN", {"T99": "xapp-fallback"}):
-        token = get_slack_app_token()
+    with patch.object(settings, "SLACK_BOT_TOKEN", {"T99": "xoxb-any"}):
+        with patch.object(settings, "SLACK_APP_TOKEN", {"T99": "xapp-fallback"}):
+            token = get_slack_app_token()
     assert token == "xapp-fallback"
 
 

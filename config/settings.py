@@ -289,9 +289,7 @@ CHROME_PROFILE_PATH = (
 
 # Slack PR Bot configuration (for slack_event_handler)
 SLACK_PR_BOT_TEAM = (env("SLACK_PR_BOT_TEAM", default="") or "").strip()
-SLACK_PR_BOT_GITHUB_TOKEN = (
-    env("SLACK_PR_BOT_GITHUB_TOKEN", default="") or ""
-).strip()
+SLACK_PR_BOT_GITHUB_TOKEN = (env("SLACK_PR_BOT_GITHUB_TOKEN", default="") or "").strip()
 SLACK_PR_BOT_CHANNEL_NAME = (
     env("SLACK_PR_BOT_CHANNEL_NAME", default="slack-bot") or "slack-bot"
 ).strip()

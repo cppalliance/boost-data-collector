@@ -43,5 +43,7 @@ def extract_pr_urls(
         return (all_entries, [])
 
     valid = [e for e in all_entries if (e["owner"] or "").strip().lower() == allowed]
-    invalid_org = [e for e in all_entries if (e["owner"] or "").strip().lower() != allowed]
+    invalid_org = [
+        e for e in all_entries if (e["owner"] or "").strip().lower() != allowed
+    ]
     return (valid, invalid_org)
