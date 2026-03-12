@@ -292,11 +292,11 @@ class GitHubAPIClient:
         etag: Optional[str] = None,
     ) -> tuple[Optional[dict], Optional[str]]:
         """Make GET request with optional If-None-Match. Returns (data, etag).
-        On 304: (None, etag). On 200: (response.json(), response ETag header).
+        On 304: (None, response ETag). On 200: (response.json(), response ETag header).
         """
         response, response_etag = self._rest_get(endpoint, params=params, etag=etag)
         if response is None:
-            return (None, etag)
+            return (None, response_etag)
         return (response.json(), response_etag)
 
     def rest_post(self, endpoint: str, json_data: Optional[dict] = None) -> dict:
