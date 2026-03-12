@@ -143,12 +143,12 @@ class Command(BaseCommand):
         for child in clone_dir.iterdir():
             if child.name == ".git":
                 continue
-            if child.is_dir():
+            if child.is_dir() and child.name == "develop":
                 shutil.rmtree(child)
-            else:
-                child.unlink()
+        publish_subdir = clone_dir / "develop"
+        publish_subdir.mkdir(parents=True, exist_ok=True)
         for child in output_dir.iterdir():
-            dest = clone_dir / child.name
+            dest = publish_subdir / child.name
             if child.is_dir():
                 shutil.copytree(child, dest)
             else:
