@@ -1,6 +1,6 @@
 """
 GitHub PR comment client for the Slack PR bot.
-Reads GITHUB_TOKEN_WRITE and SLACK_PR_BOT_COMMENT_TEMPLATE from Django settings.
+Reads SLACK_PR_BOT_GITHUB_TOKEN and SLACK_PR_BOT_COMMENT_TEMPLATE from Django settings.
 """
 
 import logging
@@ -16,10 +16,10 @@ _gh: Github | None = None
 def _get_client() -> Github:
     global _gh
     if _gh is None:
-        token = (getattr(settings, "GITHUB_TOKEN_WRITE", "") or "").strip()
+        token = (getattr(settings, "SLACK_PR_BOT_GITHUB_TOKEN", "") or "").strip()
         if not token:
             raise ValueError(
-                "Missing GITHUB_TOKEN_WRITE (or GITHUB_TOKEN) in Django settings / .env"
+                "Missing SLACK_PR_BOT_GITHUB_TOKEN in Django settings / .env"
             )
         _gh = Github(token)
     return _gh

@@ -23,7 +23,6 @@ from operations.slack_ops import (
     get_slack_app_token,
     get_slack_bot_token,
     get_default_team_key,
-    start_channel_join_background,
 )
 
 from slack_event_handler.utils.job_queue import (
@@ -36,6 +35,10 @@ from slack_event_handler.utils.pr_parser import extract_pr_urls
 from slack_event_handler.workspace import get_data_dir
 
 MAX_PROCESSED_FILE_IDS = 1000
+
+# Team scope: which features are enabled per team (see SLACK_TEAM_SCOPE_<id> in settings).
+SCOPE_HUDDLE = 0
+SCOPE_PR_BOT = 1
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +97,10 @@ class SlackListener:
 
         self.app = App(token=self.bot_token)
 
+        # Per-team scope: 0 = huddle, 1 = PR bot (from SLACK_TEAM_SCOPE_<id>). Default both.
+        _scope_map = getattr(settings, "SLACK_TEAM_SCOPE", None) or {}
+        self._team_scope = _scope_map.get(self._team_id, [SCOPE_HUDDLE, SCOPE_PR_BOT])
+
         # Huddle dedup cache (LRU, capped at MAX_PROCESSED_FILE_IDS)
         self._processed_file_ids: OrderedDict = OrderedDict()
         self._processed_file_ids_lock = threading.Lock()
@@ -107,8 +114,9 @@ class SlackListener:
 
         self._register_handlers()
         logger.debug(
-            "SlackListener initialised team_id=%s (PR channel: %s)",
+            "SlackListener initialised team_id=%s scope=%s (PR channel: %s)",
             self._team_id or "default",
+            self._team_scope,
             self._pr_channel_id or "disabled",
         )
 
@@ -171,7 +179,7 @@ class SlackListener:
     ) -> None:
         """Full PR comment request pipeline: parse → deduplicate → enqueue → ack."""
         allowed_org: str = (getattr(settings, "SLACK_PR_BOT_TEAM", "") or "").strip()
-        valid, invalid_org = extract_pr_urls(text)
+        valid, invalid_org = extract_pr_urls(text, allowed_org=allowed_org)
 
         org_hint = (
             f"only PRs under the `{allowed_org}` org are supported."
@@ -295,8 +303,8 @@ class SlackListener:
             if subtype in ("message_changed", "message_deleted"):
                 return
 
-            # -- Huddle AI note path --
-            if self._is_huddle_ai_note_event(event):
+            # -- Huddle AI note path (only if scope includes 0) --
+            if SCOPE_HUDDLE in self._team_scope and self._is_huddle_ai_note_event(event):
                 logger.debug("Huddle AI note event detected")
                 save_event_to_file("huddle_ai_note", body)
                 file_id = self._extract_file_id_from_event(event)
@@ -340,7 +348,11 @@ class SlackListener:
                 )
                 return
 
-            # -- PR bot path --
+            # -- PR bot path (only if scope includes 1) --
+            if SCOPE_PR_BOT not in self._team_scope:
+                logger.debug("Unhandled regular message event (PR bot disabled for this team)")
+                return
+
             channel_type = event.get("channel_type")
             is_dm = channel_type == "im"
 
@@ -405,11 +417,9 @@ def start_slack_listener(
 ) -> None:
     """
     Start the unified Slack event listener for one workspace.
-    Also starts a background thread for periodic channel-join checks.
     For multiple workspaces, call this once per team from separate threads.
     """
     listener = SlackListener(bot_token, app_token, team_id)
-    start_channel_join_background(bot_token=listener.bot_token)
     listener.start()
 
 
