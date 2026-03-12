@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def _slack_team_fallback() -> str:
-    """Return default team key from SLACK_BOT_TOKEN: single key, or first key (order from SLACK_TEAMS)."""
+    """Return default team key from SLACK_BOT_TOKEN: single key, or first key (order from SLACK_TEAM_IDS)."""
     try:
         from django.conf import settings as django_settings
 
@@ -28,7 +28,7 @@ def _slack_team_fallback() -> str:
 
 
 def get_default_team_key() -> str:
-    """Return the default team key (single or first in SLACK_TEAMS). Empty if no teams configured."""
+    """Return the default team key (single or first in SLACK_TEAM_IDS). Empty if no teams configured."""
     return _slack_team_fallback()
 
 
@@ -37,8 +37,8 @@ def get_slack_bot_token(team_id: Optional[str] = None) -> str:
     Return the Slack bot token for the given team (team_id).
 
     SLACK_BOT_TOKEN in settings is a dict (team_id -> token), built from env via
-    SLACK_TEAMS and SLACK_BOT_TOKEN_<id>. When team_id is missing or empty,
-    falls back to the default team key (single or first in SLACK_TEAMS).
+    SLACK_TEAM_IDS and SLACK_BOT_TOKEN_<id>. When team_id is missing or empty,
+    falls back to the default team key (single or first in SLACK_TEAM_IDS).
     Logs error and raises ValueError only if both team_id and fallback are absent,
     or the token for that team is missing.
     """
@@ -58,13 +58,13 @@ def get_slack_bot_token(team_id: Optional[str] = None) -> str:
 
     if not isinstance(tokens_map, dict) or tid not in tokens_map:
         logger.error(
-            "team %s is missing from SLACK_BOT_TOKEN. Set SLACK_TEAMS and SLACK_BOT_TOKEN_%s in .env",
+            "team %s is missing from SLACK_BOT_TOKEN. Set SLACK_TEAM_IDS and SLACK_BOT_TOKEN_%s in .env",
             tid,
             tid,
         )
         raise ValueError(
             f"team {tid!r} not found in SLACK_BOT_TOKEN. "
-            f"Add {tid!r} to SLACK_TEAMS and set SLACK_BOT_TOKEN_{tid} in .env"
+            f"Add {tid!r} to SLACK_TEAM_IDS and set SLACK_BOT_TOKEN_{tid} in .env"
         )
 
     token = (tokens_map[tid] or "").strip()
@@ -102,7 +102,7 @@ def get_slack_client(
     """
     Get a SlackAPIClient with the given token, or the token for team_id from
     settings.SLACK_BOT_TOKEN (dict). When neither bot_token nor team_id is
-    provided, get_slack_bot_token(team_id) uses the default team key (from SLACK_TEAMS) internally.
+    provided, get_slack_bot_token(team_id) uses the default team key (from SLACK_TEAM_IDS) internally.
     """
     from operations.slack_ops.client import SlackAPIClient
 

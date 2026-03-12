@@ -179,11 +179,11 @@ GITHUB_SLACK_HUDDLE_REPO_NAME = (
 
 # Slack (bot + app token for operations.slack_ops and cppa_slack_transcript_tracker)
 # SLACK_BOT_TOKEN: built from env (prefixed vars). In settings it is a dict (team_id -> token).
-# Env: SLACK_TEAMS=id1,id2 and SLACK_BOT_TOKEN_id1=xoxb-..., etc.
+# Env: SLACK_TEAM_IDS=id1,id2 and SLACK_BOT_TOKEN_id1=xoxb-..., etc.
 def _slack_bot_token_from_env():
-    """Build a dict of team_id -> bot token from SLACK_TEAMS and SLACK_BOT_TOKEN_<id> env vars."""
+    """Build a dict of team_id -> bot token from SLACK_TEAM_IDS and SLACK_BOT_TOKEN_<id> env vars."""
     out = {}
-    ids_raw = (env("SLACK_TEAMS", default="") or "").strip()
+    ids_raw = (env("SLACK_TEAM_IDS", default="") or "").strip()
     if not ids_raw:
         return out
     for tid in ids_raw.split(","):

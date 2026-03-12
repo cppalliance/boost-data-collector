@@ -255,7 +255,7 @@ def fetch_huddle_transcript(file_id):
         logger.debug("Tokens not found in .env, extracting from Slack...")
         if not team_id:
             logger.error(
-                "No default team. Set SLACK_TEAMS and SLACK_BOT_TOKEN_<id> in .env."
+                "No default team. Set SLACK_TEAM_IDS and SLACK_BOT_TOKEN_<id> in .env."
             )
             return None
         from cppa_slack_transcript_tracker.utils.slack_tokens import (
