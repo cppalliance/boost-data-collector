@@ -18,6 +18,8 @@ from urllib3.exceptions import ProtocolError
 
 logger = logging.getLogger(__name__)
 
+MAX_RATE_LIMIT_RETRIES = 5
+
 
 class RateLimitException(Exception):
     """Raised when rate limit is exceeded."""
@@ -158,70 +160,89 @@ class GitHubAPIClient:
         timeout: int = 30,
         allow_retry: bool = False,
     ) -> requests.Response:
-        """Perform one HTTP request. Retries on 5xx/connection errors only when allow_retry=True.
+        """Perform one HTTP request. Retries on 429/403 rate limit (wait then retry).
+        Retries on 5xx/connection errors only when allow_retry=True.
 
         Mutating methods (POST, DELETE, GraphQL) must NOT pass allow_retry=True to avoid
         replaying writes that may have succeeded on the server despite a transient failure.
         """
         attempts = self.max_retries if allow_retry else 1
-        for attempt in range(attempts):
-            try:
-                resp = self.session.request(
-                    method,
-                    url,
-                    params=params,
-                    json=json_data,
-                    headers=headers,
-                    timeout=timeout,
-                )
-                if allow_retry and resp.status_code in (500, 502, 503, 504):
-                    if attempt < attempts - 1:
+        for rate_limit_attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
+            rate_limited = False
+            rate_limit_resp = None
+            for attempt in range(attempts):
+                try:
+                    resp = self.session.request(
+                        method,
+                        url,
+                        params=params,
+                        json=json_data,
+                        headers=headers,
+                        timeout=timeout,
+                    )
+                    wait = self._parse_rate_limit_wait(resp)
+                    if wait is not None:
+                        self._handle_rate_limit(wait)
+                        rate_limited = True
+                        rate_limit_resp = resp
+                        break
+                    if allow_retry and resp.status_code in (500, 502, 503, 504):
+                        if attempt < attempts - 1:
+                            wait_time = self.retry_delay * (2**attempt)
+                            logger.warning(
+                                "HTTP %s on %s (attempt %s/%s), retrying in %ss...",
+                                resp.status_code,
+                                endpoint_for_log,
+                                attempt + 1,
+                                attempts,
+                                wait_time,
+                            )
+                            time.sleep(wait_time)
+                            continue
+                    return resp
+                except (ConnectionError, ProtocolError, Timeout) as e:
+                    if allow_retry and attempt < attempts - 1:
                         wait_time = self.retry_delay * (2**attempt)
                         logger.warning(
-                            "HTTP %s on %s (attempt %s/%s), retrying in %ss...",
-                            resp.status_code,
+                            "Connection error on %s (attempt %s/%s): %s",
                             endpoint_for_log,
                             attempt + 1,
                             attempts,
-                            wait_time,
+                            e,
                         )
                         time.sleep(wait_time)
-                        continue
-                return resp
-            except (ConnectionError, ProtocolError, Timeout) as e:
-                if allow_retry and attempt < attempts - 1:
-                    wait_time = self.retry_delay * (2**attempt)
+                    elif allow_retry:
+                        logger.error(
+                            "Failed %s after %s retries: %s",
+                            endpoint_for_log,
+                            self.max_retries,
+                            e,
+                        )
+                        raise ConnectionException(
+                            f"Connection error after {self.max_retries} retries for {endpoint_for_log}: {e}"
+                        )
+                    else:
+                        logger.error(
+                            "Connection error on %s (no retries): %s",
+                            endpoint_for_log,
+                            e,
+                        )
+                        raise ConnectionException(
+                            f"Connection error for {endpoint_for_log}: {e}"
+                        )
+            if rate_limited:
+                if rate_limit_attempt < MAX_RATE_LIMIT_RETRIES:
+                    continue
+                if rate_limit_resp is not None:
                     logger.warning(
-                        "Connection error on %s (attempt %s/%s): %s",
+                        "Rate limit retries exhausted (%s) for %s, returning last response.",
+                        MAX_RATE_LIMIT_RETRIES,
                         endpoint_for_log,
-                        attempt + 1,
-                        attempts,
-                        e,
                     )
-                    time.sleep(wait_time)
-                elif allow_retry:
-                    logger.error(
-                        "Failed %s after %s retries: %s",
-                        endpoint_for_log,
-                        self.max_retries,
-                        e,
-                    )
-                    raise ConnectionException(
-                        f"Connection error after {self.max_retries} retries for {endpoint_for_log}: {e}"
-                    )
-                else:
-                    logger.error(
-                        "Connection error on %s (no retries): %s",
-                        endpoint_for_log,
-                        e,
-                    )
-                    raise ConnectionException(
-                        f"Connection error for {endpoint_for_log}: {e}"
-                    )
-
-        raise ConnectionException(
-            f"Connection error for {endpoint_for_log}: max retries exceeded"
-        )
+                    return rate_limit_resp
+            raise ConnectionException(
+                f"Connection error for {endpoint_for_log}: max retries exceeded"
+            )
 
     def _handle_rate_limit(self, wait_time: int, max_delay: int = 3600) -> None:
         """Handle rate limit by waiting with exponential backoff."""
@@ -258,10 +279,6 @@ class GitHubAPIClient:
             timeout=30,
             allow_retry=True,
         )
-        wait = self._parse_rate_limit_wait(response)
-        if wait is not None:
-            self._handle_rate_limit(wait)
-            return self._rest_get(endpoint, params=params, etag=etag)
         if response.status_code == 304:
             self._update_rate_limit_from_response(response)
             return (None, response.headers.get("ETag", etag))
@@ -306,10 +323,6 @@ class GitHubAPIClient:
         response = self._do_request(
             "POST", url, f"POST {endpoint}", json_data=payload, timeout=30
         )
-        wait = self._parse_rate_limit_wait(response)
-        if wait is not None:
-            self._handle_rate_limit(wait)
-            return self.rest_post(endpoint, json_data)
         self._raise_if_error_and_update_rate_limit(response, f"POST {endpoint}")
         return response.json()
 
@@ -320,10 +333,6 @@ class GitHubAPIClient:
         response = self._do_request(
             "PUT", url, f"PUT {endpoint}", json_data=payload, timeout=30
         )
-        wait = self._parse_rate_limit_wait(response)
-        if wait is not None:
-            self._handle_rate_limit(wait)
-            return self.rest_put(endpoint, json_data)
         self._raise_if_error_and_update_rate_limit(response, f"PUT {endpoint}")
         return response.json()
 
@@ -336,10 +345,6 @@ class GitHubAPIClient:
         response = self._do_request(
             "DELETE", url, f"DELETE {endpoint}", json_data=payload, timeout=30
         )
-        wait = self._parse_rate_limit_wait(response)
-        if wait is not None:
-            self._handle_rate_limit(wait)
-            return self.rest_delete(endpoint, json_data)
         self._raise_if_error_and_update_rate_limit(response, f"DELETE {endpoint}")
         if response.status_code == 204:
             return None
@@ -508,10 +513,6 @@ class GitHubAPIClient:
             headers={"Content-Type": "application/json"},
             timeout=30,
         )
-        wait = self._parse_rate_limit_wait(response)
-        if wait is not None:
-            self._handle_rate_limit(wait)
-            return self.graphql_request(query, variables)
         self._raise_if_error_and_update_rate_limit(response, "GraphQL request")
         data = response.json()
         if "errors" in data:
