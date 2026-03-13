@@ -153,7 +153,9 @@ def extract_speakers_from_title(title: str, channel_title: str = "") -> list[str
     if not title:
         return []
 
-    candidate = _extract_middle_name_from_triplet(title, title=title, channel_title=channel_title)
+    candidate = _extract_middle_name_from_triplet(
+        title, title=title, channel_title=channel_title
+    )
     if candidate:
         return [candidate]
     return []
