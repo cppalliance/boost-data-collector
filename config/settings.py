@@ -183,6 +183,7 @@ GITHUB_SLACK_HUDDLE_REPO_NAME = (
 
 SLACK_TEAM_ID = (env("SLACK_TEAM_ID", default="") or "").strip()
 
+
 def _slack_bot_token_from_env():
     """Build a dict of team_id -> bot token from SLACK_TEAM_IDS and SLACK_BOT_TOKEN_<id> env vars."""
     out = {}
