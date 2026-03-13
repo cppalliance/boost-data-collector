@@ -49,10 +49,14 @@ class Migration(migrations.Migration):
             ),
             reverse_sql=migrations.RunSQL.noop,
         ),
-        migrations.AddField(
-            model_name="youtubespeaker",
-            name="external_id",
-            field=models.CharField(blank=True, max_length=255, null=True),
+        # Add column if missing (no-op when 0005 already created it; required when
+        # upgrading from pre-fix 0005 that did not include external_id).
+        migrations.RunSQL(
+            sql=(
+                "ALTER TABLE cppa_user_tracker_youtubespeaker "
+                "ADD COLUMN IF NOT EXISTS external_id VARCHAR(255) NULL;"
+            ),
+            reverse_sql=migrations.RunSQL.noop,
         ),
         migrations.RunPython(populate_external_id, migrations.RunPython.noop),
         migrations.AlterField(

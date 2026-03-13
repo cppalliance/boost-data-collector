@@ -23,6 +23,10 @@ class Migration(migrations.Migration):
                         to="cppa_user_tracker.baseprofile",
                     ),
                 ),
+                (
+                    "external_id",
+                    models.CharField(blank=True, max_length=255, null=True),
+                ),
                 ("display_name", models.CharField(db_index=True, max_length=255)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),

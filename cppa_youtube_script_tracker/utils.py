@@ -5,7 +5,7 @@ Priority order:
 1) description patterns
 2) title pattern
 3) transcript introduction patterns
-4) fallback to "unkown"
+4) fallback to "unknown"
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 from typing import Iterable
 
-UNKNOWN_SPEAKER_NAME = "unkown"
+UNKNOWN_SPEAKER_NAME = "unknown"
 
 _SEPARATORS = (" - ", " — ", " | ")
 _INTRO_RE = re.compile(
@@ -182,7 +182,7 @@ def resolve_speakers(
 ) -> list[str]:
     """
     Resolve speakers using priority:
-      description -> title -> transcript -> ["unkown"]
+      description -> title -> transcript -> ["unknown"]
     """
     from_description = extract_speakers_from_description(
         description=description, title=title, channel_title=channel_title
