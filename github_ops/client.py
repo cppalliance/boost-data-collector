@@ -114,20 +114,35 @@ class GitHubAPIClient:
         remaining = response.headers.get("X-RateLimit-Remaining")
         if remaining is None:
             return None
-        if int(remaining) != 0:
+        try:
+            remaining_int = int(remaining)
+        except (TypeError, ValueError):
+            return None
+        if remaining_int != 0:
             return None
         reset = response.headers.get("X-RateLimit-Reset")
         if not reset:
             return None
-        wait = max(0, int(reset) - int(time.time()) + 10)
+        try:
+            reset_int = int(reset)
+        except (TypeError, ValueError):
+            return None
+        wait = max(0, reset_int - int(time.time()) + 10)
         return wait
 
     def _update_rate_limit_from_response(self, response: requests.Response) -> None:
         """Update rate limit state from response headers if present."""
-        if "X-RateLimit-Remaining" not in response.headers:
+        remaining = response.headers.get("X-RateLimit-Remaining")
+        reset = response.headers.get("X-RateLimit-Reset")
+        if remaining is None or reset is None:
             return
-        self.rate_limit_remaining = int(response.headers["X-RateLimit-Remaining"])
-        self.rate_limit_reset_time = int(response.headers["X-RateLimit-Reset"])
+        try:
+            self.rate_limit_remaining = int(remaining)
+            self.rate_limit_reset_time = int(reset)
+        except (TypeError, ValueError):
+            logger.debug(
+                "Invalid rate-limit headers received; skipping local state update."
+            )
 
     def _raise_if_error_and_update_rate_limit(
         self, response: requests.Response, request_label: str
