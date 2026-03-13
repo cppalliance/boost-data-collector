@@ -312,8 +312,11 @@ LOGGING = {
         "level": LOG_LEVEL,
     },
     "loggers": {
-        # Celery internals (bootsteps, timer, consumer) are noisy at DEBUG; use INFO.
-        "celery": {"level": "INFO", "propagate": True},
+        # Celery internals (bootsteps, timer, consumer) are noisy at DEBUG; use INFO only then.
+        "celery": {
+            "level": "INFO" if LOG_LEVEL == "DEBUG" else LOG_LEVEL,
+            "propagate": True,
+        },
     },
 }
 

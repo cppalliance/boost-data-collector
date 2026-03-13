@@ -27,11 +27,6 @@ app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()
 
 
-_app_log_level = getattr(settings, "LOG_LEVEL", "INFO")
-app.conf.worker_log_level = _app_log_level
-app.conf.beat_log_level = _app_log_level
-
-
 @setup_logging.connect
 def on_celery_setup_logging(**kwargs):
     """Apply Django LOGGING so Celery worker/beat use the same log file and handlers."""
