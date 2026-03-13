@@ -45,4 +45,6 @@ jobs:
               curl -sSL -f "$SCRIPT_URL" -o /tmp/deploy.sh
             fi
             bash /tmp/deploy.sh
+            exit_code=$?
             rm -f /tmp/deploy.sh
+            exit $exit_code
