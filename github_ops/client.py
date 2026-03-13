@@ -103,19 +103,15 @@ class GitHubAPIClient:
         """
         if response.status_code not in (403, 429):
             if response.status_code == 200:
-                # GraphQL rate-limit: remaining header explicitly zero with a reset time.
-                remaining_hdr = response.headers.get("X-RateLimit-Remaining")
-                has_reset = response.headers.get("X-RateLimit-Reset") is not None
-                headers_throttled = remaining_hdr == "0" and has_reset
-                # Fallback: body carries an "errors" key (GraphQL error envelope).
-                body_throttled = False
-                if not headers_throttled:
-                    try:
-                        body = response.json()
-                        body_throttled = isinstance(body, dict) and "errors" in body
-                    except (ValueError, KeyError):
-                        pass
-                if not headers_throttled and not body_throttled:
+                # GraphQL rate-limit: only indicated by "errors" key in response body.
+                # X-RateLimit-Remaining: 0 on HTTP 200 means the request succeeded and
+                # consumed the last token, not that it was throttled.
+                try:
+                    body = response.json()
+                    body_throttled = isinstance(body, dict) and "errors" in body
+                except (ValueError, KeyError):
+                    body_throttled = False
+                if not body_throttled:
                     return None
             else:
                 return None

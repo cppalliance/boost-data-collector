@@ -25,6 +25,12 @@ _REDIS_CLIENT_CHECKED_AT = 0.0
 _REDIS_RETRY_INTERVAL_SEC = 60.0
 
 
+def _invalidate_redis_client() -> None:
+    """Clear the cached Redis client so the next _redis_client() call will reconnect."""
+    global _CACHED_REDIS_CLIENT
+    _CACHED_REDIS_CLIENT = None
+
+
 def _redis_client():
     """Return Redis client or None if unavailable. Memoized at module scope."""
     global _CACHED_REDIS_CLIENT, _REDIS_CLIENT_CHECKED_AT
@@ -94,6 +100,8 @@ class RedisListETagCache:
             return value if value else None
         except Exception as e:
             logger.debug("ETag cache get failed: %s", e)
+            _invalidate_redis_client()
+            self._client = None
             return None
 
     def set(
@@ -115,3 +123,5 @@ class RedisListETagCache:
                 self._client.set(key, etag)
         except Exception as e:
             logger.debug("ETag cache set failed: %s", e)
+            _invalidate_redis_client()
+            self._client = None
