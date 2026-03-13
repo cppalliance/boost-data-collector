@@ -28,7 +28,7 @@ jobs:
       SCRIPT_URL: ${{ secrets.DEPLOY_SCRIPT_URL || format('https://raw.githubusercontent.com/{0}/{1}/.github/workflows/deploy-script/deploy.sh', github.repository, github.event.workflow_run.head_sha) }}
     steps:
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.5
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         env:
           DEPLOY_SCRIPT_TOKEN: ${{ secrets.DEPLOY_SCRIPT_TOKEN }}
         with:
@@ -39,12 +39,15 @@ jobs:
           port: ${{ env.SSH_PORT }}
           envs: SCRIPT_URL,DEPLOY_SCRIPT_TOKEN,BRANCH,REPO_URL
           script: |
+            set -euo pipefail
+            tmp_script="$(mktemp /tmp/deploy.XXXXXX.sh)"
+            trap 'rm -f "$tmp_script"' EXIT
             if [ -n "$DEPLOY_SCRIPT_TOKEN" ]; then
-              curl -sSL -f -H "Authorization: token $DEPLOY_SCRIPT_TOKEN" "$SCRIPT_URL" -o /tmp/deploy.sh
+              curl --silent --show-error --location --fail \
+                -H "Authorization: token $DEPLOY_SCRIPT_TOKEN" \
+                "$SCRIPT_URL" -o "$tmp_script"
             else
-              curl -sSL -f "$SCRIPT_URL" -o /tmp/deploy.sh
+              curl --silent --show-error --location --fail \
+                "$SCRIPT_URL" -o "$tmp_script"
             fi
-            bash /tmp/deploy.sh
-            exit_code=$?
-            rm -f /tmp/deploy.sh
-            exit $exit_code
+            bash "$tmp_script"

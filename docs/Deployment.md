@@ -21,7 +21,7 @@ SSH into server → pull latest code → restart containers
 
 ## GitHub Environments and Secrets
 
-The deploy workflow uses **GitHub Environments** so that each branch uses the right server. Required secrets are **environment-scoped** (`SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `SSH_PORT`) — set per environment (production / staging), not as PROD_* / DEV_* repository secrets.
+The deploy workflow uses **GitHub Environments** so that each branch uses the right server. Required secrets are **environment-scoped** (`SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`) and optional `SSH_PORT` (defaults to `22`) and `SSH_KEY_PASSPHRASE` — set per environment (production / staging), not as PROD_* / DEV_* repository secrets.
 
 ### 1. Create the environments
 
@@ -42,6 +42,7 @@ In each environment (**production** and **staging**), add the following **Enviro
 | `SSH_USER` | SSH username |
 | `SSH_PRIVATE_KEY` | SSH private key (full content, including header/footer) |
 | `SSH_PORT` | SSH port (optional, defaults to `22`) |
+| `SSH_KEY_PASSPHRASE` | Passphrase for the SSH private key (optional; only if the key is passphrase-protected) |
 
 GitHub injects the correct set based on the branch: `main` → production environment secrets, `develop` → staging environment secrets.
 
@@ -72,7 +73,7 @@ Docker and Docker Compose are also required. Refer to the [official Docker docs]
 
 ### 1. Create the `.env` file (two-step process)
 
-The deploy script does **not** manage secrets. It also requires an empty or non-existent deploy directory for the first clone: `git clone` in [deploy.sh](.github/workflows/deploy-script/deploy.sh) fails if the target directory already exists and is not a git repo. So create `.env` **after** the first clone, not before.
+The deploy script does **not** manage secrets. It also requires an empty or non-existent deploy directory for the first clone: `git clone` in [deploy.sh](../.github/workflows/deploy-script/deploy.sh) fails if the target directory already exists and is not a git repo. So create `.env` **after** the first clone, not before.
 
 **Step 1 — Trigger the first deploy**
 Push to `main` or `develop` (or re-run the Deploy workflow). The script will clone the repo into `/opt/boost-data-collector` and then exit with an error because `.env` is missing.
