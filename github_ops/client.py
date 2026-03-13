@@ -19,6 +19,8 @@ from urllib3.exceptions import ProtocolError
 logger = logging.getLogger(__name__)
 
 MAX_RATE_LIMIT_RETRIES = 5
+# Extra seconds added to API reset-based wait so we don't retry before the window opens.
+RATE_LIMIT_WAIT_SAFETY_MARGIN_SEC = 10
 
 
 class RateLimitException(Exception):
@@ -94,9 +96,29 @@ class GitHubAPIClient:
                 raise
 
     def _parse_rate_limit_wait(self, response: requests.Response) -> Optional[int]:
-        """If response is 403/429 with rate limit or Retry-After, return seconds to wait; else None."""
+        """If response is 403/429 with rate limit or Retry-After, return seconds to wait; else None.
+
+        Also handles HTTP 200 GraphQL throttle responses, which GitHub returns with
+        X-RateLimit-Remaining: 0 / X-RateLimit-Reset headers or an "errors" key in the body.
+        """
         if response.status_code not in (403, 429):
-            return None
+            if response.status_code == 200:
+                # GraphQL rate-limit: remaining header explicitly zero with a reset time.
+                remaining_hdr = response.headers.get("X-RateLimit-Remaining")
+                has_reset = response.headers.get("X-RateLimit-Reset") is not None
+                headers_throttled = remaining_hdr == "0" and has_reset
+                # Fallback: body carries an "errors" key (GraphQL error envelope).
+                body_throttled = False
+                if not headers_throttled:
+                    try:
+                        body = response.json()
+                        body_throttled = isinstance(body, dict) and "errors" in body
+                    except (ValueError, KeyError):
+                        pass
+                if not headers_throttled and not body_throttled:
+                    return None
+            else:
+                return None
         retry_after = response.headers.get("Retry-After")
         if retry_after is not None:
             retry_after = retry_after.strip()
@@ -127,7 +149,7 @@ class GitHubAPIClient:
             reset_int = int(reset)
         except (TypeError, ValueError):
             return None
-        wait = max(0, reset_int - int(time.time()) + 10)
+        wait = max(0, reset_int - int(time.time()) + RATE_LIMIT_WAIT_SAFETY_MARGIN_SEC)
         return wait
 
     def _update_rate_limit_from_response(self, response: requests.Response) -> None:
@@ -259,11 +281,15 @@ class GitHubAPIClient:
                 f"Connection error for {endpoint_for_log}: max retries exceeded"
             )
 
-    def _handle_rate_limit(self, wait_time: int, max_delay: int = 3600) -> None:
-        """Handle rate limit by waiting with exponential backoff."""
+    def _handle_rate_limit(
+        self, wait_time: int, max_delay: Optional[int] = 3600
+    ) -> None:
+        """Handle rate limit by waiting. Does not cap below (max_delay + safety margin)."""
         wait_time = max(0, wait_time)
-        if wait_time > max_delay:
-            wait_time = max_delay
+        if max_delay is not None:
+            cap = max_delay + RATE_LIMIT_WAIT_SAFETY_MARGIN_SEC
+            if wait_time > cap:
+                wait_time = cap
         if wait_time > 0:
             logger.warning("Rate limit hit. Waiting %s seconds...", wait_time)
             time.sleep(wait_time)

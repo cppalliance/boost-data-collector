@@ -7,6 +7,7 @@ Uses Redis. Enable Redis persistence (RDB or AOF) in your Redis server so the ca
 from __future__ import annotations
 
 import logging
+import time
 from typing import Optional
 
 from django.conf import settings
@@ -17,9 +18,30 @@ KEY_PREFIX = "github_etag"
 # Optional TTL in seconds (default 7 days) to limit key growth
 DEFAULT_TTL = 7 * 24 * 3600
 
+# Module-level cache: avoid repeated Redis probes during bulk sync.
+_CACHED_REDIS_CLIENT = None
+_REDIS_CLIENT_CHECKED_AT = 0.0
+# Re-check Redis availability after this many seconds if last check failed.
+_REDIS_RETRY_INTERVAL_SEC = 60.0
+
 
 def _redis_client():
-    """Return Redis client or None if unavailable."""
+    """Return Redis client or None if unavailable. Memoized at module scope."""
+    global _CACHED_REDIS_CLIENT, _REDIS_CLIENT_CHECKED_AT
+
+    # Return cached client if already connected.
+    if _CACHED_REDIS_CLIENT is not None:
+        return _CACHED_REDIS_CLIENT
+
+    # If we recently checked and failed, don't retry yet (avoid repeated 5s timeouts).
+    now = time.time()
+    if (
+        _REDIS_CLIENT_CHECKED_AT > 0
+        and (now - _REDIS_CLIENT_CHECKED_AT) < _REDIS_RETRY_INTERVAL_SEC
+    ):
+        return None
+
+    _REDIS_CLIENT_CHECKED_AT = now
     try:
         import redis
 
@@ -31,6 +53,8 @@ def _redis_client():
             socket_timeout=5,
         )
         client.ping()
+        _CACHED_REDIS_CLIENT = client
+        logger.info("ETag cache Redis connected: %s", url)
         return client
     except Exception as e:
         logger.debug("ETag cache Redis unavailable: %s", e)

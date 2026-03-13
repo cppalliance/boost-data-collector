@@ -128,34 +128,49 @@ def test_fetch_commits_from_github_with_etag_cache_304_yields_nothing():
         items = list(fetch_commits_from_github(client, "o", "r", etag_cache=etag_cache))
     assert items == []
     assert client.rest_request_conditional.call_count == 2
+    # Ensure we requested page 1 then page 2 (no re-requesting the same page).
+    call1_params = client.rest_request_conditional.call_args_list[0][1]["params"]
+    call2_params = client.rest_request_conditional.call_args_list[1][1]["params"]
+    assert call1_params["page"] == 1
+    assert call2_params["page"] == 2
     etag_cache.set.assert_not_called()
 
 
 def test_fetch_commits_from_github_with_etag_cache_200_yields_and_sets():
-    """When etag_cache is passed and rest_request_conditional returns 200, yields items and calls set."""
+    """When etag_cache is passed and rest_request_conditional returns 200, yields items and calls set
+    only after the page's items have been consumed (checkpoint deferred).
+    """
     client = MagicMock()
+    # Two items on page 1 so we can assert set() is not called until after both are consumed.
     client.rest_request_conditional.side_effect = [
         (
             [
-                {
-                    "sha": "abc",
-                    "commit": {"author": {"date": "2024-06-01T00:00:00Z"}},
-                }
+                {"sha": "abc", "commit": {"author": {"date": "2024-06-01T00:00:00Z"}}},
+                {"sha": "def", "commit": {"author": {"date": "2024-06-02T00:00:00Z"}}},
             ],
             "W/new_etag",
         ),
     ]
-    client.rest_request.return_value = {
-        "sha": "abc",
-        "commit": {"message": "msg"},
-        "stats": {"additions": 1},
-    }
+    client.rest_request.side_effect = [
+        {"sha": "abc", "commit": {"message": "msg"}, "stats": {"additions": 1}},
+        {"sha": "def", "commit": {"message": "msg2"}, "stats": {"additions": 2}},
+    ]
     etag_cache = MagicMock()
     etag_cache.get.return_value = None
-    items = list(fetch_commits_from_github(client, "o", "r", etag_cache=etag_cache))
-    assert len(items) == 1
-    assert items[0]["sha"] == "abc"
-    etag_cache.set.assert_called_once()
+    with patch("github_activity_tracker.fetcher.time.sleep"):
+        gen = fetch_commits_from_github(client, "o", "r", etag_cache=etag_cache)
+        # Consume first item only; checkpoint must not be written yet.
+        first = next(gen)
+        etag_cache.set.assert_not_called()
+        # Consume second item; set still not called until we advance past the last yield.
+        second = next(gen)
+        etag_cache.set.assert_not_called()
+        # Advancing again runs the code after the for-loop (etag_cache.set) then exits.
+        with pytest.raises(StopIteration):
+            next(gen)
+        etag_cache.set.assert_called_once()
+    assert first["sha"] == "abc"
+    assert second["sha"] == "def"
     call_args = etag_cache.set.call_args[0]
     assert call_args[0] == "commits"
     assert call_args[1] == 1
@@ -184,6 +199,28 @@ def test_fetch_commits_from_github_aborts_on_502_503_504():
     ]
     with pytest.raises(req.exceptions.HTTPError):
         list(fetch_commits_from_github(client, "o", "r"))
+
+
+def test_fetch_commits_from_github_5xx_with_etag_cache_does_not_checkpoint():
+    """When etag_cache is enabled and a 5xx aborts during full-commit fetch, etag_cache.set is not called."""
+    import requests as req
+
+    client = MagicMock()
+    client.rest_request_conditional.side_effect = [
+        (
+            [{"sha": "abc", "commit": {"author": {"date": "2024-06-01T00:00:00Z"}}}],
+            "W/new_etag",
+        ),
+    ]
+    client.rest_request.side_effect = req.exceptions.HTTPError(
+        "Bad Gateway", response=MagicMock(status_code=502)
+    )
+    etag_cache = MagicMock()
+    etag_cache.get.return_value = None
+    with patch("github_activity_tracker.fetcher.time.sleep"):
+        with pytest.raises(req.exceptions.HTTPError):
+            list(fetch_commits_from_github(client, "o", "r", etag_cache=etag_cache))
+    etag_cache.set.assert_not_called()
 
 
 def test_fetch_commits_from_github_reraises_non_server_error_http():
