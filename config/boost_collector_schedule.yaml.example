@@ -1,5 +1,6 @@
 # Boost collector schedule (see docs/Workflow.md)
-# default_time is in UTC (24h "HH:MM"). The app converts to CELERY_TIMEZONE when building the Beat schedule.
+# default_time is in UTC (24h "HH:MM"). Beat runs at that UTC time. The default batch
+# uses the UTC date for weekly/monthly eligibility so it matches the run time.
 #
 # Schedule types:
 #   daily       - runs at group default_time every day (part of group batch).

@@ -102,9 +102,13 @@ class Command(BaseCommand):
             group_id=group_id,
         )
 
-        if (
-            schedule_kind == "monthly" and day_of_month is not None
-        ) or schedule_kind == "default":
+        if schedule_kind == "default":
+            today = datetime.now(ZoneInfo("UTC")).date()
+            kwargs["day_of_week"] = today.strftime("%A").lower()
+            kwargs["day_of_month"] = today.day
+            kwargs["month"] = today.month
+            kwargs["year"] = today.year
+        elif schedule_kind == "monthly" and day_of_month is not None:
             tz_name = getattr(settings, "CELERY_TIMEZONE", "UTC")
             today = datetime.now(ZoneInfo(tz_name)).date()
             kwargs["month"] = today.month

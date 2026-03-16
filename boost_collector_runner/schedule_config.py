@@ -2,8 +2,9 @@
 Load and validate boost collector schedule YAML; expose groups/tasks and Celery Beat schedule.
 Config file: config/boost_collector_schedule.yaml (see docs/Workflow.md).
 
-Times in the YAML (default_time) are in UTC. When building the Beat schedule, they are
-converted to CELERY_TIMEZONE so jobs run at the correct local time.
+Times in the YAML (default_time) are in UTC. They are not converted; Beat runs at that
+UTC time (requires CELERY_ENABLE_UTC = True). For the default batch, weekly/monthly
+eligibility uses the UTC date at run time so it matches the UTC default_time.
 
 Execution model: Tasks within a group run sequentially. Each group has one Beat entry (at the
 group's default_time); when it runs, all non-interval tasks in that group run together: daily,
@@ -15,9 +16,7 @@ a group run; they get separate Beat entries and run independently.
 
 import logging
 import calendar
-from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import yaml
 
@@ -26,12 +25,16 @@ logger = logging.getLogger(__name__)
 # Group batch (daily + weekly for today + monthly for today + on_release) uses this to separate from "daily" only.
 DEFAULT_GROUP_BATCH_SCHEDULE_KIND = "default"
 
-SCHEDULE_TYPES = (
+# Allowed in YAML task "schedule" (user-facing). "default" is internal only, not valid in YAML.
+TASK_SCHEDULE_TYPES = (
     "daily",
     "weekly",
     "monthly",
     "on_release",
     "interval",
+)
+SCHEDULE_TYPES = (
+    *TASK_SCHEDULE_TYPES,
     DEFAULT_GROUP_BATCH_SCHEDULE_KIND,
 )
 # Interval schedule: minutes only; max 3 hours (use for short periodic runs, e.g. every 15 min).
@@ -93,24 +96,6 @@ def _parse_time(s):
     return h, m
 
 
-def _utc_time_to_celery_tz(hour_utc, minute_utc):
-    """
-    Convert (hour, minute) in UTC to (hour, minute) in CELERY_TIMEZONE.
-    Uses today as the reference date so DST is correct. Used when building
-    Beat crontab so YAML default_time (UTC) runs at the right local time.
-    """
-    from django.conf import settings
-
-    tz_name = getattr(settings, "CELERY_TIMEZONE", "UTC")
-    celery_tz = ZoneInfo(tz_name)
-    # Use today so DST is correct for current period
-    utc_dt = datetime.now(ZoneInfo("UTC")).replace(
-        hour=hour_utc, minute=minute_utc, second=0, microsecond=0
-    )
-    local_dt = utc_dt.astimezone(celery_tz)
-    return local_dt.hour, local_dt.minute
-
-
 def _normalize_task(task, group_id):
     """Build a normalized task dict; default enabled=True; time is always the group's default_time (tasks do not have their own time)."""
     t = dict(task)
@@ -148,10 +133,10 @@ def _validate_task(task, group_id):
             f"Task in group {group_id!r} must have 'command' (non-empty string)"
         )
     schedule = task.get("schedule")
-    if schedule not in SCHEDULE_TYPES:
+    if schedule not in TASK_SCHEDULE_TYPES:
         raise ValueError(
             f"Task {command!r} in group {group_id!r}: "
-            f"'schedule' must be one of {SCHEDULE_TYPES}"
+            f"'schedule' must be one of {TASK_SCHEDULE_TYPES}"
         )
     if schedule == "weekly":
         on_val = task.get("on") or task.get("day_of_week")
@@ -443,8 +428,7 @@ def get_beat_schedule():
                 "kwargs": kwargs,
             }
         elif schedule_kind == DEFAULT_GROUP_BATCH_SCHEDULE_KIND:
-            h_utc, m_utc = _parse_time(time_str)
-            h, m = _utc_time_to_celery_tz(h_utc, m_utc)
+            h, m = _parse_time(time_str)
             key = f"boost-collector-group-{group_id}-{time_str.replace(':', '-')}"
             schedule[key] = {
                 "task": "boost_collector_runner.tasks.run_scheduled_collectors_task",

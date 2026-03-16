@@ -281,6 +281,7 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "America/Los_Angeles"
+CELERY_ENABLE_UTC = True  # Beat schedule times (default_time from YAML) are UTC
 
 # Schedule from YAML (boost_collector_runner); on load error fall back to empty beat schedule ({})
 BOOST_COLLECTOR_SCHEDULE_YAML = BASE_DIR / "config" / "boost_collector_schedule.yaml"

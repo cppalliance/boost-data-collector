@@ -5,7 +5,7 @@ This document outlines the development requirements and guidelines for Django ap
 ## Overview
 
 - Django project: One Django project with multiple Django apps; all apps share the same virtual environment, settings, and database.
-- Workflow: The project runs app tasks sequentially via management commands (e.g. `python manage.py run_boost_library_tracker`) or a single command that runs all collectors. Use **workflow** (`python manage.py run_all_collectors`) for a fixed list, or **boost_collector_runner** with `config/boost_collector_schedule.yaml` for a YAML-driven schedule (`python manage.py run_scheduled_collectors --schedule daily`). Scheduling is done with Celery Beat or by running commands by hand.
+- Workflow: The project runs app tasks sequentially via management commands (e.g. `python manage.py run_boost_library_tracker`) or a single command that runs all collectors. Use **workflow** (`python manage.py run_all_collectors`) for a fixed list, or **boost_collector_runner** with `config/boost_collector_schedule.yaml` for a YAML-driven schedule. In production, Celery Beat invokes the same runner as: `python manage.py run_scheduled_collectors --schedule default --group <group_id>` for a group batch, or `python manage.py run_scheduled_collectors --schedule interval --interval-minutes <n>` for an interval batch. Manual runs (e.g. `run_all_collectors`, `run_boost_library_tracker`) differ from Beat’s per-group schedule; use the Beat-style flags above when testing the YAML-driven path.
 - Configuration: Django settings (e.g. `settings.py`), environment variables for database URL and API keys (e.g. via `django-environ` or `python-decouple`).
 
 ## Django app requirements
@@ -61,7 +61,7 @@ Use these steps to get the Django project running on your machine.
 3. Install dependencies (e.g. `pip install -r requirements.txt`).
 4. Copy the sample env file (e.g. `.env.example`) to `.env` and fill in values for database URL, credentials, and any API keys (e.g. via `django-environ` or `python-decouple`).
 5. Ensure the database is reachable. Run migrations: `python manage.py migrate`.
-6. Run a single app command (e.g. `python manage.py run_boost_library_tracker`) or the full workflow (e.g. `python manage.py run_all_collectors` or `python manage.py run_scheduled_collectors --schedule daily`) to confirm the project works.
+6. Run a single app command (e.g. `python manage.py run_boost_library_tracker`) or the full workflow (e.g. `python manage.py run_all_collectors`) to confirm the project works. To test the YAML-driven path as Beat does, use `python manage.py run_scheduled_collectors --schedule default --group <group_id>` for a group batch, or `python manage.py run_scheduled_collectors --schedule interval --interval-minutes <n>` for an interval batch (see `config/boost_collector_schedule.yaml`).
 
 ## Testing workflow
 
@@ -69,7 +69,7 @@ Run tests often so you catch problems early.
 
 - **Before each commit:** run the test suite for the code you changed (`python -m pytest` or a subset).
 - **For app commands:** ensure the command runs successfully (e.g. `python manage.py run_boost_library_tracker` exits with 0 and does the expected work).
-- **Full workflow:** run `python manage.py run_all_collectors` or `python manage.py run_scheduled_collectors --schedule daily` when testing integration.
+- **Full workflow:** run `python manage.py run_all_collectors` when testing the fixed workflow, or `python manage.py run_scheduled_collectors --schedule default --group <group_id>` / `--schedule interval --interval-minutes <n>` when testing the YAML-driven path (matches how Celery Beat invokes it).
   Add tests for new behavior and keep them passing.
 
 ## Step-by-step development workflow guide
