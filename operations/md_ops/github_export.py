@@ -100,7 +100,9 @@ def write_md_files(
         raw_path = get_raw_source_issue_path(owner, repo, number)
         if not raw_path.exists():
             logger.warning(
-                "write_md_files: raw issue JSON not found: %s (skipping #%s)", raw_path, number
+                "write_md_files: raw issue JSON not found: %s (skipping #%s)",
+                raw_path,
+                number,
             )
             continue
         try:
@@ -114,7 +116,9 @@ def write_md_files(
         created_at_raw = info.get("created_at")
         created_at = _parse_dt(created_at_raw)
 
-        out_path = _md_path(output_dir, folder_prefix, "issues", created_at, number, title)
+        out_path = _md_path(
+            output_dir, folder_prefix, "issues", created_at, number, title
+        )
         try:
             md_content = issue_json_to_md(issue_data)
             out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -129,7 +133,9 @@ def write_md_files(
         raw_path = get_raw_source_pr_path(owner, repo, number)
         if not raw_path.exists():
             logger.warning(
-                "write_md_files: raw PR JSON not found: %s (skipping #%s)", raw_path, number
+                "write_md_files: raw PR JSON not found: %s (skipping #%s)",
+                raw_path,
+                number,
             )
             continue
         try:
@@ -143,7 +149,9 @@ def write_md_files(
         created_at_raw = info.get("created_at")
         created_at = _parse_dt(created_at_raw)
 
-        out_path = _md_path(output_dir, folder_prefix, "pull_requests", created_at, number, title)
+        out_path = _md_path(
+            output_dir, folder_prefix, "pull_requests", created_at, number, title
+        )
         try:
             md_content = pr_json_to_md(pr_data)
             out_path.parent.mkdir(parents=True, exist_ok=True)
