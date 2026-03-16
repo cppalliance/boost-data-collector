@@ -33,7 +33,13 @@ def get_github_token(
         raw_tokens = getattr(settings, "GITHUB_TOKENS_SCRAPING", None) or []
         # Only include non-empty strings (skip whitespace-only or non-string entries)
         tokens = [t.strip() for t in raw_tokens if isinstance(t, str) and t.strip()]
-        if not tokens:
+        global _scraping_token_cycle
+        if _scraping_token_cycle is None:
+            if tokens:
+                _scraping_token_cycle = itertools.cycle(tokens)
+        if _scraping_token_cycle is not None:
+            return next(_scraping_token_cycle)
+        else:
             token = (
                 getattr(settings, "GITHUB_TOKEN", None)
                 or os.environ.get("GITHUB_TOKEN", "")
@@ -44,10 +50,7 @@ def get_github_token(
                     "No scraping token: set GITHUB_TOKENS_SCRAPING or GITHUB_TOKEN."
                 )
             return token
-        global _scraping_token_cycle
-        if _scraping_token_cycle is None:
-            _scraping_token_cycle = itertools.cycle(tokens)
-        return next(_scraping_token_cycle)
+
     if use in ("push", "create_pr", "write"):
         token = (
             getattr(settings, "GITHUB_TOKEN_WRITE", None)
