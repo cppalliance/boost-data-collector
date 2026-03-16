@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "boost_library_usage_dashboard",
     "boost_usage_tracker",
     "boost_mailing_list_tracker",
+    "cppa_pinecone_sync",
     "clang_github_tracker",
     "cppa_slack_tracker",
     "discord_activity_tracker",
@@ -174,6 +175,20 @@ GITHUB_SLACK_HUDDLE_REPO_OWNER = (
 ).strip()
 GITHUB_SLACK_HUDDLE_REPO_NAME = (
     env("GITHUB_SLACK_HUDDLE_REPO_NAME", default="") or ""
+).strip()
+
+# Settings for publishing boost_library_usage_dashboard
+BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_OWNER = (
+    env("BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_OWNER", default="") or ""
+).strip()
+BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_REPO = (
+    env("BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_REPO", default="") or ""
+).strip()
+BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_TOKEN = (
+    env("BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_TOKEN", default="") or ""
+).strip() or GITHUB_TOKEN_WRITE
+BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_BRANCH = (
+    env("BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_BRANCH", default="") or ""
 ).strip()
 
 
