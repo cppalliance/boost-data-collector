@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 
 MAIN_OWNER = "boostorg"
 MAIN_REPO = "boost"
+DEFAULT_PRIVATE_MD_BRANCH = "master"
 
 
 def _parse_gitmodules_owner_repo(
@@ -225,9 +226,9 @@ def task_fetch_github_activity(
             getattr(
                 settings,
                 "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_BRANCH",
-                "master",
+                DEFAULT_PRIVATE_MD_BRANCH,
             )
-            or "master"
+            or DEFAULT_PRIVATE_MD_BRANCH
         ).strip()
 
         if private_owner and private_repo:
@@ -334,7 +335,12 @@ def task_generate_and_upload_md(
         settings, "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_NAME", ""
     ).strip()
     private_branch = (
-        getattr(settings, "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_BRANCH", "main") or "main"
+        getattr(
+            settings,
+            "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_BRANCH",
+            DEFAULT_PRIVATE_MD_BRANCH,
+        )
+        or DEFAULT_PRIVATE_MD_BRANCH
     ).strip()
     if not private_owner or not private_repo:
         logger.error(
@@ -418,9 +424,9 @@ def task_upload_md_only(self, dry_run: bool = False) -> None:
         getattr(
             settings,
             "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_BRANCH",
-            "main",
+            DEFAULT_PRIVATE_MD_BRANCH,
         )
-        or "main"
+        or DEFAULT_PRIVATE_MD_BRANCH
     ).strip()
 
     if not private_owner or not private_repo:

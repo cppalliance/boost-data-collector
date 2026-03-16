@@ -27,6 +27,8 @@ from operations.md_ops.github_export import detect_renames_from_dirs, write_md_f
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_PRIVATE_MD_BRANCH = "master"
+
 
 class Command(BaseCommand):
     """Django management command: fetch GitHub activity to raw and optionally run sync."""
@@ -181,8 +183,12 @@ class Command(BaseCommand):
                 settings, "CLANG_GITHUB_TRACKER_PRIVATE_REPO_NAME", ""
             ).strip()
             private_branch = (
-                getattr(settings, "CLANG_GITHUB_TRACKER_PRIVATE_REPO_BRANCH", "master")
-                or "master"
+                getattr(
+                    settings,
+                    "CLANG_GITHUB_TRACKER_PRIVATE_REPO_BRANCH",
+                    DEFAULT_PRIVATE_MD_BRANCH,
+                )
+                or DEFAULT_PRIVATE_MD_BRANCH
             ).strip()
             if not private_owner or not private_repo_name:
                 logger.error(
@@ -271,8 +277,12 @@ class Command(BaseCommand):
             settings, "CLANG_GITHUB_TRACKER_PRIVATE_REPO_NAME", ""
         ).strip()
         private_branch = (
-            getattr(settings, "CLANG_GITHUB_TRACKER_PRIVATE_REPO_BRANCH", "master")
-            or "master"
+            getattr(
+                settings,
+                "CLANG_GITHUB_TRACKER_PRIVATE_REPO_BRANCH",
+                DEFAULT_PRIVATE_MD_BRANCH,
+            )
+            or DEFAULT_PRIVATE_MD_BRANCH
         ).strip()
 
         if not private_owner or not private_repo_name:
