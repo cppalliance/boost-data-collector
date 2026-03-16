@@ -22,3 +22,10 @@ langchain-core>=0.2
 slack-bolt>=1.18
 pytz>=2024.1
 selenium>=4.35
+
+# slack_event_handler (GitHub PR comments)
+PyGithub>=2.0
+# cppa_pinecone_sync app
+pinecone>=3.0
+langchain-core>=0.1
+langchain-text-splitters>=0.0.1

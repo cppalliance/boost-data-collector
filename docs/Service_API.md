@@ -9,6 +9,7 @@ All writes to app models must go through the service layer. The API is documente
 | Service | Module path | Short description |
 |---------|-------------|--------------------|
 | **cppa_user_tracker** | `cppa_user_tracker.services` | Identity, profiles, emails, and staging (TmpIdentity, TempProfileIdentityRelation). |
+| **cppa_pinecone_sync**      | `cppa_pinecone_sync.services`      | Pinecone fail list and sync status (failure tracking, last-sync bookkeeping).       |
 | **github_activity_tracker** | `github_activity_tracker.services` | Repos, languages, licenses, issues, pull requests, assignees, labels. |
 | **boost_library_tracker**   | `boost_library_tracker.services`   | Boost libraries, versions, dependencies, categories, maintainers/authors. |
 | **boost_library_docs_tracker** | `boost_library_docs_tracker.services` | Globally unique doc content (BoostDocContent) and (library-version, page) relation tracking (BoostLibraryDocumentation). |
@@ -23,6 +24,7 @@ All writes to app models must go through the service layer. The API is documente
 - **[service_api/github_activity_tracker.md](service_api/github_activity_tracker.md)** – Full API for `github_activity_tracker.services` (includes validation: empty `name` raises `ValueError` for Language/License).
 - **[service_api/boost_library_tracker.md](service_api/boost_library_tracker.md)** – API for `boost_library_tracker.services`.
 - **[service_api/boost_library_docs_tracker.md](service_api/boost_library_docs_tracker.md)** – API for `boost_library_docs_tracker.services`.
+- **[service_api/cppa_pinecone_sync.md](service_api/cppa_pinecone_sync.md)** – API for `cppa_pinecone_sync.services`.
 - **[service_api/boost_usage_tracker.md](service_api/boost_usage_tracker.md)** – API for `boost_usage_tracker.services`.
 
 ---

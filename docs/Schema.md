@@ -677,22 +677,22 @@ erDiagram
     PineconeFailList {
         int id PK
         string failed_id "IX"
-        string type "IX"
+        string app_type "IX"
         datetime created_at
     }
 
     PineconeSyncStatus {
         int id PK
-        string type UK "IX"
+        string app_type UK "IX"
         datetime final_sync_at
         datetime created_at
         datetime updated_at
     }
 ```
 
-**Note:** **PineconeFailList** - Records failed sync operations by `failed_id` and `type` for retry or audit.
+**Note:** **PineconeFailList** - Records failed sync operations by `failed_id` and `app_type` for retry or audit.
 
-**Note:** **PineconeSyncStatus** - Tracks the last successful sync per source type. One row per `type` (e.g. slack, mailing list, wg21). `final_sync_at` is when the last sync for that type completed; `created_at` and `updated_at` are for the row.
+**Note:** **PineconeSyncStatus** - Tracks the last successful sync per app. One row per `app_type`. `final_sync_at` is when the last sync for that type completed; `created_at` and `updated_at` are for the row.
 
 ---
 
