@@ -16,7 +16,7 @@ from pathlib import Path
 import requests
 from django.conf import settings
 from django.core.management import call_command
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from cppa_user_tracker.services import get_or_create_owner_account
 from github_activity_tracker.services import (
@@ -256,11 +256,13 @@ def task_fetch_github_activity(
             )
             if result.get("success"):
                 self.stdout.write(self.style.SUCCESS("  Upload complete."))
+                for local_path in all_new_files.values():
+                    Path(local_path).unlink(missing_ok=True)
             else:
-                self.stdout.write(
-                    self.style.ERROR(f"  Upload failed: {result.get('message')}")
-                )
-                logger.error("Upload MD failed: %s", result.get("message"))
+                msg = result.get("message") or "Upload failed"
+                self.stdout.write(self.style.ERROR(f"  Upload failed: {msg}"))
+                logger.error("Upload MD failed: %s", msg)
+                raise CommandError(msg)
         else:
             logger.error(
                 "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_OWNER / _NAME not configured; skipping upload."
@@ -283,23 +285,6 @@ def task_generate_and_upload_md(
 
     if not synced_repos:
         self.stdout.write("  No repos synced; skipping MD generation.")
-        return
-
-    private_owner = getattr(
-        settings, "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_OWNER", ""
-    ).strip()
-    private_repo = getattr(
-        settings, "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_NAME", ""
-    ).strip()
-    private_branch = (
-        getattr(settings, "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_BRANCH", "main") or "main"
-    ).strip()
-
-    if not private_owner or not private_repo:
-        logger.error(
-            "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_OWNER / "
-            "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_NAME not configured; skipping upload."
-        )
         return
 
     md_output_dir = get_boost_workspace_root() / "md_export"
@@ -342,6 +327,22 @@ def task_generate_and_upload_md(
         self.stdout.write("  --no-upload set; skipping GitHub push.")
         return
 
+    private_owner = getattr(
+        settings, "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_OWNER", ""
+    ).strip()
+    private_repo = getattr(
+        settings, "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_NAME", ""
+    ).strip()
+    private_branch = (
+        getattr(settings, "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_BRANCH", "main") or "main"
+    ).strip()
+    if not private_owner or not private_repo:
+        logger.error(
+            "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_OWNER / "
+            "BOOST_LIBRARY_TRACKER_PRIVATE_REPO_NAME not configured; skipping upload."
+        )
+        return
+
     token = get_github_token(use="write")
     delete_paths = detect_renames_from_dirs(
         private_owner,
@@ -364,12 +365,13 @@ def task_generate_and_upload_md(
 
     if result.get("success"):
         self.stdout.write(self.style.SUCCESS("  Upload complete."))
+        for local_path in all_new_files.values():
+            Path(local_path).unlink(missing_ok=True)
     else:
-        self.stdout.write(self.style.ERROR(f"  Upload failed: {result.get('message')}"))
-        logger.error(
-            "task_generate_and_upload_md upload failed: %s",
-            result.get("message"),
-        )
+        msg = result.get("message") or "Upload failed"
+        self.stdout.write(self.style.ERROR(f"  Upload failed: {msg}"))
+        logger.error("task_generate_and_upload_md upload failed: %s", msg)
+        raise CommandError(msg)
 
 
 def task_upload_md_only(self, dry_run: bool = False) -> None:
@@ -452,9 +454,13 @@ def task_upload_md_only(self, dry_run: bool = False) -> None:
 
     if result.get("success"):
         self.stdout.write(self.style.SUCCESS("  Upload complete."))
+        for local_path in all_new_files.values():
+            Path(local_path).unlink(missing_ok=True)
     else:
-        self.stdout.write(self.style.ERROR(f"  Upload failed: {result.get('message')}"))
-        logger.error("task_upload_md_only failed: %s", result.get("message"))
+        msg = result.get("message") or "Upload failed"
+        self.stdout.write(self.style.ERROR(f"  Upload failed: {msg}"))
+        logger.error("task_upload_md_only failed: %s", msg)
+        raise CommandError(msg)
 
 
 def task_collect_libraries(self, ref: str, dry_run: bool = False) -> None:

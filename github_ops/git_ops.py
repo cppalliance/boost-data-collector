@@ -471,7 +471,7 @@ def _list_remote_directory_graphql(
     if dir_path and dir_path.strip():
         expression = f"{branch}:{dir_path.rstrip('/')}"
     else:
-        expression = f"{branch}^{{tree}}"
+        expression = f"{branch}:"
     query = """
     query($owner: String!, $repo: String!, $expression: String!) {
       repository(owner: $owner, name: $repo) {

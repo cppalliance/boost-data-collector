@@ -145,24 +145,6 @@ class Command(BaseCommand):
             )
             return
 
-        private_owner = getattr(
-            settings, "CLANG_GITHUB_TRACKER_PRIVATE_REPO_OWNER", ""
-        ).strip()
-        private_repo_name = getattr(
-            settings, "CLANG_GITHUB_TRACKER_PRIVATE_REPO_NAME", ""
-        ).strip()
-        private_branch = (
-            getattr(settings, "CLANG_GITHUB_TRACKER_PRIVATE_REPO_BRANCH", "master")
-            or "master"
-        ).strip()
-
-        if not private_owner or not private_repo_name:
-            logger.error(
-                "CLANG_GITHUB_TRACKER_PRIVATE_REPO_OWNER / CLANG_GITHUB_TRACKER_PRIVATE_REPO_NAME "
-                "not configured; skipping upload."
-            )
-            return
-
         md_output_dir = get_workspace_root() / "md_export"
         md_output_dir.mkdir(parents=True, exist_ok=True)
         self.stdout.write(f"Writing MD to {md_output_dir}")
@@ -192,6 +174,23 @@ class Command(BaseCommand):
                 )
                 return
 
+            private_owner = getattr(
+                settings, "CLANG_GITHUB_TRACKER_PRIVATE_REPO_OWNER", ""
+            ).strip()
+            private_repo_name = getattr(
+                settings, "CLANG_GITHUB_TRACKER_PRIVATE_REPO_NAME", ""
+            ).strip()
+            private_branch = (
+                getattr(settings, "CLANG_GITHUB_TRACKER_PRIVATE_REPO_BRANCH", "master")
+                or "master"
+            ).strip()
+            if not private_owner or not private_repo_name:
+                logger.error(
+                    "CLANG_GITHUB_TRACKER_PRIVATE_REPO_OWNER / CLANG_GITHUB_TRACKER_PRIVATE_REPO_NAME "
+                    "not configured; skipping upload."
+                )
+                return
+
             token = get_github_token(use="write")
             delete_paths = detect_renames_from_dirs(
                 private_owner,
@@ -200,6 +199,10 @@ class Command(BaseCommand):
                 new_files,
                 token=token,
             )
+            for repo_rel in delete_paths:
+                stale_local = md_output_dir / repo_rel
+                if stale_local.exists():
+                    stale_local.unlink()
             if delete_paths:
                 logger.info(
                     "run_clang_github_tracker: %s renamed file(s) to delete.",
@@ -217,13 +220,15 @@ class Command(BaseCommand):
 
             if result.get("success"):
                 logger.info("run_clang_github_tracker: MD upload complete.")
+                for local_path in new_files.values():
+                    Path(local_path).unlink(missing_ok=True)
             else:
-                logger.error(
-                    "run_clang_github_tracker: MD upload failed: %s",
-                    result.get("message"),
-                )
+                msg = result.get("message") or "Upload failed"
+                logger.error("run_clang_github_tracker: MD upload failed: %s", msg)
+                raise CommandError(msg)
         except Exception as e:
             logger.exception("run_clang_github_tracker: MD export/upload failed: %s", e)
+            raise
 
     def _upload_md_only(self):
         """Upload existing MD files from workspace/clang_github_activity/md_export (no sync, no generation)."""
@@ -286,6 +291,10 @@ class Command(BaseCommand):
                 new_files,
                 token=token,
             )
+            for repo_rel in delete_paths:
+                stale_local = md_output_dir / repo_rel
+                if stale_local.exists():
+                    stale_local.unlink()
             if delete_paths:
                 logger.info(
                     "run_clang_github_tracker: %s renamed file(s) to delete.",
@@ -304,14 +313,16 @@ class Command(BaseCommand):
             if result.get("success"):
                 self.stdout.write(self.style.SUCCESS("MD upload complete."))
                 logger.info("run_clang_github_tracker: MD upload complete.")
+                for local_path in new_files.values():
+                    Path(local_path).unlink(missing_ok=True)
             else:
-                self.stdout.write(
-                    self.style.ERROR(f"Upload failed: {result.get('message')}")
-                )
+                msg = result.get("message") or "Upload failed"
+                self.stdout.write(self.style.ERROR(f"Upload failed: {msg}"))
                 logger.error(
                     "run_clang_github_tracker: MD upload failed: %s",
-                    result.get("message"),
+                    msg,
                 )
+                raise CommandError(msg)
         except Exception as e:
             logger.exception("run_clang_github_tracker: upload-only failed: %s", e)
             raise
