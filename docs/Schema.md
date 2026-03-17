@@ -400,6 +400,8 @@ erDiagram
         int version_id FK
         string cpp_version
         text description
+        string documentation
+        string key
         datetime created_at
         datetime updated_at
     }
@@ -682,22 +684,57 @@ erDiagram
     PineconeFailList {
         int id PK
         string failed_id "IX"
-        string type "IX"
+        string app_type "IX"
         datetime created_at
     }
 
     PineconeSyncStatus {
         int id PK
-        string type UK "IX"
+        string app_type UK "IX"
         datetime final_sync_at
         datetime created_at
         datetime updated_at
     }
 ```
 
-**Note:** **PineconeFailList** - Records failed sync operations by `failed_id` and `type` for retry or audit.
+**Note:** **PineconeFailList** - Records failed sync operations by `failed_id` and `app_type` for retry or audit.
 
-**Note:** **PineconeSyncStatus** - Tracks the last successful sync per source type. One row per `type` (e.g. slack, mailing list, wg21). `final_sync_at` is when the last sync for that type completed; `created_at` and `updated_at` are for the row.
+**Note:** **PineconeSyncStatus** - Tracks the last successful sync per app. One row per `app_type`. `final_sync_at` is when the last sync for that type completed; `created_at` and `updated_at` are for the row.
+
+---
+
+### 10. Boost Library Docs Tracker
+
+```mermaid
+erDiagram
+    BoostLibraryVersion ||--o{ BoostLibraryDocumentation : "has"
+    BoostVersion ||--o{ BoostDocContent : "has"
+    BoostDocContent ||--o{ BoostLibraryDocumentation : "used_in"
+
+    BoostDocContent {
+        int id PK
+        text url "IX"
+        string content_hash UK "IX"
+        int first_version_id FK
+        int last_version_id FK
+        boolean is_upserted
+        datetime scraped_at
+        datetime created_at
+    }
+
+    BoostLibraryDocumentation {
+        int id PK
+        int boost_library_version_id FK
+        int boost_doc_content_id FK
+        datetime created_at
+    }
+```
+
+**Note:** **BoostDocContent** stores one globally unique scraped page per content hash. One row per unique `content_hash` regardless of version or library. Page content is not stored in the DB; it is kept in workspace files. `content_hash` (SHA-256 of the page text) is the unique key — the same URL may produce a new row if the content changes. `first_version_id` / `last_version_id` track the earliest and latest Boost version in which this page content was observed. `is_upserted` tracks whether the page has been successfully upserted to Pinecone. `scraped_at` is updated each time the page is re-fetched.
+
+**Note:** **BoostLibraryDocumentation** is the join table between **BoostLibraryVersion** (section 3) and **BoostDocContent**. One row per (library-version, page) pair — it records which pages were found under a given (library, version) combination.
+
+**Note:** Unique constraint on `content_hash` in BoostDocContent. Composite unique constraint on `(boost_library_version_id, boost_doc_content_id)` in BoostLibraryDocumentation. Index on `boost_library_version_id` in BoostLibraryDocumentation for efficient per-library-version queries.
 
 ---
 
@@ -854,6 +891,8 @@ erDiagram
 | **YouTubeVideoSpeaker**              | M2M join between YouTubeVideo and YoutubeSpeaker (video_id, speaker_id).                                 | 10      |
 | **CppaTags**                         | C++ community tag vocabulary (tag_name, unique/lowercase).                                               | 10      |
 | **YouTubeVideoTags**                 | M2M join between YouTubeVideo and CppaTags (youtube_video_id, cppa_tag_id).                              | 10      |
+| **BoostDocContent**                  | Globally unique scraped page by content hash (url, content_hash UK, first_version_id, last_version_id, is_upserted, scraped_at). One row per unique content hash across all versions.       | 10      |
+| **BoostLibraryDocumentation**        | Join table: BoostLibraryVersion × BoostDocContent. Records which pages belong to each (library, version) pair.                                                                              | 10      |
 
 ### Appendix B: Relationship summary
 
@@ -898,3 +937,5 @@ erDiagram
 | YouTubeVideo                | YouTubeVideoSpeaker                                                                                                    | Has many speakers                           |
 | YouTubeVideo                | YouTubeVideoTags                                                                                                       | Has many tags                               |
 | CppaTags                    | YouTubeVideoTags                                                                                                       | Tagged in many videos                       |
+| BoostLibraryVersion         | BoostLibraryDocumentation                                                                                              | Has many (boost_library_version_id)        |
+| BoostDocContent             | BoostLibraryDocumentation                                                                                              | Used in many (boost_doc_content_id)        |
