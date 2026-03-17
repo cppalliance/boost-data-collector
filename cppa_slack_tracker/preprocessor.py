@@ -18,6 +18,7 @@ import logging
 from datetime import datetime
 from typing import Any, Optional, Dict, List
 
+from django.conf import settings
 from django.db.models import Q
 
 from cppa_slack_tracker.models import SlackMessage
@@ -88,7 +89,7 @@ def _filter_unessential_words(text: str) -> str:
     for s in sentences:
         if not s.strip():
             continue
-        f = filter_sentence(s)
+        f = filter_sentence(s, min_words_after=settings.PINECONE_MIN_WORDS)
         if f:
             filtered.append(f)
     return ". ".join(filtered).strip()
@@ -118,7 +119,9 @@ def _extract_valid_messages(
         if not text:
             continue
         filtered = _filter_unessential_words(text)
-        if filtered and validate_content_length(filtered, min_length=10):
+        if filtered and validate_content_length(
+            filtered, min_length=settings.PINECONE_MIN_TEXT_LENGTH
+        ):
             merged_parts.append(filtered)
             if msg.ts:
                 message_ids.append(msg.ts)
@@ -276,7 +279,7 @@ def filter_and_group_messages(
 def _build_document_content(group: Dict[str, Any]) -> str:
     """Build plain-text content for embedding."""
     text = group.get("text", "").strip()
-    if not validate_content_length(text, min_length=10):
+    if not validate_content_length(text, min_length=settings.PINECONE_MIN_TEXT_LENGTH):
         return ""
     return text
 
