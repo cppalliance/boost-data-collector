@@ -420,7 +420,8 @@ try:
     CELERY_BEAT_SCHEDULE = get_beat_schedule()
 except Exception:
     import logging
-     logging.getLogger(__name__).exception(
+
+    logging.getLogger(__name__).exception(
         "Could not load boost collector schedule from YAML.",
     )
     CELERY_BEAT_SCHEDULE = {}
@@ -433,7 +434,7 @@ GITHUB_ETAG_REDIS_URL = env(
     "GITHUB_ETAG_REDIS_URL",
     default="redis://localhost:6379/1",
 )
-   
+
 # Conditionally add Discord/Slack handlers for error notifications
 if ENABLE_ERROR_NOTIFICATIONS:
     if DISCORD_WEBHOOK_URL:
