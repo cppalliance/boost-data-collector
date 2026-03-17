@@ -16,11 +16,11 @@ from typing import TYPE_CHECKING, Optional
 from cppa_user_tracker.services import get_or_create_github_account
 from github_activity_tracker import fetcher, services
 from .raw_source import save_issue_raw_source
+from .etag_cache import RedisListETagCache
 from github_activity_tracker.workspace import (
     get_issue_json_path,
     iter_existing_issue_jsons,
 )
-from django.utils import timezone
 from github_ops import get_github_client
 from github_ops.client import ConnectionException, RateLimitException
 from github_activity_tracker.sync.utils import (
@@ -143,7 +143,7 @@ def sync_issues(
     Args:
         repo: Repository to sync.
         start_date: Override start date (default: last issue updated_at + 1s, or None if no issues).
-        end_date: Override end date (default: now).
+        end_date: Override end date (default: None = no end; stable ETag cache).
 
     Returns:
         List of issue numbers processed during this sync run.
@@ -167,12 +167,12 @@ def sync_issues(
             last_issue = repo.issues.order_by("-issue_updated_at").first()
             if last_issue:
                 start_date = last_issue.issue_updated_at + timedelta(seconds=1)
-        if end_date is None:
-            end_date = timezone.now()
+        # Leave end_date as None when not set so ETag cache semantics stay stable.
 
         count = 0
+        etag_cache = RedisListETagCache(repo_id=repo.pk)
         for issue_data in fetcher.fetch_issues_from_github(
-            client, owner, repo_name, start_date, end_date
+            client, owner, repo_name, start_date, end_date, etag_cache=etag_cache
         ):
             issue_number = (issue_data.get("issue_info") or {}).get(
                 "number"
