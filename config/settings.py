@@ -425,6 +425,16 @@ except Exception:
         "Could not load boost collector schedule from YAML.",
     )
     CELERY_BEAT_SCHEDULE = {}
+
+# GitHub activity tracker: Redis for ETag cache (conditional GET). Use separate DB index.
+# To persist the cache across restarts, enable Redis persistence (RDB or AOF) in redis.conf:
+#   RDB: leave default "save" rules (e.g. save 900 1) and set dir/dbfilename.
+#   AOF: appendonly yes.
+GITHUB_ETAG_REDIS_URL = env(
+    "GITHUB_ETAG_REDIS_URL",
+    default="redis://localhost:6379/1",
+)
+
 # Conditionally add Discord/Slack handlers for error notifications
 if ENABLE_ERROR_NOTIFICATIONS:
     if DISCORD_WEBHOOK_URL:

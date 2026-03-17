@@ -8,7 +8,8 @@ from __future__ import annotations
 import base64
 import logging
 import time
-from datetime import datetime
+from email.utils import parsedate_to_datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import requests
@@ -16,6 +17,10 @@ from requests.exceptions import ConnectionError, RequestException, Timeout
 from urllib3.exceptions import ProtocolError
 
 logger = logging.getLogger(__name__)
+
+MAX_RATE_LIMIT_RETRIES = 5
+# Extra seconds added to API reset-based wait so we don't retry before the window opens.
+RATE_LIMIT_WAIT_SAFETY_MARGIN_SEC = 10
 
 
 class RateLimitException(Exception):
@@ -62,7 +67,9 @@ class GitHubAPIClient:
                     self.rate_limit_reset_time = data["resources"]["core"]["reset"]
 
                     if self.rate_limit_remaining == 0:
-                        wait_time = self.rate_limit_reset_time - int(time.time())
+                        wait_time = max(
+                            0, self.rate_limit_reset_time - int(time.time())
+                        )
                         if wait_time > 0:
                             raise RateLimitException(
                                 f"Rate limit exceeded. Reset at {datetime.fromtimestamp(self.rate_limit_reset_time)}. "
@@ -88,259 +95,301 @@ class GitHubAPIClient:
                 logger.error(f"Request error checking rate limit: {e}")
                 raise
 
-    def _handle_rate_limit(self, wait_time: int, max_delay: int = 3600):
-        """Handle rate limit by waiting with exponential backoff."""
-        if wait_time > max_delay:
-            wait_time = max_delay
+    def _parse_rate_limit_wait(self, response: requests.Response) -> Optional[int]:
+        """If response is 403/429 with rate limit or Retry-After, return seconds to wait; else None.
 
-        logger.warning(f"Rate limit hit. Waiting {wait_time} seconds...")
-        logger.debug(f"Resume time: {datetime.fromtimestamp(time.time() + wait_time)}")
+        Also handles HTTP 200 GraphQL throttle responses, which GitHub returns with
+        X-RateLimit-Remaining: 0 / X-RateLimit-Reset headers or an "errors" key in the body.
+        """
+        if response.status_code not in (403, 429):
+            if response.status_code == 200:
+                # GraphQL rate-limit: only indicated by "errors" key in response body.
+                # X-RateLimit-Remaining: 0 on HTTP 200 means the request succeeded and
+                # consumed the last token, not that it was throttled.
+                try:
+                    body = response.json()
+                    body_throttled = isinstance(body, dict) and "errors" in body
+                except (ValueError, KeyError):
+                    body_throttled = False
+                if not body_throttled:
+                    return None
+            else:
+                return None
+        retry_after = response.headers.get("Retry-After")
+        if retry_after is not None:
+            retry_after = retry_after.strip()
+            try:
+                return max(0, int(retry_after))
+            except ValueError:
+                try:
+                    dt = parsedate_to_datetime(retry_after)
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    wait = (dt - datetime.now(timezone.utc)).total_seconds()
+                    return max(0, int(wait))
+                except (ValueError, TypeError):
+                    pass
+        remaining = response.headers.get("X-RateLimit-Remaining")
+        if remaining is None:
+            return None
+        try:
+            remaining_int = int(remaining)
+        except (TypeError, ValueError):
+            return None
+        if remaining_int != 0:
+            return None
+        reset = response.headers.get("X-RateLimit-Reset")
+        if not reset:
+            return None
+        try:
+            reset_int = int(reset)
+        except (TypeError, ValueError):
+            return None
+        wait = max(0, reset_int - int(time.time()) + RATE_LIMIT_WAIT_SAFETY_MARGIN_SEC)
+        return wait
 
-        time.sleep(wait_time)
+    def _update_rate_limit_from_response(self, response: requests.Response) -> None:
+        """Update rate limit state from response headers if present."""
+        remaining = response.headers.get("X-RateLimit-Remaining")
+        reset = response.headers.get("X-RateLimit-Reset")
+        if remaining is None or reset is None:
+            return
+        try:
+            self.rate_limit_remaining = int(remaining)
+            self.rate_limit_reset_time = int(reset)
+        except (TypeError, ValueError):
+            logger.debug(
+                "Invalid rate-limit headers received; skipping local state update."
+            )
+
+    def _raise_if_error_and_update_rate_limit(
+        self, response: requests.Response, request_label: str
+    ) -> None:
+        """Raise on HTTP/request error; otherwise update rate limit from response. Does not return."""
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            logger.error(
+                "HTTP error on %s: %s - %s",
+                request_label,
+                getattr(e.response, "status_code", None),
+                e,
+            )
+            raise
+        except RequestException as e:
+            logger.error("Request error on %s: %s", request_label, e)
+            raise
+        self._update_rate_limit_from_response(response)
+
+    def _do_request(
+        self,
+        method: str,
+        url: str,
+        endpoint_for_log: str,
+        *,
+        params: Optional[dict] = None,
+        json_data: Optional[dict] = None,
+        headers: Optional[dict] = None,
+        timeout: int = 30,
+        allow_retry_on_5xx: bool = False,
+        allow_retry_on_connection_errors: bool = False,
+    ) -> requests.Response:
+        """Perform one HTTP request. Retries on 429/403 rate limit (wait then retry).
+        Retries on 5xx only when allow_retry_on_5xx=True; retries on connection errors
+        only when allow_retry_on_connection_errors=True. Mutating methods (POST, DELETE,
+        GraphQL) should not pass allow_retry_on_connection_errors=True to avoid replaying
+        writes that may have succeeded on the server despite a transient failure.
+        """
+        attempts_5xx = self.max_retries if allow_retry_on_5xx else 1
+        attempts_conn = self.max_retries if allow_retry_on_connection_errors else 1
+        for rate_limit_attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
+            rate_limited = False
+            attempt_5xx = 0
+            attempt_conn = 0
+            while True:
+                try:
+                    resp = self.session.request(
+                        method,
+                        url,
+                        params=params,
+                        json=json_data,
+                        headers=headers,
+                        timeout=timeout,
+                    )
+                    wait = self._parse_rate_limit_wait(resp)
+                    if wait is not None:
+                        if rate_limit_attempt >= MAX_RATE_LIMIT_RETRIES:
+                            raise RateLimitException(
+                                f"Rate limit retries exhausted for {endpoint_for_log}"
+                            )
+                        self._handle_rate_limit(wait)
+                        rate_limited = True
+                        break
+                    if resp.status_code in (500, 502, 503, 504):
+                        if allow_retry_on_5xx and attempt_5xx < attempts_5xx - 1:
+                            wait_time = self.retry_delay * (2**attempt_5xx)
+                            logger.warning(
+                                "HTTP %s on %s (attempt %s/%s), retrying in %ss...",
+                                resp.status_code,
+                                endpoint_for_log,
+                                attempt_5xx + 1,
+                                attempts_5xx,
+                                wait_time,
+                            )
+                            time.sleep(wait_time)
+                            attempt_5xx += 1
+                            continue
+                    return resp
+                except (ConnectionError, ProtocolError, Timeout) as e:
+                    if (
+                        allow_retry_on_connection_errors
+                        and attempt_conn < attempts_conn - 1
+                    ):
+                        wait_time = self.retry_delay * (2**attempt_conn)
+                        logger.warning(
+                            "Connection error on %s (attempt %s/%s): %s",
+                            endpoint_for_log,
+                            attempt_conn + 1,
+                            attempts_conn,
+                            e,
+                        )
+                        time.sleep(wait_time)
+                        attempt_conn += 1
+                        continue
+                    if allow_retry_on_connection_errors:
+                        logger.error(
+                            "Failed %s after %s retries: %s",
+                            endpoint_for_log,
+                            self.max_retries,
+                            e,
+                        )
+                        raise ConnectionException(
+                            f"Connection error after {self.max_retries} retries for {endpoint_for_log}: {e}"
+                        ) from e
+                    logger.error(
+                        "Connection error on %s (no retries): %s",
+                        endpoint_for_log,
+                        e,
+                    )
+                    raise ConnectionException(
+                        f"Connection error for {endpoint_for_log}: {e}"
+                    ) from e
+            if rate_limited:
+                continue
+            raise ConnectionException(
+                f"Connection error for {endpoint_for_log}: max retries exceeded"
+            )
+
+    def _handle_rate_limit(
+        self, wait_time: int, max_delay: Optional[int] = 3600
+    ) -> None:
+        """Handle rate limit by waiting. Does not cap below (max_delay + safety margin)."""
+        wait_time = max(0, wait_time)
+        if max_delay is not None:
+            cap = max_delay + RATE_LIMIT_WAIT_SAFETY_MARGIN_SEC
+            if wait_time > cap:
+                wait_time = cap
+        if wait_time > 0:
+            logger.warning("Rate limit hit. Waiting %s seconds...", wait_time)
+            time.sleep(wait_time)
         self._check_rate_limit()
+
+    def _rest_get(
+        self,
+        endpoint: str,
+        params: Optional[dict] = None,
+        etag: Optional[str] = None,
+    ) -> tuple[Optional[requests.Response], Optional[str]]:
+        """
+        Shared GET logic: 403 wait+retry, 304/200 handling.
+        _do_request retries 5xx and connection errors when the corresponding flags are set.
+        Returns (response, response_etag). On 304 returns (None, response ETag or caller's etag).
+        Caller gets response body from response.json() when response is not None.
+        """
+        url = f"{self.rest_base_url}{endpoint}"
+        headers = {}
+        if etag:
+            headers["If-None-Match"] = etag
+        response = self._do_request(
+            "GET",
+            url,
+            endpoint,
+            params=params,
+            headers=headers or None,
+            timeout=30,
+            allow_retry_on_5xx=True,
+            allow_retry_on_connection_errors=True,
+        )
+        if response.status_code == 304:
+            self._update_rate_limit_from_response(response)
+            return (None, response.headers.get("ETag", etag))
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            logger.error(
+                "HTTP error on %s: %s - %s",
+                endpoint,
+                e.response.status_code,
+                e,
+            )
+            raise
+        self._update_rate_limit_from_response(response)
+        return (response, response.headers.get("ETag"))
 
     def rest_request(self, endpoint: str, params: Optional[dict] = None) -> dict:
         """Make REST API request with rate limit and connection error handling."""
-        self._check_rate_limit()
+        response, _ = self._rest_get(endpoint, params=params)
+        if response is None:
+            return {}
+        return response.json()
 
-        url = f"{self.rest_base_url}{endpoint}"
-
-        for attempt in range(self.max_retries):
-            try:
-                response = self.session.get(url, params=params, timeout=30)
-
-                if response.status_code == 403:
-                    if "X-RateLimit-Remaining" in response.headers:
-                        remaining = int(response.headers["X-RateLimit-Remaining"])
-                        if remaining == 0:
-                            reset_time = int(response.headers["X-RateLimit-Reset"])
-                            wait_time = reset_time - int(time.time()) + 10  # Add buffer
-                            self._handle_rate_limit(wait_time)
-                            return self.rest_request(endpoint, params)
-
-                # Retry on server errors (502 Bad Gateway, 503 Unavailable, 504 Gateway Timeout)
-                if response.status_code in (502, 503, 504):
-                    if attempt < self.max_retries - 1:
-                        wait_time = self.retry_delay * (2**attempt)
-                        logger.warning(
-                            "HTTP %s on %s (attempt %s/%s), retrying in %ss...",
-                            response.status_code,
-                            endpoint,
-                            attempt + 1,
-                            self.max_retries,
-                            wait_time,
-                        )
-                        time.sleep(wait_time)
-                        continue
-                    response.raise_for_status()
-
-                response.raise_for_status()
-
-                if "X-RateLimit-Remaining" in response.headers:
-                    self.rate_limit_remaining = int(
-                        response.headers["X-RateLimit-Remaining"]
-                    )
-                    self.rate_limit_reset_time = int(
-                        response.headers["X-RateLimit-Reset"]
-                    )
-
-                return response.json()
-
-            except (ConnectionError, ProtocolError, Timeout) as e:
-                if attempt < self.max_retries - 1:
-                    wait_time = self.retry_delay * (2**attempt)
-                    logger.warning(
-                        f"Connection error on {endpoint} (attempt {attempt + 1}/{self.max_retries}): {e}"
-                    )
-                    logger.debug(f"Retrying in {wait_time} seconds...")
-                    time.sleep(wait_time)
-                else:
-                    logger.error(
-                        f"Failed to make request to {endpoint} after {self.max_retries} attempts: {e}"
-                    )
-                    raise ConnectionException(
-                        f"Connection error after {self.max_retries} retries for {endpoint}: {e}"
-                    )
-            except requests.exceptions.HTTPError as e:
-                logger.error(
-                    f"HTTP error on {endpoint}: {e.response.status_code} - {e}"
-                )
-                raise
-            except RequestException as e:
-                logger.error(f"Request error on {endpoint}: {e}")
-                raise
+    def rest_request_conditional(
+        self,
+        endpoint: str,
+        params: Optional[dict] = None,
+        etag: Optional[str] = None,
+    ) -> tuple[Optional[dict], Optional[str]]:
+        """Make GET request with optional If-None-Match. Returns (data, etag).
+        On 304: (None, response ETag). On 200: (response.json(), response ETag header).
+        """
+        response, response_etag = self._rest_get(endpoint, params=params, etag=etag)
+        if response is None:
+            return (None, response_etag)
+        return (response.json(), response_etag)
 
     def rest_post(self, endpoint: str, json_data: Optional[dict] = None) -> dict:
         """POST to REST API with rate limit and connection error handling."""
-        self._check_rate_limit()
         url = f"{self.rest_base_url}{endpoint}"
-        json_data = json_data or {}
-
-        for attempt in range(self.max_retries):
-            try:
-                response = self.session.post(url, json=json_data, timeout=30)
-
-                if response.status_code == 403:
-                    if "X-RateLimit-Remaining" in response.headers:
-                        remaining = int(response.headers["X-RateLimit-Remaining"])
-                        if remaining == 0:
-                            reset_time = int(response.headers["X-RateLimit-Reset"])
-                            wait_time = reset_time - int(time.time()) + 10
-                            self._handle_rate_limit(wait_time)
-                            return self.rest_post(endpoint, json_data)
-
-                response.raise_for_status()
-                if "X-RateLimit-Remaining" in response.headers:
-                    self.rate_limit_remaining = int(
-                        response.headers["X-RateLimit-Remaining"]
-                    )
-                    self.rate_limit_reset_time = int(
-                        response.headers["X-RateLimit-Reset"]
-                    )
-                return response.json()
-
-            except (ConnectionError, ProtocolError, Timeout) as e:
-                if attempt < self.max_retries - 1:
-                    wait_time = self.retry_delay * (2**attempt)
-                    logger.warning(
-                        "Connection error on POST %s (attempt %s/%s): %s",
-                        endpoint,
-                        attempt + 1,
-                        self.max_retries,
-                        e,
-                    )
-                    time.sleep(wait_time)
-                else:
-                    raise ConnectionException(
-                        f"Connection error after {self.max_retries} retries for POST {endpoint}: {e}"
-                    )
-            except requests.exceptions.HTTPError as e:
-                logger.error(
-                    "HTTP error on POST %s: %s - %s",
-                    endpoint,
-                    getattr(e.response, "status_code", None),
-                    e,
-                )
-                raise
-            except RequestException as e:
-                logger.error("Request error on POST %s: %s", endpoint, e)
-                raise
+        payload = json_data or {}
+        response = self._do_request(
+            "POST", url, f"POST {endpoint}", json_data=payload, timeout=30
+        )
+        self._raise_if_error_and_update_rate_limit(response, f"POST {endpoint}")
+        return response.json()
 
     def rest_put(self, endpoint: str, json_data: Optional[dict] = None) -> dict:
         """PUT to REST API with rate limit and connection error handling."""
-        self._check_rate_limit()
         url = f"{self.rest_base_url}{endpoint}"
-        json_data = json_data or {}
-
-        for attempt in range(self.max_retries):
-            try:
-                response = self.session.put(url, json=json_data, timeout=30)
-
-                if response.status_code == 403:
-                    if "X-RateLimit-Remaining" in response.headers:
-                        remaining = int(response.headers["X-RateLimit-Remaining"])
-                        if remaining == 0:
-                            reset_time = int(response.headers["X-RateLimit-Reset"])
-                            wait_time = reset_time - int(time.time()) + 10
-                            self._handle_rate_limit(wait_time)
-                            return self.rest_put(endpoint, json_data)
-
-                response.raise_for_status()
-                if "X-RateLimit-Remaining" in response.headers:
-                    self.rate_limit_remaining = int(
-                        response.headers["X-RateLimit-Remaining"]
-                    )
-                    self.rate_limit_reset_time = int(
-                        response.headers["X-RateLimit-Reset"]
-                    )
-                return response.json()
-
-            except (ConnectionError, ProtocolError, Timeout) as e:
-                if attempt < self.max_retries - 1:
-                    wait_time = self.retry_delay * (2**attempt)
-                    logger.warning(
-                        "Connection error on PUT %s (attempt %s/%s): %s",
-                        endpoint,
-                        attempt + 1,
-                        self.max_retries,
-                        e,
-                    )
-                    time.sleep(wait_time)
-                else:
-                    raise ConnectionException(
-                        f"Connection error after {self.max_retries} retries for PUT {endpoint}: {e}"
-                    )
-            except requests.exceptions.HTTPError as e:
-                logger.error(
-                    "HTTP error on PUT %s: %s - %s",
-                    endpoint,
-                    getattr(e.response, "status_code", None),
-                    e,
-                )
-                raise
-            except RequestException as e:
-                logger.error("Request error on PUT %s: %s", endpoint, e)
-                raise
+        payload = json_data or {}
+        response = self._do_request(
+            "PUT", url, f"PUT {endpoint}", json_data=payload, timeout=30
+        )
+        self._raise_if_error_and_update_rate_limit(response, f"PUT {endpoint}")
+        return response.json()
 
     def rest_delete(
         self, endpoint: str, json_data: Optional[dict] = None
     ) -> Optional[dict]:
         """DELETE to REST API (JSON body). Returns response JSON or None for 204."""
-        self._check_rate_limit()
         url = f"{self.rest_base_url}{endpoint}"
-        json_data = json_data or {}
-
-        for attempt in range(self.max_retries):
-            try:
-                response = self.session.delete(url, json=json_data, timeout=30)
-
-                if response.status_code == 403:
-                    if "X-RateLimit-Remaining" in response.headers:
-                        remaining = int(response.headers["X-RateLimit-Remaining"])
-                        if remaining == 0:
-                            reset_time = int(response.headers["X-RateLimit-Reset"])
-                            wait_time = reset_time - int(time.time()) + 10
-                            self._handle_rate_limit(wait_time)
-                            return self.rest_delete(endpoint, json_data)
-
-                response.raise_for_status()
-                if "X-RateLimit-Remaining" in response.headers:
-                    self.rate_limit_remaining = int(
-                        response.headers["X-RateLimit-Remaining"]
-                    )
-                    self.rate_limit_reset_time = int(
-                        response.headers["X-RateLimit-Reset"]
-                    )
-                if response.status_code == 204:
-                    return None
-                return response.json()
-
-            except (ConnectionError, ProtocolError, Timeout) as e:
-                if attempt < self.max_retries - 1:
-                    wait_time = self.retry_delay * (2**attempt)
-                    logger.warning(
-                        "Connection error on DELETE %s (attempt %s/%s): %s",
-                        endpoint,
-                        attempt + 1,
-                        self.max_retries,
-                        e,
-                    )
-                    time.sleep(wait_time)
-                else:
-                    raise ConnectionException(
-                        f"Connection error after {self.max_retries} retries for DELETE {endpoint}: {e}"
-                    )
-            except requests.exceptions.HTTPError as e:
-                logger.error(
-                    "HTTP error on DELETE %s: %s - %s",
-                    endpoint,
-                    getattr(e.response, "status_code", None),
-                    e,
-                )
-                raise
-            except RequestException as e:
-                logger.error("Request error on DELETE %s: %s", endpoint, e)
-                raise
+        payload = json_data or {}
+        response = self._do_request(
+            "DELETE", url, f"DELETE {endpoint}", json_data=payload, timeout=30
+        )
+        self._raise_if_error_and_update_rate_limit(response, f"DELETE {endpoint}")
+        if response.status_code == 204:
+            return None
+        return response.json()
 
     def get_file_sha(
         self, owner: str, repo: str, path: str, ref: Optional[str] = None
@@ -494,72 +543,27 @@ class GitHubAPIClient:
 
     def graphql_request(self, query: str, variables: Optional[dict] = None) -> dict:
         """Make GraphQL API request with rate limit and connection error handling."""
-        self._check_rate_limit()
-
-        payload = {"query": query}
+        payload: dict = {"query": query}
         if variables:
             payload["variables"] = variables
-
-        for attempt in range(self.max_retries):
-            try:
-                response = self.session.post(
-                    self.graphql_url,
-                    json=payload,
-                    headers={"Content-Type": "application/json"},
-                    timeout=30,
-                )
-
-                if response.status_code == 403:
-                    if "X-RateLimit-Remaining" in response.headers:
-                        remaining = int(response.headers["X-RateLimit-Remaining"])
-                        if remaining == 0:
-                            reset_time = int(response.headers["X-RateLimit-Reset"])
-                            wait_time = reset_time - int(time.time()) + 10
-                            self._handle_rate_limit(wait_time)
-                            return self.graphql_request(query, variables)
-
-                response.raise_for_status()
-                data = response.json()
-
-                if "errors" in data:
-                    error_msg = "; ".join(
-                        [e.get("message", "Unknown error") for e in data["errors"]]
-                    )
-                    raise Exception(f"GraphQL errors: {error_msg}")
-
-                if "X-RateLimit-Remaining" in response.headers:
-                    self.rate_limit_remaining = int(
-                        response.headers["X-RateLimit-Remaining"]
-                    )
-                    self.rate_limit_reset_time = int(
-                        response.headers["X-RateLimit-Reset"]
-                    )
-
-                return data
-
-            except (ConnectionError, ProtocolError, Timeout) as e:
-                if attempt < self.max_retries - 1:
-                    wait_time = self.retry_delay * (2**attempt)
-                    logger.warning(
-                        f"Connection error on GraphQL request (attempt {attempt + 1}/{self.max_retries}): {e}"
-                    )
-                    logger.debug(f"Retrying in {wait_time} seconds...")
-                    time.sleep(wait_time)
-                else:
-                    logger.error(
-                        f"Failed GraphQL request after {self.max_retries} attempts: {e}"
-                    )
-                    raise ConnectionException(
-                        f"Connection error after {self.max_retries} retries: {e}"
-                    )
-            except requests.exceptions.HTTPError as e:
-                logger.error(
-                    f"HTTP error on GraphQL request: {e.response.status_code} - {e}"
-                )
-                raise
-            except RequestException as e:
-                logger.error(f"Request error on GraphQL request: {e}")
-                raise
+        response = self._do_request(
+            "POST",
+            self.graphql_url,
+            "GraphQL",
+            json_data=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=30,
+            allow_retry_on_5xx=True,
+            allow_retry_on_connection_errors=False,
+        )
+        self._raise_if_error_and_update_rate_limit(response, "GraphQL request")
+        data = response.json()
+        if "errors" in data:
+            error_msg = "; ".join(
+                e.get("message", "Unknown error") for e in data["errors"]
+            )
+            raise Exception(f"GraphQL errors: {error_msg}")
+        return data
 
     def get_repository_info(self, owner: str, repo: str) -> dict:
         """Get repository information."""

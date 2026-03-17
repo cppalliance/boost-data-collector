@@ -25,10 +25,10 @@ from github_activity_tracker.workspace import (
     get_commit_json_path,
     iter_existing_commit_jsons,
 )
-from django.utils import timezone
 from github_ops import get_github_client
 from github_ops.client import ConnectionException, RateLimitException
 from .raw_source import save_commit_raw_source
+from .etag_cache import RedisListETagCache
 from github_activity_tracker.sync.utils import (
     parse_datetime,
     parse_github_user,
@@ -235,7 +235,7 @@ def sync_commits(
     Args:
         repo: Repository to sync.
         start_date: Override start date (default: last commit date + 1s, or None if no commits).
-        end_date: Override end date (default: now).
+        end_date: Override end date (default: None = no end; fetcher uses stable cache key).
     """
     logger.info("sync_commits: starting for repo id=%s (%s)", repo.pk, repo.repo_name)
 
@@ -257,8 +257,8 @@ def sync_commits(
             last_commit = repo.commits.order_by("-commit_at").first()
             if last_commit:
                 start_date = last_commit.commit_at + timedelta(seconds=1)
-        if end_date is None:
-            end_date = timezone.now()
+        # Leave end_date as None when not set so the fetcher uses until_iso=""
+        # and the ETag cache key stays stable across runs (no end = stable key).
 
         # Create thread pool for big commits (max 2-4 workers to avoid heavy disk/network load)
         executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="big_commit")
@@ -268,8 +268,9 @@ def sync_commits(
         count_big = 0
 
         try:
+            etag_cache = RedisListETagCache(repo_id=repo.pk)
             for commit_data in fetcher.fetch_commits_from_github(
-                client, owner, repo_name, start_date, end_date
+                client, owner, repo_name, start_date, end_date, etag_cache=etag_cache
             ):
                 sha = commit_data.get("sha")
                 if not sha:
