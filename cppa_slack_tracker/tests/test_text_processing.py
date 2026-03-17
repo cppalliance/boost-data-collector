@@ -52,11 +52,12 @@ def test_clean_text_handles_empty_input():
 
 
 def test_filter_sentence_removes_greetings():
-    """filter_sentence removes greeting words."""
+    """filter_sentence removes greeting words as whole phrases (keeps 'hi' inside 'this')."""
     sentence = "Hi there, can you help me with this?"
     result = filter_sentence(sentence)
-    assert "hi" not in result.lower()
+    assert result.startswith("there")  # standalone "Hi" removed
     assert "help" in result
+    assert "this" in result  # "hi" inside "this" is not removed
 
 
 def test_filter_sentence_removes_unessential_words():

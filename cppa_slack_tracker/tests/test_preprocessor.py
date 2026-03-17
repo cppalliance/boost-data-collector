@@ -236,5 +236,5 @@ def test_preprocessor_cleans_slack_formatting(
     if docs:
         # Content should not contain raw Slack formatting
         content = docs[0]["content"]
-        assert "<@" not in content or "@" not in content  # Mentions cleaned
-        assert "<#" not in content or "#" not in content  # Channels cleaned
+        assert "<@" not in content  # User mentions cleaned
+        assert "<#" not in content  # Channel mentions cleaned (but #channel-name is OK)

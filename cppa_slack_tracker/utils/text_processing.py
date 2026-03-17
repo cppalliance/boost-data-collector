@@ -151,10 +151,10 @@ def filter_sentence(
         sentence: Input sentence to filter.
         greeting_words: Phrases to remove (e.g. "hi", "thank you"). Default: SLACK_GREETING_WORDS.
         unessential_words: Phrases to remove (e.g. "ok", "lol"). Default: SLACK_UNESSENTIAL_WORDS.
-        min_words_after: Minimum word count to keep; otherwise return "". Default: 3.
+        min_words_after: Minimum word count to keep (inclusive); return "" if fewer. Default: 3.
 
     Returns:
-        Filtered sentence (lowercased, stripped), or "" if empty or below min_words_after.
+        Filtered sentence (lowercased, stripped), or "" if empty or fewer than min_words_after words.
 
     Examples:
         >>> filter_sentence("Hi there, can you help?")
@@ -167,23 +167,25 @@ def filter_sentence(
         return ""
 
     greeting = (
-        set(greeting_words) if greeting_words is not None else SLACK_GREETING_WORDS
+        {word.lower() for word in greeting_words}
+        if greeting_words is not None
+        else SLACK_GREETING_WORDS
     )
     unessential = (
-        set(unessential_words)
+        {word.lower() for word in unessential_words}
         if unessential_words is not None
         else SLACK_UNESSENTIAL_WORDS
     )
 
     sentence_lower = sentence.lower()
-    greeting_found = [w for w in greeting if w in sentence_lower]
-    unessential_found = [w for w in unessential if w in sentence_lower]
+    removable_phrases = sorted(greeting | unessential, key=len, reverse=True)
+    for phrase in removable_phrases:
+        pattern = rf"(?<!\w){re.escape(phrase)}(?!\w)"
+        sentence_lower = re.sub(pattern, "", sentence_lower)
 
-    if greeting_found or unessential_found:
-        for word in greeting_found + unessential_found:
-            sentence_lower = sentence_lower.replace(word, "")
+    sentence_lower = re.sub(r"\s{2,}", " ", sentence_lower).strip()
 
-    if len(sentence_lower.strip().split()) <= min_words_after:
+    if len(sentence_lower.strip().split()) < min_words_after:
         return ""
 
     return sentence_lower.strip()

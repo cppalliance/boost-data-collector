@@ -310,6 +310,10 @@ def preprocess_slack_for_pinecone(
     if final_sync_at is None and not normalized_failed:
         # First sync - get all messages
         candidates_new = queryset
+        messages_new = list(candidates_new)
+        logger.info(
+            f"Loaded {len(messages_new)} Slack messages for preprocessing (first sync)"
+        )
     else:
         if final_sync_at is not None:
             # Incremental sync: get messages created/updated after last sync
