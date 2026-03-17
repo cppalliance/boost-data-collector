@@ -74,6 +74,7 @@ class PineconeIngestion:
             settings, "PINECONE_SPARSE_MODEL", "pinecone-sparse-english-v0"
         )
 
+        self._validate_config()
         self._setup_client()
         self._initialize_text_splitter()
         self._setup_indexes()
@@ -95,6 +96,26 @@ class PineconeIngestion:
     # ------------------------------------------------------------------
     # Initialization helpers
     # ------------------------------------------------------------------
+
+    def _validate_config(self) -> None:
+        """Ensure required Pinecone settings are set; raise ValueError with clear message if not."""
+        if not (self.index_name or "").strip():
+            raise ValueError(
+                "PINECONE_INDEX_NAME is not set or is empty. "
+                "Set PINECONE_INDEX_NAME in .env (e.g. PINECONE_INDEX_NAME=boost-dashboard) "
+                "to enable Pinecone sync."
+            )
+        active_key = self._active_api_key
+        if not (active_key or "").strip():
+            key_name = (
+                "PINECONE_PRIVATE_API_KEY"
+                if self.instance == PineconeInstance.PRIVATE
+                else "PINECONE_API_KEY"
+            )
+            raise ValueError(
+                f"{key_name} is not set or is empty. "
+                f"Set {key_name}=pc-xxxx in .env to enable Pinecone sync."
+            )
 
     @staticmethod
     def _validate_imports() -> None:

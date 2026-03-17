@@ -138,24 +138,24 @@ class Command(BaseCommand):
         # --sync-channel-users, and --sync-messages runs its corresponding sync
         # when set; multiple flags can be combined. If none are set, default to
         # syncing users, channels, and messages.
-        # if options.get("sync_users"):
-        #     self.sync_users(options, team)
-        # if options.get("sync_channels"):
-        #     self.sync_channels(options, team)
-        # if options.get("sync_channel_users"):
-        #     self.sync_channel_users(options, team)
-        # if options.get("sync_messages"):
-        #     self.sync_messages(options, team)
+        if options.get("sync_users"):
+            self.sync_users(options, team)
+        if options.get("sync_channels"):
+            self.sync_channels(options, team)
+        if options.get("sync_channel_users"):
+            self.sync_channel_users(options, team)
+        if options.get("sync_messages"):
+            self.sync_messages(options, team)
 
-        # if (
-        #     not options.get("sync_users")
-        #     and not options.get("sync_channels")
-        #     and not options.get("sync_channel_users")
-        #     and not options.get("sync_messages")
-        # ):
-        #     self.sync_users(options, team)
-        #     self.sync_channels(options, team)
-        #     self.sync_messages(options, team)
+        if (
+            not options.get("sync_users")
+            and not options.get("sync_channels")
+            and not options.get("sync_channel_users")
+            and not options.get("sync_messages")
+        ):
+            self.sync_users(options, team)
+            self.sync_channels(options, team)
+            self.sync_messages(options, team)
 
         # Sync to Pinecone after message sync (unless --ignore-pinecone is set)
         if not options.get("ignore_pinecone"):
@@ -435,5 +435,7 @@ class Command(BaseCommand):
                 "Install with: pip install pinecone langchain-text-splitters langchain-core",
                 e,
             )
+        except ValueError as e:
+            logger.warning("Pinecone sync skipped: %s", e)
         except Exception:
             logger.exception("Error during Pinecone sync")
