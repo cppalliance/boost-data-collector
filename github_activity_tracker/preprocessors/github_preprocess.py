@@ -83,6 +83,15 @@ def _to_timestamp(iso_str: str | None) -> float:
         return 0.0
 
 
+def _file_modified_at(path: Path) -> datetime | None:
+    """Return the file's modification time as UTC datetime, or None if not available."""
+    try:
+        mtime = path.stat().st_mtime
+        return datetime.fromtimestamp(mtime, tz=timezone.utc)
+    except OSError:
+        return None
+
+
 def _iter_json_files(
     directory: Path,
 ) -> Generator[tuple[Path, dict[str, Any]], None, None]:
@@ -259,8 +268,10 @@ def preprocess_issues(
 
         is_failed = ids_val in failed_set
         updated_at = _parse_updated_at(info)
+        file_modified_at = _file_modified_at(path)
         is_new = final_sync_at is None or (
-            updated_at is not None and updated_at > final_sync_at
+            (updated_at is not None and updated_at > final_sync_at)
+            or (file_modified_at is not None and file_modified_at > final_sync_at)
         )
 
         if not is_failed and not is_new:
@@ -315,8 +326,10 @@ def preprocess_prs(
 
         is_failed = ids_val in failed_set
         updated_at = _parse_updated_at(info)
+        file_modified_at = _file_modified_at(path)
         is_new = final_sync_at is None or (
-            updated_at is not None and updated_at > final_sync_at
+            (updated_at is not None and updated_at > final_sync_at)
+            or (file_modified_at is not None and file_modified_at > final_sync_at)
         )
 
         if not is_failed and not is_new:

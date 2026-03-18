@@ -267,7 +267,7 @@ class Command(BaseCommand):
             if not emails:
                 self.stdout.write(self.style.WARNING("No emails fetched from API."))
                 logger.info("run_boost_mailing_list_tracker: no emails fetched")
-                return
+                emails = []
 
             self.stdout.write(f"Fetched {len(emails)} emails from API.")
 
