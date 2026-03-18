@@ -16,14 +16,15 @@ from typing import TYPE_CHECKING, Optional
 from cppa_user_tracker.services import get_or_create_github_account
 from github_activity_tracker import fetcher, services
 from .raw_source import save_pr_raw_source
+from .etag_cache import RedisListETagCache
 from github_activity_tracker.workspace import (
     get_pr_json_path,
     iter_existing_pr_jsons,
 )
-from django.utils import timezone
 from github_ops import get_github_client
 from github_ops.client import ConnectionException, RateLimitException
 from github_activity_tracker.sync.utils import (
+    normalize_pr_json,
     parse_datetime,
     parse_github_user,
 )
@@ -35,7 +36,9 @@ logger = logging.getLogger(__name__)
 
 
 def _process_pr_data(repo: GitHubRepository, pr_data: dict) -> None:
-    """Apply one PR dict (with comments, reviews, assignees, labels) to the database."""
+    """Apply one PR dict (with comments, reviews, assignees, labels) to the database.
+    Accepts flat or nested { pr_info, comments, reviews } format."""
+    pr_data = normalize_pr_json(pr_data)
     user_info = parse_github_user(pr_data.get("user"))
     if not user_info["account_id"]:
         logger.warning(
@@ -149,7 +152,7 @@ def sync_pull_requests(
     Args:
         repo: Repository to sync.
         start_date: Override start date (default: last PR updated_at + 1s, or None if no PRs).
-        end_date: Override end date (default: now).
+        end_date: Override end date (default: None = no end; stable ETag cache).
     """
     logger.info(
         "sync_pull_requests: starting for repo id=%s (%s)",
@@ -175,14 +178,16 @@ def sync_pull_requests(
             last_pr = repo.pull_requests.order_by("-pr_updated_at").first()
             if last_pr:
                 start_date = last_pr.pr_updated_at + timedelta(seconds=1)
-        if end_date is None:
-            end_date = timezone.now()
+        # Leave end_date as None when not set so ETag cache semantics stay stable.
 
         count = 0
+        etag_cache = RedisListETagCache(repo_id=repo.pk)
         for pr_data in fetcher.fetch_pull_requests_from_github(
-            client, owner, repo_name, start_date, end_date
+            client, owner, repo_name, start_date, end_date, etag_cache=etag_cache
         ):
-            pr_number = pr_data.get("number")
+            pr_number = (pr_data.get("pr_info") or {}).get("number") or pr_data.get(
+                "number"
+            )
             if pr_number is None:
                 continue
             json_path = get_pr_json_path(owner, repo_name, pr_number)
