@@ -119,17 +119,12 @@ def sync_raw_only(
         for issue_data in fetcher.fetch_issues_from_github(
             client, owner, repo, start_issue, end_date
         ):
-<<<<<<< dev-113
-            number = issue_data.get("number")
-            if number is not None:
-=======
             issue_number = issue_data.get("number") or (
                 issue_data.get("issue_info") or {}
             ).get("number")
             if issue_number is not None:
->>>>>>> develop
                 save_issue_raw_source(owner, repo, issue_data)
-                issue_numbers.append(number)
+                issue_numbers.append(issue_number)
                 dt = _issue_date(issue_data)
                 if dt and (latest_issue is None or dt > latest_issue):
                     latest_issue = dt
@@ -140,17 +135,12 @@ def sync_raw_only(
         for pr_data in fetcher.fetch_pull_requests_from_github(
             client, owner, repo, start_pr, end_date
         ):
-<<<<<<< dev-113
-            number = pr_data.get("number")
-            if number is not None:
-=======
             pr_number = (pr_data.get("pr_info") or {}).get("number") or pr_data.get(
                 "number"
             )
             if pr_number is not None:
->>>>>>> develop
                 save_pr_raw_source(owner, repo, pr_data)
-                pr_numbers.append(number)
+                pr_numbers.append(pr_number)
                 dt = _pr_date(pr_data)
                 if dt and (latest_pr is None or dt > latest_pr):
                     latest_pr = dt
