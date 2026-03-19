@@ -23,7 +23,7 @@ jobs:
       BRANCH: ${{ github.event.workflow_run.head_branch }}
       SSH_HOST: ${{ secrets.SSH_HOST }}
       SSH_USER: ${{ secrets.SSH_USER }}
-      SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
+      SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
       REPO_URL: https://github.com/${{ github.repository }}.git
       SCRIPT_URL: ${{ secrets.DEPLOY_SCRIPT_URL || format('https://raw.githubusercontent.com/{0}/{1}/.github/workflows/deploy-script/deploy.sh', github.repository, github.event.workflow_run.head_sha) }}
     steps:
@@ -44,6 +44,8 @@ jobs:
             trap 'rm -f "$tmp_script"' EXIT
             if [ -n "$DEPLOY_SCRIPT_TOKEN" ]; then
               curl --silent --show-error --location --fail \
+                --retry 3 --retry-delay 2 --retry-all-errors \
+                --connect-timeout 10 --max-time 60 \
                 -H "Authorization: token $DEPLOY_SCRIPT_TOKEN" \
                 "$SCRIPT_URL" -o "$tmp_script"
             else
