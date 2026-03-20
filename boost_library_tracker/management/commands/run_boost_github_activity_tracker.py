@@ -92,13 +92,9 @@ def _generate_markdown_for_synced(
         issue_numbers = sync_result.get("issues") or []
         pr_numbers = sync_result.get("pull_requests") or []
         if not issue_numbers and not pr_numbers:
-            logger.debug(
-                "No issues/PRs synced for %s/%s; skipping.", owner, repo_name
-            )
+            logger.debug("No issues/PRs synced for %s/%s; skipping.", owner, repo_name)
             continue
-        folder_prefix = (
-            "boost" if repo_name == "boost" else f"boost.{repo_name}"
-        )
+        folder_prefix = "boost" if repo_name == "boost" else f"boost.{repo_name}"
         logger.info(
             "generating MD for %s/%s (%d issues, %d PRs) → %s/",
             owner,
@@ -196,9 +192,7 @@ def task_fetch_github_activity(
     repos_to_sync = [(MAIN_OWNER, MAIN_REPO)]
 
     try:
-        content, _ = client.get_file_content(
-            MAIN_OWNER, MAIN_REPO, ".gitmodules"
-        )
+        content, _ = client.get_file_content(MAIN_OWNER, MAIN_REPO, ".gitmodules")
         if content:
             text = content.decode("utf-8")
             submodules = _parse_gitmodules_owner_repo(text)
@@ -220,9 +214,7 @@ def task_fetch_github_activity(
         else:
             raise
     except Exception as e:
-        logger.warning(
-            "Could not fetch .gitmodules: %s; syncing main repo only", e
-        )
+        logger.warning("Could not fetch .gitmodules: %s; syncing main repo only", e)
 
     if from_repo:
         from_name = from_repo.strip()
@@ -455,9 +447,7 @@ class Command(BaseCommand):
                         from_repo=from_repo,
                     )
                 else:
-                    logger.info(
-                        "dry-run skipping GitHub sync (--skip-github-sync)"
-                    )
+                    logger.info("dry-run skipping GitHub sync (--skip-github-sync)")
                 if not skip_markdown_export:
                     logger.info(
                         "dry-run would export Markdown for issues/PRs touched in sync"
@@ -467,9 +457,7 @@ class Command(BaseCommand):
                         "dry-run would push Markdown to BOOST_LIBRARY_TRACKER_REPO_*"
                     )
                 if not skip_pinecone:
-                    logger.info(
-                        "dry-run would run Pinecone upsert for issues and PRs"
-                    )
+                    logger.info("dry-run would run Pinecone upsert for issues and PRs")
                 logger.info("finished successfully")
                 return
 
@@ -495,17 +483,13 @@ class Command(BaseCommand):
                         synced_repos, md_output_dir
                     )
                     if all_new_files:
-                        logger.info(
-                            "generated %d Markdown file(s)", len(all_new_files)
-                        )
+                        logger.info("generated %d Markdown file(s)", len(all_new_files))
                     else:
                         logger.info(
                             "no Markdown files generated (no issues/PRs in sync results)"
                         )
                 elif skip_github_sync:
-                    logger.info(
-                        "skipped Markdown export (no sync in this run)"
-                    )
+                    logger.info("skipped Markdown export (no sync in this run)")
                 else:
                     logger.info("no repos synced; skipping Markdown export")
 
