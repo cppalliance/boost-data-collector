@@ -217,11 +217,14 @@ DISCORD_CONTEXT_REPO_PATH = Path(
 ).resolve()
 
 # WG21 Paper Tracker Configuration
-WG21_GCS_BUCKET = (env("WG21_GCS_BUCKET", default="") or "").strip()
-GCP_PROJECT_ID = (env("GCP_PROJECT_ID", default="") or "").strip()
-GCP_LOCATION = (env("GCP_LOCATION", default="us-central1") or "").strip()
-WG21_CLOUD_RUN_JOB_NAME = (env("WG21_CLOUD_RUN_JOB_NAME", default="") or "").strip()
-WG21_CLOUD_RUN_ENABLED = env.bool("WG21_CLOUD_RUN_ENABLED", default=False)
+WG21_GITHUB_DISPATCH_ENABLED = env.bool("WG21_GITHUB_DISPATCH_ENABLED", default=False)
+WG21_GITHUB_DISPATCH_REPO = (env("WG21_GITHUB_DISPATCH_REPO", default="") or "").strip()
+WG21_GITHUB_DISPATCH_TOKEN = (
+    env("WG21_GITHUB_DISPATCH_TOKEN", default="") or ""
+).strip()
+WG21_GITHUB_DISPATCH_EVENT_TYPE = (
+    env("WG21_GITHUB_DISPATCH_EVENT_TYPE", default="wg21_papers_convert") or ""
+).strip() or "wg21_papers_convert"
 
 # Logging - project-wide configuration for app commands (console + rotating file)
 LOG_DIR = Path(env("LOG_DIR", default=str(BASE_DIR / "logs")))

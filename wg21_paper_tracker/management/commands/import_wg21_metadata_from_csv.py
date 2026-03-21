@@ -7,10 +7,15 @@ get_or_create_paper. Handles missing mailing_date via a placeholder mailing
 (unknown / Unknown).
 """
 
+from __future__ import annotations
+
 import csv
 import logging
 import re
+from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
+from typing import Optional
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import IntegrityError
@@ -93,6 +98,131 @@ def _read_csv_rows(csv_path: Path):
             yield out
 
 
+@dataclass(frozen=True)
+class _CsvImportRow:
+    paper_id: str
+    url: str
+    mailing_date: str
+    mailing_title: str
+    document_date: Optional[date]
+    year: Optional[int]
+    title: str
+    subgroup: str
+    author_names: list[str]
+
+
+def _parse_csv_import_row(row: dict) -> _CsvImportRow | None:
+    """Return parsed row, or None when paper_id or url is missing."""
+    paper_id = (row.get("paper_id", "") or "").strip().lower()
+    url = row.get("url", "")
+    if not paper_id or not url:
+        return None
+
+    mailing_date, mailing_title = _resolve_mailing_date(row.get("mailing_date", ""))
+    document_date = _parse_document_date(row.get("date", ""))
+    if mailing_date and MAILING_DATE_PATTERN.match(mailing_date):
+        year = int(mailing_date[:4])
+    elif document_date is not None:
+        year = document_date.year
+    else:
+        year = None
+    title = row.get("title", "") or paper_id
+    subgroup = row.get("subgroup", "")
+    author_names = _author_names_from_csv(row.get("author", ""))
+    return _CsvImportRow(
+        paper_id=paper_id,
+        url=url,
+        mailing_date=mailing_date,
+        mailing_title=mailing_title,
+        document_date=document_date,
+        year=year,
+        title=title,
+        subgroup=subgroup,
+        author_names=author_names,
+    )
+
+
+def _log_dry_run_row(parsed: _CsvImportRow) -> None:
+    logger.info(
+        "Would create/update paper %s -> mailing %r, document_date=%s, authors=%d",
+        parsed.paper_id,
+        parsed.mailing_date,
+        parsed.document_date,
+        len(parsed.author_names),
+    )
+
+
+def _attach_csv_authors_to_paper(paper: WG21Paper, author_names: list[str]) -> None:
+    from cppa_user_tracker.services import (
+        get_or_create_wg21_paper_author_profile,
+    )
+
+    for i, name in enumerate(author_names):
+        profile, _ = get_or_create_wg21_paper_author_profile(name)
+        get_or_create_paper_author(paper, profile, i + 1)
+
+
+def _update_paper_on_integrity_error(
+    parsed: _CsvImportRow, exc: IntegrityError, stats: dict
+) -> None:
+    mailing, _ = get_or_create_mailing(parsed.mailing_date, parsed.mailing_title)
+    try:
+        lookup_year = parsed.year if parsed.year is not None else 0
+        paper = WG21Paper.objects.filter(
+            paper_id=parsed.paper_id, year=lookup_year
+        ).first()
+        if paper is None:
+            stats["skipped"] += 1
+            logger.error("Error for paper_id=%s: %s", parsed.paper_id, exc)
+            return
+        paper.url = parsed.url
+        paper.title = parsed.title
+        paper.document_date = parsed.document_date
+        paper.mailing = mailing
+        paper.subgroup = parsed.subgroup
+        if parsed.year is not None:
+            paper.year = parsed.year
+        paper.save()
+        stats["papers_updated"] += 1
+        if parsed.author_names:
+            _attach_csv_authors_to_paper(paper, parsed.author_names)
+    except Exception:
+        stats["skipped"] += 1
+        logger.exception(
+            "Error for paper_id=%s (after IntegrityError).",
+            parsed.paper_id,
+        )
+
+
+def _upsert_paper_from_csv_row(parsed: _CsvImportRow, stats: dict) -> None:
+    try:
+        mailing, mailing_created = get_or_create_mailing(
+            parsed.mailing_date, parsed.mailing_title
+        )
+        if mailing_created:
+            stats["mailings_created"] += 1
+
+        _paper, paper_created = get_or_create_paper(
+            paper_id=parsed.paper_id,
+            url=parsed.url,
+            title=parsed.title,
+            document_date=parsed.document_date,
+            mailing=mailing,
+            subgroup=parsed.subgroup,
+            author_names=parsed.author_names if parsed.author_names else None,
+            year=parsed.year,
+        )
+        if paper_created:
+            stats["papers_created"] += 1
+        else:
+            stats["papers_updated"] += 1
+    except IntegrityError as e:
+        _update_paper_on_integrity_error(parsed, e, stats)
+    except Exception as e:
+        stats["skipped"] += 1
+        logger.error("Error for paper_id=%s: %s", parsed.paper_id, e)
+
+
 class Command(BaseCommand):
     help = (
         "Read metadata CSV and fill WG21Mailing and WG21Paper (and authors). "
@@ -133,10 +263,19 @@ class Command(BaseCommand):
 
         for row in _read_csv_rows(csv_path):
             stats["rows"] += 1
-            paper_id = (row.get("paper_id", "") or "").strip().lower()
-            url = row.get("url", "")
+            try:
+                parsed = _parse_csv_import_row(row)
+            except Exception as e:
+                stats["skipped"] += 1
+                paper_id = (row.get("paper_id", "") or "").strip().lower()
+                logger.error(
+                    "Error parsing document date for paper_id=%s: %s",
+                    paper_id,
+                    e,
+                )
+                continue
 
-            if not paper_id or not url:
+            if parsed is None:
                 stats["skipped"] += 1
                 if stats["skipped"] <= 5:
                     logger.debug(
@@ -145,101 +284,11 @@ class Command(BaseCommand):
                     )
                 continue
 
-            mailing_date, mailing_title = _resolve_mailing_date(
-                row.get("mailing_date", "")
-            )
-            try:
-                document_date = _parse_document_date(row.get("date", ""))
-                if mailing_date and MAILING_DATE_PATTERN.match(mailing_date):
-                    year = int(mailing_date[:4])
-                elif document_date is not None:
-                    year = document_date.year
-                else:
-                    year = None
-                title = row.get("title", "") or paper_id
-                subgroup = row.get("subgroup", "")
-                author_names = _author_names_from_csv(row.get("author", ""))
-            except Exception as e:
-                stats["skipped"] += 1
-                logger.error(
-                    "Error parsing document date for paper_id=%s: %s",
-                    paper_id,
-                    e,
-                )
-                continue
-
             if dry_run:
-                logger.info(
-                    "Would create/update paper %s -> mailing %r, document_date=%s, authors=%d",
-                    paper_id,
-                    mailing_date,
-                    document_date,
-                    len(author_names),
-                )
+                _log_dry_run_row(parsed)
                 continue
 
-            try:
-                mailing, mailing_created = get_or_create_mailing(
-                    mailing_date, mailing_title
-                )
-                if mailing_created:
-                    stats["mailings_created"] += 1
-
-                paper, paper_created = get_or_create_paper(
-                    paper_id=paper_id,
-                    url=url,
-                    title=title,
-                    document_date=document_date,
-                    mailing=mailing,
-                    subgroup=subgroup,
-                    author_names=author_names if author_names else None,
-                    year=year,
-                )
-                if paper_created:
-                    stats["papers_created"] += 1
-                else:
-                    stats["papers_updated"] += 1
-            except IntegrityError as e:
-                # Re-resolve mailing (IntegrityError may have come from get_or_create_mailing race)
-                mailing, _ = get_or_create_mailing(mailing_date, mailing_title)
-                # Duplicate (paper_id, year): fetch existing by same key and update
-                try:
-                    lookup_year = year if year is not None else 0
-                    paper = WG21Paper.objects.filter(
-                        paper_id=paper_id, year=lookup_year
-                    ).first()
-                    if paper is None:
-                        stats["skipped"] += 1
-                        logger.error("Error for paper_id=%s: %s", paper_id, e)
-                    else:
-                        paper.url = url
-                        paper.title = title
-                        paper.document_date = document_date
-                        paper.mailing = mailing
-                        paper.subgroup = subgroup
-                        if year is not None:
-                            paper.year = year
-                        paper.save()
-                        stats["papers_updated"] += 1
-                        if author_names:
-                            from cppa_user_tracker.services import (
-                                get_or_create_wg21_paper_author_profile,
-                            )
-
-                            for i, name in enumerate(author_names):
-                                profile, _ = get_or_create_wg21_paper_author_profile(
-                                    name
-                                )
-                                get_or_create_paper_author(paper, profile, i + 1)
-                except Exception:
-                    stats["skipped"] += 1
-                    logger.exception(
-                        "Error for paper_id=%s (after IntegrityError).",
-                        paper_id,
-                    )
-            except Exception as e:
-                stats["skipped"] += 1
-                logger.error("Error for paper_id=%s: %s", paper_id, e)
+            _upsert_paper_from_csv_row(parsed, stats)
 
         logger.info(
             "Rows processed: %d, skipped: %d, mailings created: %d, papers created: %d, papers updated: %d",

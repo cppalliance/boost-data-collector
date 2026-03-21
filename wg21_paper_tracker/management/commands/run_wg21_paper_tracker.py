@@ -1,97 +1,158 @@
 """
 Management command for WG21 Paper Tracker.
-Runs the pipeline to fetch new mailings, download papers, upload to GCS, and update DB.
-If new papers were found and uploaded, it triggers the Google Cloud Run conversion job.
+Runs the pipeline to fetch new mailings, upsert paper metadata in the DB, and optionally
+trigger a GitHub repository_dispatch so another repo can download and convert documents.
 """
 
 import logging
-from django.core.management.base import BaseCommand
+
+import requests
 from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 
 from wg21_paper_tracker.pipeline import run_tracker_pipeline
 
 logger = logging.getLogger(__name__)
 
+GITHUB_DISPATCH_URL = "https://api.github.com/repos/{repo}/dispatches"
 
-def trigger_cloud_run_job(project_id: str, location: str, job_name: str):
-    """
-    Start the named Cloud Run job (run once, no polling).
 
-    Uses the Cloud Run v2 API to trigger the job identified by project_id,
-    location, and job_name. The job runs asynchronously; this function returns
-    the operation and does not wait for the job to finish.
-    """
-    from google.cloud import run_v2
-
-    client = run_v2.JobsClient()
-    name = client.job_path(project_id, location, job_name)
-    request = run_v2.RunJobRequest(name=name)
-    logger.info("Triggering Cloud Run job %s...", name)
-    operation = client.run_job(request=request)
-    logger.info("Cloud Run job triggered. Operation: %s", operation.operation.name)
-    return operation
+def trigger_github_repository_dispatch(
+    repo: str,
+    event_type: str,
+    token: str,
+    paper_urls: list[str],
+) -> None:
+    """POST repository_dispatch with client_payload {"papers": [<url>, ...]}."""
+    url = GITHUB_DISPATCH_URL.format(repo=repo.strip())
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token.strip()}",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    body = {
+        "event_type": event_type,
+        "client_payload": {"papers": paper_urls},
+    }
+    logger.info(
+        "Sending repository_dispatch to %s (event_type=%s, %d URLs).",
+        repo,
+        event_type,
+        len(paper_urls),
+    )
+    response = requests.post(url, json=body, headers=headers, timeout=30)
+    if not response.ok:
+        logger.error(
+            "GitHub repository_dispatch failed: %s %s",
+            response.status_code,
+            response.text,
+        )
+    response.raise_for_status()
 
 
 class Command(BaseCommand):
-    """Run WG21 paper tracker and optionally trigger the Cloud Run conversion job."""
+    """Run WG21 paper tracker and optionally trigger GitHub repository_dispatch."""
 
-    help = "Run WG21 paper tracker (fetch, download to GCS, DB update) and trigger Cloud Run if new papers."
+    help = (
+        "Run WG21 paper tracker (scrape, DB update) and send new paper URLs via "
+        "repository_dispatch when enabled."
+    )
 
     def add_arguments(self, parser):
-        """Register --dry-run so the command can skip pipeline and Cloud Run."""
         parser.add_argument(
             "--dry-run",
             action="store_true",
-            help="Only log what would be done; do not run the pipeline or trigger Cloud Run.",
+            help="Only log what would be done; do not run the pipeline or dispatch.",
+        )
+        parser.add_argument(
+            "--from-date",
+            dest="from_date",
+            metavar="YYYY-MM",
+            default=None,
+            help=(
+                "Process mailings with mailing_date >= YYYY-MM (WG21 / CSV style). "
+                "Backfills from that mailing onward; without --to-date, no upper cap."
+            ),
+        )
+        parser.add_argument(
+            "--to-date",
+            dest="to_date",
+            metavar="YYYY-MM",
+            default=None,
+            help=(
+                "Upper bound: mailing_date <= YYYY-MM. With --from-date, inclusive range; "
+                "without --from-date, still only mailings newer than DB latest (capped at to)."
+            ),
         )
 
     def handle(self, *args, **options):
-        """
-        Run the tracker pipeline; if new papers were uploaded, trigger the Cloud Run job.
-
-        With --dry-run, logs and exits without running the pipeline or triggering Cloud Run.
-        Otherwise runs the pipeline, then triggers the configured Cloud Run job when
-        total_new_papers > 0, WG21_CLOUD_RUN_ENABLED is True, and
-        GCP_PROJECT_ID, WG21_CLOUD_RUN_JOB_NAME, and WG21_GCS_BUCKET are set.
-        """
         dry_run = options.get("dry_run", False)
+        from_date = options.get("from_date")
+        to_date = options.get("to_date")
+        if from_date is not None:
+            from_date = from_date.strip()
+            if not from_date:
+                from_date = None
+        if to_date is not None:
+            to_date = to_date.strip()
+            if not to_date:
+                to_date = None
         if dry_run:
-            logger.info("Dry run: skipping pipeline and Cloud Run trigger.")
+            if from_date or to_date:
+                logger.info(
+                    "Dry run: skipping pipeline and GitHub dispatch "
+                    "(from=%r, to=%r).",
+                    from_date,
+                    to_date,
+                )
+            else:
+                logger.info("Dry run: skipping pipeline and GitHub dispatch.")
             return
 
         logger.info("Starting WG21 Paper Tracker...")
 
         try:
-            total_new_papers = run_tracker_pipeline()
-            logger.info("Processed %d new papers.", total_new_papers)
+            result = run_tracker_pipeline(
+                from_mailing_date=from_date,
+                to_mailing_date=to_date,
+            )
+            n = result.new_paper_count
+            logger.info("Recorded %d new paper(s); %d URL(s) for dispatch.", n, n)
 
-            if total_new_papers > 0:
-                project_id = getattr(settings, "GCP_PROJECT_ID", None)
-                location = getattr(settings, "GCP_LOCATION", "us-central1")
-                job_name = getattr(settings, "WG21_CLOUD_RUN_JOB_NAME", None)
-                bucket = getattr(settings, "WG21_GCS_BUCKET", None)
-                cloud_run_enabled = getattr(settings, "WG21_CLOUD_RUN_ENABLED", False)
+            if not n:
+                logger.info("No new papers in this run. Skipping GitHub dispatch.")
+                return
 
-                if project_id and job_name and bucket and cloud_run_enabled:
-                    try:
-                        trigger_cloud_run_job(project_id, location, job_name)
-                        logger.info(
-                            "Successfully triggered Cloud Run job %s.", job_name
-                        )
-                    except Exception:
-                        logger.exception(
-                            "Failed to trigger Cloud Run job %s.", job_name
-                        )
-                        raise
-                else:
-                    logger.warning(
-                        "Skipping Cloud Run trigger: set WG21_CLOUD_RUN_ENABLED=True "
-                        "and configure GCP_PROJECT_ID, WG21_CLOUD_RUN_JOB_NAME, and "
-                        "WG21_GCS_BUCKET to enable."
-                    )
-            else:
-                logger.info("No new papers found. Skipping Cloud Run job.")
+            repo = getattr(settings, "WG21_GITHUB_DISPATCH_REPO", "") or ""
+            token = getattr(settings, "WG21_GITHUB_DISPATCH_TOKEN", "") or ""
+            enabled = getattr(settings, "WG21_GITHUB_DISPATCH_ENABLED", False)
+            event_type = getattr(
+                settings,
+                "WG21_GITHUB_DISPATCH_EVENT_TYPE",
+                "wg21_papers_convert",
+            )
 
+            if not enabled or not repo or not token:
+                logger.warning(
+                    "Skipping GitHub dispatch: set WG21_GITHUB_DISPATCH_ENABLED=True "
+                    "and configure WG21_GITHUB_DISPATCH_REPO and "
+                    "WG21_GITHUB_DISPATCH_TOKEN."
+                )
+                return
+            try:
+                trigger_github_repository_dispatch(
+                    repo,
+                    event_type,
+                    token,
+                    list(result.new_paper_urls),
+                )
+                logger.info("repository_dispatch sent successfully.")
+            except Exception:
+                logger.exception("Failed to send repository_dispatch.")
+                raise
+
+        except ValueError as e:
+            raise CommandError(str(e)) from e
         except Exception as e:
             logger.exception("WG21 Paper Tracker failed: %s", e)
             raise

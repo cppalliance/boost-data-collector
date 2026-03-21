@@ -18,6 +18,86 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://www.open-std.org/jtc1/sc22/wg21/docs/papers"
 
 _MAILING_ANCHOR_RE = re.compile(r"^mailing\d{4}-\d{2}$")
+# Paper link in first column: e.g. p1234r0.pdf, n4920.html, sd-9.md
+_PAPER_LINK_PATTERN = re.compile(r"((?:p\d+r\d+|n\d+|sd-\d+))\.([a-z]+)", re.IGNORECASE)
+
+
+def extract_paper_metadata_from_table_row(
+    cells: list[Tag],
+    page_url: str,
+) -> Optional[dict]:
+    """
+    Extract paper metadata from a WG21 mailing table row (td/th cells).
+
+    Current year pages (e.g. 2026) use eight columns::
+
+        WG21 Number | Title | Author | Document Date | Mailing Date |
+        Previous Version | Subgroup | Disposition
+
+    So **subgroup is index 6**, not 4. Index 4 is *mailing date* (string as shown on the site).
+
+    Older pages used a shorter row (five data columns); then subgroup was at index 4.
+    If ``len(cells) >= 8`` we use the 8-column layout; otherwise we keep the legacy mapping.
+    """
+    if not cells:
+        return None
+
+    first_cell = cells[0]
+    base = urllib.parse.urlparse(BASE_URL)
+
+    title = ""
+    if len(cells) > 1:
+        title = cells[1].text.strip()
+
+    authors: list[str] = []
+    if len(cells) > 2:
+        authors_raw = cells[2].text.strip()
+        if authors_raw:
+            authors = [
+                a.strip() for a in re.split(r",| and ", authors_raw) if a.strip()
+            ]
+
+    document_date = None
+    if len(cells) > 3:
+        date_str = cells[3].text.strip()
+        if date_str:
+            document_date = date_str
+
+    # 8+ columns: mailing date [4], previous version [5], subgroup [6], disposition [7]
+    subgroup = ""
+    if len(cells) >= 8:
+        subgroup = cells[6].text.strip()
+    elif len(cells) > 4:
+        subgroup = cells[4].text.strip()
+
+    for link in first_cell.find_all("a", href=True):
+        href = link.get("href", "")
+        match = _PAPER_LINK_PATTERN.search(href)
+        if not match:
+            continue
+
+        paper_url = urllib.parse.urljoin(page_url, href)
+        parsed = urllib.parse.urlparse(paper_url)
+        if parsed.scheme not in ("https", "http") or parsed.netloc != base.netloc:
+            logger.warning("Skipping off-origin paper URL %s", paper_url)
+            continue
+
+        paper_id = match.group(1).lower()
+        file_ext = match.group(2).lower()
+        filename = match.group(0).lower()
+
+        return {
+            "url": paper_url,
+            "filename": filename,
+            "type": file_ext,
+            "paper_id": paper_id,
+            "title": title,
+            "authors": authors,
+            "document_date": document_date,
+            "subgroup": subgroup,
+        }
+
+    return None
 
 
 def _find_table_in_section(anchor) -> Optional[Tag]:
@@ -112,72 +192,15 @@ def fetch_papers_for_mailing(year: str, mailing_date: str) -> list[dict]:
         return []
 
     paper_urls = []
-    paper_pattern = re.compile(r"((?:p\d+r\d+|n\d+|sd-\d+))\.([a-z]+)", re.IGNORECASE)
 
     for row in table.find_all("tr"):
         cells = row.find_all(["td", "th"])
         if not cells or any(cell.get("colspan") for cell in cells):
             continue
 
-        # Usually: Number, Title, Author, Date, Subgroup
-        if len(cells) >= 1:
-            first_cell = cells[0]
-            for link in first_cell.find_all("a", href=True):
-                href = link.get("href", "")
-                match = paper_pattern.search(href)
-                if match:
-                    paper_url = urllib.parse.urljoin(url, href)
-                    parsed = urllib.parse.urlparse(paper_url)
-                    base = urllib.parse.urlparse(BASE_URL)
-                    if (
-                        parsed.scheme not in ("https", "http")
-                        or parsed.netloc != base.netloc
-                    ):
-                        logger.warning("Skipping off-origin paper URL %s", paper_url)
-                        continue
-
-                    paper_id = match.group(1).lower()
-                    file_ext = match.group(2).lower()
-                    filename = match.group(0).lower()
-
-                    title = ""
-                    if len(cells) > 1:
-                        title = cells[1].text.strip()
-
-                    authors = []
-                    if len(cells) > 2:
-                        authors_raw = cells[2].text.strip()
-                        # Split by comma or 'and' if multiple
-                        if authors_raw:
-                            authors = [
-                                a.strip()
-                                for a in re.split(r",| and ", authors_raw)
-                                if a.strip()
-                            ]
-
-                    document_date = None
-                    if len(cells) > 3:
-                        date_str = cells[3].text.strip()
-                        if date_str:
-                            document_date = date_str  # Will be parsed/saved in pipeline
-
-                    subgroup = ""
-                    if len(cells) > 4:
-                        subgroup = cells[4].text.strip()
-
-                    paper_urls.append(
-                        {
-                            "url": paper_url,
-                            "filename": filename,
-                            "type": file_ext,
-                            "paper_id": paper_id,
-                            "title": title,
-                            "authors": authors,
-                            "document_date": document_date,
-                            "subgroup": subgroup,
-                        }
-                    )
-                    break  # Only take the first paper link in the cell
+        paper = extract_paper_metadata_from_table_row(cells, url)
+        if paper:
+            paper_urls.append(paper)
 
     # Remove exact duplicates (same filename)
     seen = set()

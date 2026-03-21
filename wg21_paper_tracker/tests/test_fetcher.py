@@ -3,9 +3,11 @@
 from unittest.mock import patch, MagicMock
 
 import requests
+from bs4 import BeautifulSoup
 
 from wg21_paper_tracker.fetcher import (
     BASE_URL,
+    extract_paper_metadata_from_table_row,
     fetch_all_mailings,
     fetch_papers_for_mailing,
 )
@@ -204,3 +206,69 @@ def test_fetch_papers_for_mailing_calls_year_url():
         )
         fetch_papers_for_mailing("2025", "2025-01")
     m.assert_called_once_with(f"{BASE_URL}/2025/", timeout=30)
+
+
+# --- extract_paper_metadata_from_table_row ---
+
+
+def test_extract_paper_metadata_from_table_row_returns_none_when_no_cells():
+    """Empty cell list yields no paper."""
+    assert extract_paper_metadata_from_table_row([], f"{BASE_URL}/2025/") is None
+
+
+def test_extract_paper_metadata_from_table_row_returns_none_when_no_paper_link():
+    """Row without a matching paper href returns None."""
+    html = "<tr><td>No link here</td><td>t</td></tr>"
+    row = BeautifulSoup(html, "html.parser").find("tr")
+    cells = row.find_all(["td", "th"])
+    assert extract_paper_metadata_from_table_row(cells, f"{BASE_URL}/2025/") is None
+
+
+def test_extract_paper_metadata_from_table_row_parses_legacy_five_column_row():
+    """Older tables: Number, Title, Author, Document date, Subgroup (subgroup at index 4)."""
+    html = """
+    <tr>
+      <td><a href="p1234r0.pdf">P1234R0</a></td>
+      <td>My title</td>
+      <td>Author One, Author Two</td>
+      <td>2025-03-15</td>
+      <td>LEWG</td>
+    </tr>
+    """
+    row = BeautifulSoup(html, "html.parser").find("tr")
+    cells = row.find_all(["td", "th"])
+    page_url = f"{BASE_URL}/2025/"
+    result = extract_paper_metadata_from_table_row(cells, page_url)
+    assert result is not None
+    assert result["paper_id"] == "p1234r0"
+    assert result["type"] == "pdf"
+    assert result["filename"] == "p1234r0.pdf"
+    assert result["url"] == f"{BASE_URL}/2025/p1234r0.pdf"
+    assert result["title"] == "My title"
+    assert result["authors"] == ["Author One", "Author Two"]
+    assert result["document_date"] == "2025-03-15"
+    assert result["subgroup"] == "LEWG"
+
+
+def test_extract_paper_metadata_from_table_row_parses_eight_column_row():
+    """2026+ style: subgroup is column 7 (index 6), not index 4 (mailing date)."""
+    html = """
+    <tr>
+      <td><a href="../2026/p1000r7.pdf">P1000R7</a></td>
+      <td>C++ IS Schedule (proposed)</td>
+      <td>Herb Sutter</td>
+      <td>2026-01-13</td>
+      <td>2026-01</td>
+      <td><a href="../2024/p1000r6.pdf">P1000R6</a></td>
+      <td>All of WG21</td>
+      <td></td>
+    </tr>
+    """
+    row = BeautifulSoup(html, "html.parser").find("tr")
+    cells = row.find_all(["td", "th"])
+    page_url = f"{BASE_URL}/2026/"
+    result = extract_paper_metadata_from_table_row(cells, page_url)
+    assert result is not None
+    assert result["paper_id"] == "p1000r7"
+    assert result["document_date"] == "2026-01-13"
+    assert result["subgroup"] == "All of WG21"
