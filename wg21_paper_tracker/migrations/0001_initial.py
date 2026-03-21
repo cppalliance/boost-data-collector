@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("cppa_user_tracker", "0005_alter_slackuser_slack_user_id"),
+        ("cppa_user_tracker", "0005_wg21paperauthorprofile_author_alias"),
     ]
 
     operations = [
