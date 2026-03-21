@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Iterator, Optional
+from typing import TYPE_CHECKING, Any, Iterator, Optional
 
 import requests
 
@@ -48,11 +48,17 @@ def fetch_commits_from_github(
     repo: str,
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
+    etag_cache: Optional[Any] = None,
 ) -> Iterator[dict]:
-    """Fetch commits from GitHub API (paginated). Yields commit dicts with stats."""
+    """Fetch commits from GitHub API (paginated). Yields commit dicts with stats.
+    If etag_cache is provided, uses rest_request_conditional for the list GET.
+    """
     logger.debug(f"Fetching commits for {owner}/{repo} from {start_time} to {end_time}")
     page = 1
     per_page = 100
+    since_iso = start_time.isoformat() if start_time else ""
+    until_iso = end_time.isoformat() if end_time else ""
+
     while True:
         params = {
             "per_page": per_page,
@@ -63,7 +69,21 @@ def fetch_commits_from_github(
         if end_time:
             params["until"] = end_time.isoformat()
 
-        commits = client.rest_request(f"/repos/{owner}/{repo}/commits", params)
+        response_etag = None
+        if etag_cache is not None:
+            etag = etag_cache.get("commits", page, since_iso, until_iso)
+            data, response_etag = client.rest_request_conditional(
+                f"/repos/{owner}/{repo}/commits", params=params, etag=etag
+            )
+            if data is None:
+                logger.debug("Commits list page %s: 304 Not Modified, skipping", page)
+                page += 1
+                time.sleep(0.2)
+                continue
+            commits = data
+        else:
+            commits = client.rest_request(f"/repos/{owner}/{repo}/commits", params)
+
         if not commits:
             logger.debug(f"No more commits found at page {page}")
             break
@@ -101,7 +121,7 @@ def fetch_commits_from_github(
                         f"Failed to parse commit date '{commit_date_str}': {e}"
                     )
 
-            # Fetch full commit with stats (skip on persistent server errors so sync continues)
+            # Fetch full commit with stats (abort on 502/503/504 so page is not checkpointed and can be retried)
             try:
                 commit_with_stats = client.rest_request(
                     f"/repos/{owner}/{repo}/commits/{commit['sha']}"
@@ -109,16 +129,19 @@ def fetch_commits_from_github(
             except requests.exceptions.HTTPError as e:
                 if e.response is not None and e.response.status_code in (502, 503, 504):
                     logger.warning(
-                        "Skipping commit %s for %s/%s after HTTP %s: %s",
+                        "Aborting commit sync at %s for %s/%s after HTTP %s: %s",
                         commit["sha"][:7],
                         owner,
                         repo,
                         e.response.status_code,
                         e,
                     )
-                    continue
+                    raise
                 raise
             yield commit_with_stats
+
+        if etag_cache is not None and response_etag:
+            etag_cache.set("commits", page, since_iso, until_iso, response_etag)
 
         if len(commits) < per_page:
             logger.debug(
@@ -211,11 +234,16 @@ def fetch_issues_from_github(
     repo: str,
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
+    etag_cache: Optional[Any] = None,
 ) -> Iterator[dict]:
-    """Fetch issues from GitHub API (paginated). Yields issue dicts with comments."""
+    """Fetch issues from GitHub API (paginated). Yields issue dicts with comments.
+    If etag_cache is provided, uses rest_request_conditional for the list GET.
+    """
     logger.debug(f"Fetching issues for {owner}/{repo} from {start_time} to {end_time}")
     page = 1
     per_page = 100
+    since_iso = start_time.isoformat() if start_time else ""
+
     while True:
         params = {
             "state": "all",
@@ -227,13 +255,28 @@ def fetch_issues_from_github(
         if start_time:
             params["since"] = start_time.isoformat()
 
-        issues = client.rest_request(f"/repos/{owner}/{repo}/issues", params)
+        response_etag = None
+        if etag_cache is not None:
+            etag = etag_cache.get("issues", page, since_iso, "")
+            data, response_etag = client.rest_request_conditional(
+                f"/repos/{owner}/{repo}/issues", params=params, etag=etag
+            )
+            if data is None:
+                logger.debug("Issues list page %s: 304 Not Modified, skipping", page)
+                page += 1
+                time.sleep(0.2)
+                continue
+            issues = data
+        else:
+            issues = client.rest_request(f"/repos/{owner}/{repo}/issues", params)
+
         if not issues:
             logger.debug(f"No more issues found at page {page}")
             break
 
         # Filter out PRs (issues endpoint returns both issues and PRs)
-        issues = [i for i in issues if "pull_request" not in i]
+        raw_issues = issues
+        issues = [i for i in raw_issues if "pull_request" not in i]
         logger.debug(f"Fetched {len(issues)} issues (excluding PRs) from page {page}")
 
         for issue in issues:
@@ -264,19 +307,30 @@ def fetch_issues_from_github(
                     continue
 
             issue_number = issue.get("number")
-            if issue_number:
+            if issue_number is not None:
+                # Fetch full issue detail (list endpoint returns summary only)
+                try:
+                    full_issue = client.rest_request(
+                        f"/repos/{owner}/{repo}/issues/{issue_number}"
+                    )
+                    if full_issue and isinstance(full_issue, dict):
+                        issue = full_issue
+                except Exception as e:
+                    logger.debug("Failed to fetch full issue #%s: %s", issue_number, e)
                 logger.debug(f"Fetching comments for issue #{issue_number}")
                 comments = fetch_comments_from_github(
                     client, owner, repo, issue_number, start_time, end_time
                 )
-                issue["comments"] = comments
                 logger.debug(
                     f"Found {len(comments)} comments for issue #{issue_number}"
                 )
+                # Yield nested format: { issue_info: <detail>, comments: [...] }
+                yield {"issue_info": issue, "comments": comments}
 
-            yield issue
+        if etag_cache is not None and response_etag:
+            etag_cache.set("issues", page, since_iso, "", response_etag)
 
-        if len(issues) < per_page:
+        if len(raw_issues) < per_page:
             logger.debug(
                 f"Last page reached (got {len(issues)} issues, expected {per_page})"
             )
@@ -365,11 +419,15 @@ def fetch_pull_requests_from_github(
     repo: str,
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
+    etag_cache: Optional[Any] = None,
 ) -> Iterator[dict]:
-    """Fetch pull requests from GitHub API (paginated). Yields PR dicts with comments and reviews."""
+    """Fetch pull requests from GitHub API (paginated). Yields PR dicts with comments and reviews.
+    If etag_cache is provided, uses rest_request_conditional for the list GET.
+    """
     logger.debug(f"Fetching PRs for {owner}/{repo} from {start_time} to {end_time}")
     page = 1
     per_page = 100
+
     while True:
         params = {
             "state": "all",
@@ -378,7 +436,21 @@ def fetch_pull_requests_from_github(
             "sort": "updated",
             "direction": "desc",
         }
-        prs = client.rest_request(f"/repos/{owner}/{repo}/pulls", params)
+        response_etag = None
+        if etag_cache is not None:
+            etag = etag_cache.get("pulls", page, "", "")
+            data, response_etag = client.rest_request_conditional(
+                f"/repos/{owner}/{repo}/pulls", params=params, etag=etag
+            )
+            if data is None:
+                logger.debug("Pulls list page %s: 304 Not Modified, skipping", page)
+                page += 1
+                time.sleep(0.2)
+                continue
+            prs = data
+        else:
+            prs = client.rest_request(f"/repos/{owner}/{repo}/pulls", params)
+
         if not prs:
             logger.debug(f"No more PRs found at page {page}")
             break
@@ -386,9 +458,8 @@ def fetch_pull_requests_from_github(
         flag = False
         for pr in prs:
             updated_str = pr.get("updated_at") or pr.get("created_at")
-            logger.debug(
-                f"Fetching PR #{pr.get('number')} with updated_str: {updated_str}"
-            )
+            pr_number = pr.get("number")
+            logger.debug("Fetching PR #%s with updated_str: %s", pr_number, updated_str)
             if updated_str:
                 try:
                     pr_dt = datetime.fromisoformat(updated_str.replace("Z", "+00:00"))
@@ -411,22 +482,38 @@ def fetch_pull_requests_from_github(
                         )
                         if pr_dt > end_time_aware:
                             continue
-
-                    logger.debug(f"Fetching comments for PR #{pr['number']}")
-                    pr["comments"] = fetch_comments_from_github(
-                        client, owner, repo, pr["number"], start_time, end_time
-                    )
-                    time.sleep(0.5)
-
-                    logger.debug(f"Fetching reviews for PR #{pr['number']}")
-                    pr["reviews"] = fetch_pr_reviews_from_github(
-                        client, owner, repo, pr["number"], start_time, end_time
-                    )
-                    time.sleep(0.5)
-
-                    yield pr
                 except Exception as e:
-                    logger.debug(f"Failed to parse PR date '{updated_str}': {e}")
+                    logger.debug("Failed to parse PR date '%s': %s", updated_str, e)
+                    continue
+
+            if pr_number is None:
+                continue
+
+            # Fetch full PR detail (list endpoint returns summary only)
+            try:
+                full_pr = client.rest_request(
+                    f"/repos/{owner}/{repo}/pulls/{pr_number}"
+                )
+                if full_pr and isinstance(full_pr, dict):
+                    pr = full_pr
+            except Exception as e:
+                logger.debug("Failed to fetch full PR #%s: %s", pr_number, e)
+
+            logger.debug("Fetching comments for PR #%s", pr_number)
+            comments = fetch_comments_from_github(
+                client, owner, repo, pr_number, start_time, end_time
+            )
+            time.sleep(0.2)
+            logger.debug("Fetching reviews for PR #%s", pr_number)
+            reviews = fetch_pr_reviews_from_github(
+                client, owner, repo, pr_number, start_time, end_time
+            )
+            time.sleep(0.2)
+            # Yield nested format: { pr_info: <detail>, comments: [...], reviews: [...] }
+            yield {"pr_info": pr, "comments": comments, "reviews": reviews}
+
+        if etag_cache is not None and response_etag:
+            etag_cache.set("pulls", page, "", "", response_etag)
 
         if len(prs) < per_page or flag:
             logger.debug(f"Last page reached (got {len(prs)} PRs, expected {per_page})")
