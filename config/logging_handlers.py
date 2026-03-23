@@ -3,8 +3,8 @@ Custom logging handlers for the Boost Data Collector project.
 
 SafeRotatingFileHandler: RotatingFileHandler that serializes emit() with a lock
 so rollover (close → rename → reopen) is not run while another thread is writing.
-Fixes PermissionError [WinError 32] on Windows when multiple threads log to the
-same file (e.g. Celery worker + ThreadPoolExecutor workers in boost_searcher).
+On Windows, rename() is retried on PermissionError [WinError 32] because the file
+can remain locked briefly after close (or another process may have it open).
 
 DiscordHandler / SlackHandler: send ERROR-level log records to Discord/Slack
 webhooks when ENABLE_ERROR_NOTIFICATIONS is True and webhook URLs are set.
@@ -13,6 +13,7 @@ webhooks when ENABLE_ERROR_NOTIFICATIONS is True and webhook URLs are set.
 import json
 import logging
 import logging.handlers
+import os
 import sys
 import threading
 import time
@@ -241,12 +242,18 @@ class SlackHandler(logging.Handler):
             sys.stderr.write(f"Error in SlackHandler: {e}\n")
 
 
+# Retry rollover rename on Windows when file is still locked (PermissionError 32).
+_ROTATE_RETRY_COUNT = 10
+_ROTATE_RETRY_DELAY_SEC = 0.5
+
+
 class SafeRotatingFileHandler(logging.handlers.RotatingFileHandler):
     """
     Thread-safe RotatingFileHandler. Use this when multiple threads write to
     the same log file (e.g. Celery + thread pools). On Windows, the standard
     RotatingFileHandler can raise PermissionError during rollover because
-    os.rename() fails if the file is still open by another thread.
+    os.rename() fails if the file is still open. This handler serializes emit()
+    and retries the rename on PermissionError so rollover succeeds.
     """
 
     def __init__(self, *args, **kwargs):
@@ -256,3 +263,28 @@ class SafeRotatingFileHandler(logging.handlers.RotatingFileHandler):
     def emit(self, record):
         with self._emit_lock:
             super().emit(record)
+
+    def rotate(self, source, dest):
+        """Rename source to dest, retrying on Windows PermissionError [WinError 32].
+        If rename still fails after retries (e.g. another process has the file),
+        skip rollover so logging continues without archiving the current file.
+        """
+        for attempt in range(_ROTATE_RETRY_COUNT):
+            try:
+                os.rename(source, dest)
+                return
+            except OSError as e:
+                # WinError 32: "file is being used by another process"
+                if getattr(e, "winerror", None) != 32:
+                    raise
+                if attempt == _ROTATE_RETRY_COUNT - 1:
+                    # Skip rollover instead of raising so logging does not break
+                    try:
+                        sys.stderr.write(
+                            "SafeRotatingFileHandler: rollover skipped "
+                            "(file in use). Logging continues.\n"
+                        )
+                    except Exception:
+                        pass
+                    return
+                time.sleep(_ROTATE_RETRY_DELAY_SEC)

@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
 import time
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Union
 
 import requests
 from requests.exceptions import ConnectionError, RequestException, Timeout
@@ -20,7 +21,7 @@ from core.utils.datetime_parsing import parse_iso_datetime
 
 logger = logging.getLogger(__name__)
 
-MAX_RATE_LIMIT_RETRIES = 5
+MAX_RATE_LIMIT_RETRIES = 15
 # Extra seconds added to API reset-based wait so we don't retry before the window opens.
 RATE_LIMIT_WAIT_SAFETY_MARGIN_SEC = 10
 
@@ -65,8 +66,12 @@ class GitHubAPIClient:
                 )
                 if response.status_code == 200:
                     data = response.json()
-                    self.rate_limit_remaining = data["resources"]["core"]["remaining"]
-                    self.rate_limit_reset_time = data["resources"]["core"]["reset"]
+                    self.rate_limit_remaining = data["resources"]["core"][
+                        "remaining"
+                    ]
+                    self.rate_limit_reset_time = data["resources"]["core"][
+                        "reset"
+                    ]
 
                     if self.rate_limit_remaining == 0:
                         wait_time = max(
@@ -80,7 +85,9 @@ class GitHubAPIClient:
                 return True
             except (ConnectionError, ProtocolError, Timeout) as e:
                 if attempt < self.max_retries - 1:
-                    wait_time = self.retry_delay * (2**attempt)  # Exponential backoff
+                    wait_time = self.retry_delay * (
+                        2**attempt
+                    )  # Exponential backoff
                     logger.warning(
                         f"Connection error checking rate limit (attempt {attempt + 1}/{self.max_retries}): {e}"
                     )
@@ -97,7 +104,9 @@ class GitHubAPIClient:
                 logger.error(f"Request error checking rate limit: {e}")
                 raise
 
-    def _parse_rate_limit_wait(self, response: requests.Response) -> Optional[int]:
+    def _parse_rate_limit_wait(
+        self, response: requests.Response
+    ) -> Optional[int]:
         """If response is 403/429 with rate limit or Retry-After, return seconds to wait; else None.
 
         Also handles HTTP 200 GraphQL throttle responses, which GitHub returns with
@@ -110,7 +119,9 @@ class GitHubAPIClient:
                 # consumed the last token, not that it was throttled.
                 try:
                     body = response.json()
-                    body_throttled = isinstance(body, dict) and "errors" in body
+                    body_throttled = (
+                        isinstance(body, dict) and "errors" in body
+                    )
                 except (ValueError, KeyError):
                     body_throttled = False
                 if not body_throttled:
@@ -121,14 +132,21 @@ class GitHubAPIClient:
         if retry_after is not None:
             retry_after = retry_after.strip()
             try:
-                return max(0, int(retry_after))
+                remaining = max(0, int(retry_after))
+                if remaining != 0:
+                    return remaining
+                else:
+                    return None
             except ValueError:
                 try:
                     dt = parsedate_to_datetime(retry_after)
                     if dt.tzinfo is None:
                         dt = dt.replace(tzinfo=timezone.utc)
                     wait = (dt - datetime.now(timezone.utc)).total_seconds()
-                    return max(0, int(wait))
+                    if wait > 0:
+                        return wait
+                    else:
+                        return None
                 except (ValueError, TypeError):
                     pass
         remaining = response.headers.get("X-RateLimit-Remaining")
@@ -147,10 +165,14 @@ class GitHubAPIClient:
             reset_int = int(reset)
         except (TypeError, ValueError):
             return None
-        wait = max(0, reset_int - int(time.time()) + RATE_LIMIT_WAIT_SAFETY_MARGIN_SEC)
+        wait = max(
+            0, reset_int - int(time.time()) + RATE_LIMIT_WAIT_SAFETY_MARGIN_SEC
+        )
         return wait
 
-    def _update_rate_limit_from_response(self, response: requests.Response) -> None:
+    def _update_rate_limit_from_response(
+        self, response: requests.Response
+    ) -> None:
         """Update rate limit state from response headers if present."""
         remaining = response.headers.get("X-RateLimit-Remaining")
         reset = response.headers.get("X-RateLimit-Reset")
@@ -204,7 +226,9 @@ class GitHubAPIClient:
         because this client uses it only for read-only queries (e.g. file content).
         """
         attempts_5xx = self.max_retries if allow_retry_on_5xx else 1
-        attempts_conn = self.max_retries if allow_retry_on_connection_errors else 1
+        attempts_conn = (
+            self.max_retries if allow_retry_on_connection_errors else 1
+        )
         for rate_limit_attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
             rate_limited = False
             attempt_5xx = 0
@@ -225,11 +249,14 @@ class GitHubAPIClient:
                             raise RateLimitException(
                                 f"Rate limit retries exhausted for {endpoint_for_log}"
                             )
-                        self._handle_rate_limit(wait)
                         rate_limited = True
+                        self._handle_rate_limit(wait)
                         break
                     if resp.status_code in (500, 502, 503, 504):
-                        if allow_retry_on_5xx and attempt_5xx < attempts_5xx - 1:
+                        if (
+                            allow_retry_on_5xx
+                            and attempt_5xx < attempts_5xx - 1
+                        ):
                             wait_time = self.retry_delay * (2**attempt_5xx)
                             logger.warning(
                                 "HTTP %s on %s (attempt %s/%s), retrying in %ss...",
@@ -278,6 +305,7 @@ class GitHubAPIClient:
                         f"Connection error for {endpoint_for_log}: {e}"
                     ) from e
             if rate_limited:
+                time.sleep(1)
                 continue
             raise ConnectionException(
                 f"Connection error for {endpoint_for_log}: max retries exceeded"
@@ -339,7 +367,9 @@ class GitHubAPIClient:
         self._update_rate_limit_from_response(response)
         return (response, response.headers.get("ETag"))
 
-    def rest_request(self, endpoint: str, params: Optional[dict] = None) -> dict:
+    def rest_request(
+        self, endpoint: str, params: Optional[dict] = None
+    ) -> dict:
         """Make REST API request with rate limit and connection error handling."""
         response, _ = self._rest_get(endpoint, params=params)
         if response is None:
@@ -355,7 +385,9 @@ class GitHubAPIClient:
         """Make GET request with optional If-None-Match. Returns (data, etag).
         On 304: (None, response ETag). On 200: (response.json(), response ETag header).
         """
-        response, response_etag = self._rest_get(endpoint, params=params, etag=etag)
+        response, response_etag = self._rest_get(
+            endpoint, params=params, etag=etag
+        )
         if response is None:
             return (None, response_etag)
         return (response.json(), response_etag)
@@ -378,17 +410,90 @@ class GitHubAPIClient:
             return None
         return response.content
 
-    def rest_post(self, endpoint: str, json_data: Optional[dict] = None) -> dict:
+    def rest_request_conditional_with_link(
+        self,
+        endpoint: str,
+        params: Optional[dict] = None,
+        etag: Optional[str] = None,
+    ) -> tuple[Optional[dict], Optional[str], Optional[str]]:
+        """Like rest_request_conditional but also returns next_page_url from Link header.
+        Returns (data, response_etag, next_page_url). On 304: (None, etag, None).
+        """
+        response, response_etag = self._rest_get(
+            endpoint, params=params, etag=etag
+        )
+        if response is None:
+            return (None, response_etag, None)
+        next_url = self._parse_link_next(response.headers.get("Link"))
+        return (response.json(), response_etag, next_url)
+
+    @staticmethod
+    def _parse_link_next(link_header: Optional[str]) -> Optional[str]:
+        """Parse GitHub Link response header; return URL for rel=\"next\" or None.
+        See: https://docs.github.com/en/rest/guides/using-pagination-in-the-rest-api
+        """
+        if not link_header or 'rel="next"' not in link_header:
+            return None
+        match = re.search(r'<([^>]+)>;\s*rel="next"', link_header)
+        return match.group(1) if match else None
+
+    def rest_request_with_link(
+        self, endpoint: str, params: Optional[dict] = None
+    ) -> tuple[Union[list, dict], Optional[str]]:
+        """GET request that returns (data, next_page_url) using the Link header.
+        next_page_url is None when there is no next page. Use rest_request_url(next_page_url) for the next page.
+        """
+        response, _ = self._rest_get(endpoint, params=params)
+        if response is None:
+            return ({}, None)
+        data = response.json()
+        next_url = self._parse_link_next(response.headers.get("Link"))
+        return (data, next_url)
+
+    def rest_request_url(
+        self, full_url: str
+    ) -> tuple[Union[list, dict], Optional[str]]:
+        """GET full_url (e.g. from Link rel=\"next\"). Returns (data, next_page_url).
+        Uses same session (auth, rate limit). next_page_url is None when no more pages.
+        """
+        response = self._rest_get_url(full_url)
+        data = response.json()
+        next_url = self._parse_link_next(response.headers.get("Link"))
+        return (data, next_url)
+
+    def _rest_get_url(self, full_url: str) -> requests.Response:
+        """GET by full URL (e.g. from Link rel=\"next\"). For pagination only."""
+        response = self._do_request(
+            "GET",
+            full_url,
+            "GET (paginated)",
+            params=None,
+            headers=None,
+            timeout=30,
+            allow_retry_on_5xx=True,
+            allow_retry_on_connection_errors=True,
+        )
+        response.raise_for_status()
+        self._update_rate_limit_from_response(response)
+        return response
+
+    def rest_post(
+        self, endpoint: str, json_data: Optional[dict] = None
+    ) -> dict:
         """POST to REST API with rate limit and connection error handling."""
         url = f"{self.rest_base_url}{endpoint}"
         payload = json_data or {}
         response = self._do_request(
             "POST", url, f"POST {endpoint}", json_data=payload, timeout=30
         )
-        self._raise_if_error_and_update_rate_limit(response, f"POST {endpoint}")
+        self._raise_if_error_and_update_rate_limit(
+            response, f"POST {endpoint}"
+        )
         return response.json()
 
-    def rest_put(self, endpoint: str, json_data: Optional[dict] = None) -> dict:
+    def rest_put(
+        self, endpoint: str, json_data: Optional[dict] = None
+    ) -> dict:
         """PUT to REST API with rate limit and connection error handling."""
         url = f"{self.rest_base_url}{endpoint}"
         payload = json_data or {}
@@ -407,7 +512,9 @@ class GitHubAPIClient:
         response = self._do_request(
             "DELETE", url, f"DELETE {endpoint}", json_data=payload, timeout=30
         )
-        self._raise_if_error_and_update_rate_limit(response, f"DELETE {endpoint}")
+        self._raise_if_error_and_update_rate_limit(
+            response, f"DELETE {endpoint}"
+        )
         if response.status_code == 204:
             return None
         return response.json()
@@ -546,7 +653,9 @@ class GitHubAPIClient:
             },
         )
 
-    def create_issue(self, owner: str, repo: str, title: str, body: str = "") -> dict:
+    def create_issue(
+        self, owner: str, repo: str, title: str, body: str = ""
+    ) -> dict:
         """Create an issue. Use client from get_github_client(use='write')."""
         return self.rest_post(
             f"/repos/{owner}/{repo}/issues",
@@ -562,7 +671,9 @@ class GitHubAPIClient:
             json_data={"body": body},
         )
 
-    def graphql_request(self, query: str, variables: Optional[dict] = None) -> dict:
+    def graphql_request(
+        self, query: str, variables: Optional[dict] = None
+    ) -> dict:
         """Make GraphQL API request with rate limit and connection error handling.
         Connection errors are retried (used for read-only queries only).
         """
@@ -637,9 +748,9 @@ class GitHubAPIClient:
                 current_submodule["repo_url"] = url.replace(
                     "../", "https://github.com/boostorg/"
                 )
-                current_submodule["repo_name"] = url.replace("../", "").replace(
-                    ".git", ""
-                )
+                current_submodule["repo_name"] = url.replace(
+                    "../", ""
+                ).replace(".git", "")
 
         if current_submodule:
             submodules.append(current_submodule)
@@ -652,15 +763,23 @@ class GitHubAPIClient:
         """Get submodules from .gitmodules file (local file or GitHub API)."""
         if local_file:
             logger.debug(f"Reading submodules from local file: {local_file}")
-            submodules = self.get_submodules_from_file(local_file, default_owner=owner)
+            submodules = self.get_submodules_from_file(
+                local_file, default_owner=owner
+            )
             if submodules:
-                logger.debug(f"Found {len(submodules)} submodule(s) from local file")
+                logger.debug(
+                    f"Found {len(submodules)} submodule(s) from local file"
+                )
                 return submodules
             else:
-                logger.debug("No submodules found in local file, trying GitHub API...")
+                logger.debug(
+                    "No submodules found in local file, trying GitHub API..."
+                )
 
         try:
-            content = self.rest_request(f"/repos/{owner}/{repo}/contents/.gitmodules")
+            content = self.rest_request(
+                f"/repos/{owner}/{repo}/contents/.gitmodules"
+            )
 
             if isinstance(content, list):
                 logger.warning(
@@ -670,9 +789,9 @@ class GitHubAPIClient:
 
             if content.get("type") == "file":
                 try:
-                    gitmodules_content = base64.b64decode(content["content"]).decode(
-                        "utf-8"
-                    )
+                    gitmodules_content = base64.b64decode(
+                        content["content"]
+                    ).decode("utf-8")
                 except Exception as e:
                     logger.error(
                         f"Failed to decode .gitmodules content for {owner}/{repo}: {e}"
@@ -706,7 +825,9 @@ class GitHubAPIClient:
 
     def get_tag_sha(self, owner: str, repo: str, tag: str) -> Optional[str]:
         """Get the SHA of a tag."""
-        response = self.rest_request(f"/repos/{owner}/{repo}/git/ref/tags/{tag}")
+        response = self.rest_request(
+            f"/repos/{owner}/{repo}/git/ref/tags/{tag}"
+        )
         if not response:
             return None
         return response.get("object", {}).get("sha")
@@ -715,7 +836,9 @@ class GitHubAPIClient:
         self, owner: str, repo: str, sha: str
     ) -> Optional[datetime]:
         """Get the published at date of a tag."""
-        response = self.rest_request(f"/repos/{owner}/{repo}/git/commits/{sha}")
+        response = self.rest_request(
+            f"/repos/{owner}/{repo}/git/commits/{sha}"
+        )
         if not response:
             return None
         author = response.get("author", {}) or response.get("committer", {})
