@@ -56,7 +56,8 @@ def _issue_date(issue_data: dict) -> datetime | None:
 
 def _pr_date(pr_data: dict) -> datetime | None:
     """Extract updated_at or created_at from GitHub PR payload.
-    Fetcher yields {pr_info: <detail>, comments: [...], reviews: [...]}, so check nested first."""
+    Fetcher yields {pr_info: <detail>, comments: [...], reviews: [...]}, so check nested first.
+    """
     info = pr_data.get("pr_info") or pr_data
     date_str = info.get("updated_at") or info.get("created_at")
     if not date_str:
