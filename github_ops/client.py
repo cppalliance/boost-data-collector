@@ -287,7 +287,7 @@ class GitHubAPIClient:
                         f"Connection error for {endpoint_for_log}: {e}"
                     ) from e
             if rate_limited:
-                time.sleep(1)
+                time.sleep(2 * rate_limit_attempt)
                 continue
             raise ConnectionException(
                 f"Connection error for {endpoint_for_log}: max retries exceeded"
