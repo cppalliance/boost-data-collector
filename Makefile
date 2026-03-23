@@ -97,7 +97,7 @@ ps:
 health:
 	$(COMPOSE) exec -T $(APP) python manage.py check --database default
 	$(COMPOSE) exec -T redis redis-cli ping | grep -q PONG
-	$(COMPOSE) exec -T selenium curl -sf http://localhost:4444/status | grep -q '"ready": true'
+	$(COMPOSE) exec -T selenium curl -sf http://localhost:4444/status | grep -qE '"ready"[[:space:]]*:[[:space:]]*true'
 	$(COMPOSE) ps --status running celery_worker | grep -q celery_worker
 	$(COMPOSE) ps --status running celery_beat | grep -q celery_beat
 
