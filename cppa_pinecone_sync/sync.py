@@ -105,7 +105,6 @@ def _extract_new_failed_ids(result: dict[str, Any]) -> list[str]:
 
 def _extract_source_ids_from_documents(documents: list[Any]) -> list[str]:
     """Collect deduplicated source IDs from Document.metadata.table_ids in order."""
-    seen: set[str] = set()
     source_ids: list[str] = []
     for doc in documents:
         table_ids = str(doc.metadata.get("table_ids", "")).strip()
@@ -113,9 +112,8 @@ def _extract_source_ids_from_documents(documents: list[Any]) -> list[str]:
             continue
         for token in table_ids.split(","):
             source_id = token.strip()
-            if not source_id or source_id in seen:
+            if not source_id or source_id in source_ids:
                 continue
-            seen.add(source_id)
             source_ids.append(source_id)
     return source_ids
 
