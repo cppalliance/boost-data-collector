@@ -7,9 +7,7 @@ from unittest.mock import MagicMock
 from github_activity_tracker.fetcher import (
     fetch_comments_from_github,
     fetch_commits_from_github,
-    fetch_issues_from_github,
     fetch_pr_reviews_from_github,
-    fetch_pull_requests_from_github,
     fetch_user_from_github,
 )
 
@@ -252,56 +250,6 @@ def test_fetch_comments_from_github_calls_correct_endpoint():
     assert "/repos/owner/repo/issues/42/comments" in client.rest_request.call_args[0][0]
 
 
-# --- fetch_issues_from_github ---
-
-
-def test_fetch_issues_from_github_yields_issue_dicts():
-    """fetch_issues_from_github yields nested { issue_info, comments } dicts."""
-    client = MagicMock()
-    # First page via Link-header API (list + next_url); then full issue GET; then comments
-    client.rest_request_with_link.return_value = (
-        [{"number": 1, "title": "Issue 1", "updated_at": "2024-06-01T00:00:00Z"}],
-        None,
-    )
-    client.rest_request.side_effect = [
-        {"number": 1, "title": "Issue 1", "updated_at": "2024-06-01T00:00:00Z"},
-        [],  # comments for issue 1
-    ]
-    items = list(fetch_issues_from_github(client, "o", "r"))
-    assert len(items) == 1
-    assert items[0]["issue_info"]["number"] == 1
-    assert "comments" in items[0]
-    assert items[0]["comments"] == []
-
-
-def test_fetch_issues_from_github_filters_out_pulls():
-    """fetch_issues_from_github filters out items that have pull_request key."""
-    client = MagicMock()
-    client.rest_request_with_link.return_value = (
-        [
-            {"number": 1, "pull_request": {}},
-            {"number": 2, "updated_at": "2024-06-01T00:00:00Z"},
-        ],
-        None,
-    )
-    client.rest_request.side_effect = [
-        {"number": 2, "updated_at": "2024-06-01T00:00:00Z"},  # full issue for #2
-        [],  # comments for issue 2
-    ]
-    items = list(fetch_issues_from_github(client, "o", "r"))
-    assert len(items) == 1
-    assert items[0]["issue_info"]["number"] == 2
-
-
-def test_fetch_issues_from_github_stops_on_empty_page():
-    """fetch_issues_from_github stops when API returns empty list."""
-    client = MagicMock()
-    client.rest_request_with_link.return_value = ([], None)
-    items = list(fetch_issues_from_github(client, "owner", "repo"))
-    assert items == []
-    client.rest_request.assert_not_called()
-
-
 # --- fetch_pr_reviews_from_github ---
 
 
@@ -331,53 +279,3 @@ def test_fetch_pr_reviews_from_github_calls_pulls_comments():
     fetch_pr_reviews_from_github(client, "owner", "repo", pr_number=3)
     client.rest_request.assert_called_once()
     assert "/repos/owner/repo/pulls/3/comments" in client.rest_request.call_args[0][0]
-
-
-# --- fetch_pull_requests_from_github ---
-
-
-def test_fetch_pull_requests_from_github_yields_pr_dicts():
-    """fetch_pull_requests_from_github yields nested { pr_info, comments, reviews } dicts."""
-    client = MagicMock()
-    client.rest_request.side_effect = [
-        [
-            {
-                "number": 1,
-                "updated_at": "2024-06-01T00:00:00Z",
-                "created_at": "2024-05-01T00:00:00Z",
-            },
-        ],
-        {
-            "number": 1,
-            "updated_at": "2024-06-01T00:00:00Z",
-            "created_at": "2024-05-01T00:00:00Z",
-        },  # full PR
-        [],  # comments for PR 1
-        [],  # reviews for PR 1
-    ]
-    items = list(fetch_pull_requests_from_github(client, "o", "r"))
-    assert len(items) == 1
-    assert items[0]["pr_info"]["number"] == 1
-    assert "comments" in items[0]
-    assert "reviews" in items[0]
-    assert items[0]["comments"] == []
-    assert items[0]["reviews"] == []
-
-
-def test_fetch_pull_requests_from_github_stops_on_empty_page():
-    """fetch_pull_requests_from_github stops when API returns empty list."""
-    client = MagicMock()
-    client.rest_request.return_value = []
-    items = list(fetch_pull_requests_from_github(client, "owner", "repo"))
-    assert items == []
-
-
-def test_fetch_pull_requests_from_github_calls_correct_endpoint():
-    """fetch_pull_requests_from_github calls .../pulls with state=all."""
-    client = MagicMock()
-    client.rest_request.return_value = []
-    list(fetch_pull_requests_from_github(client, "owner", "repo"))
-    call_args = client.rest_request.call_args
-    assert "/repos/owner/repo/pulls" in call_args[0][0]
-    params = call_args[0][1] or {}
-    assert params["state"] == "all"
