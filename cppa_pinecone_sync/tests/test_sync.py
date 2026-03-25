@@ -160,8 +160,9 @@ def test_extract_new_failed_ids_skips_empty():
 
 
 @pytest.mark.django_db
-def test_sync_to_pinecone_empty_preprocess_returns_early(app_type):
-    """sync_to_pinecone returns empty result and updates status when preprocess returns no docs."""
+def test_sync_to_pinecone_empty_preprocess_returns_early():
+    """No upsert/metadata work: empty result and PineconeSyncStatus is not touched."""
+    app_type = "test_empty_preprocess_sync"
 
     def preprocess(_failed_ids, _final_sync_at):
         return [], False
@@ -170,7 +171,7 @@ def test_sync_to_pinecone_empty_preprocess_returns_early(app_type):
     assert result["upserted"] == 0
     assert result["total"] == 0
     assert result["failed_ids"] == []
-    assert services.get_final_sync_at(app_type) is not None
+    assert services.get_final_sync_at(app_type) is None
 
 
 @pytest.mark.django_db
