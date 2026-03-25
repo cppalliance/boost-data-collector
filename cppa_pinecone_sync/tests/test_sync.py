@@ -225,6 +225,47 @@ def test_sync_to_pinecone_calls_ingestion_and_updates_db(mock_get_ingestion, app
 
 @pytest.mark.django_db
 @patch("cppa_pinecone_sync.sync._get_ingestion")
+def test_sync_to_pinecone_metadata_only_calls_update(mock_get_ingestion, app_type):
+    """Empty upsert batch but non-empty metas_to_update still runs update_documents."""
+    mock_ingestion = MagicMock()
+    mock_ingestion.update_documents.return_value = {
+        "updated": 3,
+        "total": 3,
+        "errors": [],
+        "failed_documents": [],
+    }
+    mock_get_ingestion.return_value = mock_ingestion
+
+    def preprocess(_failed_ids, _final_sync_at):
+        return (
+            [],
+            False,
+            [
+                {
+                    "ids": "10",
+                    "content": "metadata-only body " * 20,
+                    "metadata": {"doc_id": "h1"},
+                },
+            ],
+        )
+
+    result = sync_to_pinecone(app_type, "meta_ns", preprocess)
+
+    mock_ingestion.upsert_documents.assert_not_called()
+    mock_ingestion.update_documents.assert_called_once()
+    call_kw = mock_ingestion.update_documents.call_args[1]
+    assert call_kw["namespace"] == "meta_ns"
+    assert len(call_kw["documents"]) == 1
+    assert result["upserted"] == 0
+    assert result["total"] == 0
+    assert result["failed_count"] == 0
+    assert result["updated"] == 3
+    assert result["failed_ids"] == []
+    assert services.get_final_sync_at(app_type) is not None
+
+
+@pytest.mark.django_db
+@patch("cppa_pinecone_sync.sync._get_ingestion")
 def test_sync_to_pinecone_returns_metadata_update_result(mock_get_ingestion, app_type):
     """sync_to_pinecone returns metadata update results when metas_to_update is provided."""
     mock_ingestion = MagicMock()

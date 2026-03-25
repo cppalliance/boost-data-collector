@@ -4,8 +4,11 @@ Preprocessor for boost_library_docs_tracker Pinecone sync.
 Called by cppa_pinecone_sync.sync.sync_to_pinecone as the preprocess_fn argument.
 Signature matches the PreprocessFn contract:
     (failed_ids: list[str], final_sync_at: datetime | None)
-        -> tuple[list[dict], bool]
-        OR tuple[list[dict], bool, list[dict]]   (with metadata updates)
+        -> tuple[list[dict], bool, list[dict]]
+
+The third list is metas_to_update: already-upserted rows whose scraped_at is
+after final_sync_at (metadata refresh in Pinecone). Empty when final_sync_at
+is None or nothing is stale.
 
 The failed_ids values come from failed_documents[*]["ids"] in the upsert result,
 which are BoostDocContent PKs encoded as strings.
@@ -26,30 +29,32 @@ logger = logging.getLogger(__name__)
 def preprocess_for_pinecone(
     failed_ids: list[str],
     final_sync_at: datetime | None,
-) -> tuple[list[dict[str, Any]], bool]:
+) -> tuple[list[dict[str, Any]], bool, list[dict[str, Any]]]:
     """
-    Build documents for Pinecone upsert from BoostDocContent records.
+    Build documents for Pinecone upsert and optional metadata updates.
 
-    Selects BoostDocContent records where is_upserted=False (not yet synced)
-    or whose PK is in failed_ids (retry after a previous failure).
-    final_sync_at is accepted for interface compatibility but is not used —
-    is_upserted is the authoritative sync state.
+    Upsert batch: BoostDocContent where is_upserted=False or PK is in failed_ids
+    (retry). Loads page text from the workspace for each row.
 
-    For each selected record:
-      - Resolves first_version / last_version from the FK fields on BoostDocContent.
-      - Loads page content from the workspace file.
-      - Returns source ids in metadata["ids"] so the caller can mark
-        BoostDocContent.is_upserted=True only after a successful Pinecone upsert.
+    Metadata batch (metas_to_update): when final_sync_at is set, rows with
+    is_upserted=True and scraped_at > final_sync_at (re-scraped after last sync),
+    excluding failed_ids. Same document shape as the upsert batch so
+    ingestion.update_documents can refresh metadata; doc_id remains content_hash.
 
-    Returns (documents, is_chunked=False).
-    doc_id in metadata is the content_hash of the BoostDocContent row.
+    When final_sync_at is None, metas_to_update is always [] (no incremental
+    stale-metadata pass).
+
+    Returns (documents, is_chunked=False, metas_to_update).
     """
-    records = _select_records(failed_ids, final_sync_at)
-    if not records:
-        return [], False
+    upsert_records = _select_upsert_records(failed_ids)
+    meta_records = _select_metadata_update_records(failed_ids, final_sync_at)
 
-    documents, _ids_to_mark = _build_documents(records)
-    return documents, False
+    if not upsert_records and not meta_records:
+        return [], False, []
+
+    documents, _ = _build_documents(upsert_records)
+    metas_to_update, _ = _build_documents(meta_records)
+    return documents, False, metas_to_update
 
 
 # ---------------------------------------------------------------------------
@@ -57,16 +62,8 @@ def preprocess_for_pinecone(
 # ---------------------------------------------------------------------------
 
 
-def _select_records(
-    failed_ids: list[str],
-    final_sync_at: datetime | None,
-) -> list[BoostDocContent]:
-    """Return BoostDocContent records to process.
-
-    Selects rows that are not yet upserted (is_upserted=False) or are in
-    failed_ids for retry. The final_sync_at parameter is accepted for interface
-    compatibility but is not used — is_upserted is the authoritative sync state.
-    """
+def _select_upsert_records(failed_ids: list[str]) -> list[BoostDocContent]:
+    """Rows to vector-upsert: not yet upserted or explicitly failed (retry)."""
     from django.db.models import Q
 
     int_failed_ids = _parse_int_ids(failed_ids)
@@ -79,6 +76,28 @@ def _select_records(
         .select_related("first_version", "last_version")
         .order_by("id")
     )
+    return list(qs)
+
+
+def _select_metadata_update_records(
+    failed_ids: list[str],
+    final_sync_at: datetime | None,
+) -> list[BoostDocContent]:
+    """Rows needing Pinecone metadata refresh only (already upserted, scraped since sync)."""
+    if final_sync_at is None:
+        return []
+
+    int_failed_ids = _parse_int_ids(failed_ids)
+    qs = (
+        BoostDocContent.objects.filter(
+            is_upserted=True,
+            scraped_at__gt=final_sync_at,
+        )
+        .select_related("first_version", "last_version")
+        .order_by("id")
+    )
+    if int_failed_ids:
+        qs = qs.exclude(pk__in=int_failed_ids)
     return list(qs)
 
 

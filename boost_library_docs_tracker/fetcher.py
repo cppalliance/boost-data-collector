@@ -76,9 +76,9 @@ def download_source_zip(version: str, dest_dir: Path) -> Path:
     zip_name = f"boost_{normalized.replace('.', '_')}.zip"
     zip_path = dest_dir / zip_name
 
-    # if zip_path.exists():
-    #     logger.info("Source zip already present, skipping download: %s", zip_path)
-    #     return zip_path
+    if zip_path.exists():
+        logger.info("Source zip already present, skipping download: %s", zip_path)
+        return zip_path
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     session = _get_session()
@@ -327,7 +327,7 @@ def crawl_library_pages(
             abs_url = abs_url.split("#")[0]
             if (
                 abs_url not in visited
-                and abs_url.startswith(start_url)
+                and lib_key.split("/")[-1] not in abs_url
                 and abs_url not in queue
             ):
                 queue.append(abs_url)

@@ -38,7 +38,6 @@ import hashlib
 import logging
 from pathlib import Path
 
-from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
 
 from boost_library_docs_tracker import fetcher, services, workspace
@@ -47,8 +46,8 @@ from boost_library_tracker.models import BoostLibraryVersion, BoostVersion
 
 logger = logging.getLogger(__name__)
 
-APP_TYPE = "boost_library_docs"
-PINECONE_NAMESPACE = "boost_library_docs"
+APP_TYPE = "boost-library-documentation"
+PINECONE_NAMESPACE = "boost-library-documentation"
 DEFAULT_MAX_PAGES = 10
 
 
@@ -146,6 +145,7 @@ class Command(BaseCommand):
         )
         mode = "local-zip" if use_local else "HTTP crawl"
         self.stdout.write(f"Scrape mode: {mode}")
+        versions = [f"boost-1.{i}.0" for i in range(63, 91)]
 
         for version in versions:
             self._process_version(
@@ -157,10 +157,10 @@ class Command(BaseCommand):
                 cleanup_extract=cleanup_extract,
             )
 
-        if dry_run or skip_pinecone:
-            reason = "dry run" if dry_run else "--skip-pinecone set"
-            self.stdout.write(f"Skipping Pinecone sync ({reason}).")
-            return
+            if dry_run or skip_pinecone:
+                reason = "dry run" if dry_run else "--skip-pinecone set"
+                self.stdout.write(f"Skipping Pinecone sync ({reason}).")
+                continue
 
         self._sync_pinecone()
 
@@ -213,9 +213,9 @@ class Command(BaseCommand):
         zip_dir = workspace.get_zip_dir()
         extract_dir = workspace.get_extract_dir()
 
-        if zip_dir.exists():
-            self.stdout.write(f"[{version}] Source zip already exists at {zip_dir}")
-            return extract_dir
+        # if zip_dir.exists():
+        #     self.stdout.write(f"[{version}] Source zip already exists at {zip_dir}")
+        #     return extract_dir
 
         try:
             zip_path = fetcher.download_source_zip(version, zip_dir)
@@ -355,16 +355,7 @@ class Command(BaseCommand):
     # ------------------------------------------------------------------
 
     def _sync_pinecone(self):
-        if not apps.is_installed("cppa_pinecone_sync"):
-            self.stdout.write(
-                self.style.WARNING(
-                    "Skipping Pinecone sync: 'cppa_pinecone_sync' is not in INSTALLED_APPS."
-                )
-            )
-            self.stdout.write(
-                "Add 'cppa_pinecone_sync' to INSTALLED_APPS or run with --skip-pinecone."
-            )
-            return
+        """Sync to Pinecone"""
 
         try:
             from cppa_pinecone_sync.sync import sync_to_pinecone
@@ -477,27 +468,32 @@ class Command(BaseCommand):
             result.append((start_path, lib_key))
         return result
 
-    def _resolve_library_version_id(self, lib_name: str, version: str) -> int | None:
+    def _resolve_library_version_id(self, lib_key: str, version: str) -> int | None:
         """Resolve BoostLibraryVersion id from DB. Returns None if not found."""
-        try:
-            lv = BoostLibraryVersion.objects.select_related("library", "version").get(
-                library__name=lib_name,
-                version__version=version,
-            )
-            return lv.pk
-        except BoostLibraryVersion.DoesNotExist:
+        lib_key = (lib_key or "").strip()
+        if not lib_key:
             return None
-        except BoostLibraryVersion.MultipleObjectsReturned:
+
+        base_qs = BoostLibraryVersion.objects.select_related(
+            "library", "version"
+        ).filter(version__version=version)
+        # 1) Preferred: key + version
+        qs = base_qs.filter(key=lib_key)
+        lv = qs.first()
+        if lv:
+            return lv.pk
+
+        # 2) Optional compatibility fallback: name + version
+        qs = base_qs.filter(library__name=lib_key)
+        lv = qs.first()
+        if lv:
             logger.warning(
-                "Multiple BoostLibraryVersion rows for lib=%s ver=%s; using first.",
-                lib_name,
+                "Resolved by library name fallback (missing/mismatched key): lib_key=%s, version=%s",
+                lib_key,
                 version,
             )
-            lv = BoostLibraryVersion.objects.filter(
-                library__name=lib_name,
-                version__version=version,
-            ).first()
-            return lv.pk if lv is not None else None
+            return lv.pk
+        return None
 
     def _resolve_boost_version_id(self, version: str) -> int | None:
         """Resolve BoostVersion PK from the version string. Returns None if not found."""
