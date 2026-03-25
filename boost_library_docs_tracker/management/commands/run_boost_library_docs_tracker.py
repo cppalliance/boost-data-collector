@@ -11,10 +11,11 @@ Procedure:
   3. For each library, fetch docs and save to workspace:
      - Default (--use-local not set): HTTP BFS crawl per library.
      - --use-local: download source zip once per version, extract, walk local HTML.
-       Zip is saved in workspace/raw/boost_library_docs_tracker/ and is not deleted.
+       Zip is saved in workspace/raw/boost_library_docs_tracker/.
        Extract tree is saved in workspace/boost_library_docs_tracker/extracted/.
        Converted page content is saved in workspace/boost_library_docs_tracker/converted/.
-       Pass --cleanup-extract to delete the extract tree after all libraries are done.
+       Pass --cleanup-extract to delete the extract tree and the downloaded zip after
+       all libraries for that version are done.
   4. Fill BoostDocContent and BoostLibraryDocumentation tables (no page_content in DB).
      - New content_hash → create new BoostDocContent row, set first_version and last_version.
      - Same content_hash but different URL → update url and scraped_at, update last_version.
@@ -102,8 +103,8 @@ class Command(BaseCommand):
             "--cleanup-extract",
             action="store_true",
             help=(
-                "Delete the extracted source tree after all libraries for a version are "
-                "processed (only with --use-local)."
+                "Delete the extracted source tree and the raw zip under workspace/raw/ "
+                "after all libraries for a version are processed (only with --use-local)."
             ),
         )
 
@@ -145,7 +146,7 @@ class Command(BaseCommand):
         )
         mode = "local-zip" if use_local else "HTTP crawl"
         self.stdout.write(f"Scrape mode: {mode}")
-        versions = [f"boost-1.{i}.0" for i in range(63, 91)]
+        versions = [f"boost-1.{i}.0" for i in range(64, 91)]
 
         for version in versions:
             self._process_version(
@@ -157,10 +158,10 @@ class Command(BaseCommand):
                 cleanup_extract=cleanup_extract,
             )
 
-            if dry_run or skip_pinecone:
-                reason = "dry run" if dry_run else "--skip-pinecone set"
-                self.stdout.write(f"Skipping Pinecone sync ({reason}).")
-                continue
+        if dry_run or skip_pinecone:
+            reason = "dry run" if dry_run else "--skip-pinecone set"
+            self.stdout.write(f"Skipping Pinecone sync ({reason}).")
+            return
 
         self._sync_pinecone()
 
@@ -180,9 +181,10 @@ class Command(BaseCommand):
         self.stdout.write(f"[{version}] {len(library_list)} library/libraries.")
 
         source_root: Path | None = None
+        zip_path: Path | None = None
 
         if use_local:
-            source_root = self._prepare_local_source(version=version)
+            source_root, zip_path = self._prepare_local_source(version=version)
 
         # Resolve once per version; used to track first/last_version on BoostDocContent.
         boost_version_id = self._resolve_boost_version_id(version)
@@ -202,13 +204,29 @@ class Command(BaseCommand):
 
         if use_local and cleanup_extract and source_root is not None:
             fetcher.delete_extract_dir(source_root)
+            if zip_path is not None:
+                try:
+                    zip_path.unlink(missing_ok=True)
+                    self.stdout.write(
+                        self.style.NOTICE(
+                            f"[{version}] Removed source zip {zip_path.name}"
+                        )
+                    )
+                except OSError as exc:
+                    logger.warning("Could not remove source zip %s: %s", zip_path, exc)
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"[{version}] Could not remove source zip: {exc}"
+                        )
+                    )
 
         self.stdout.write(f"[{version}] Done — {total_pages} pages total.")
 
-    def _prepare_local_source(self, *, version: str) -> Path:
+    def _prepare_local_source(self, *, version: str) -> tuple[Path, Path]:
         """Download and extract the Boost source zip for a version.
 
-        Returns source_root — the top-level extracted directory.
+        Returns (source_root, zip_path): top-level extracted directory and path to
+        the zip under workspace/raw/boost_library_docs_tracker/.
         """
         zip_dir = workspace.get_zip_dir()
         extract_dir = workspace.get_extract_dir()
@@ -232,7 +250,7 @@ class Command(BaseCommand):
             ) from exc
 
         self.stdout.write(f"[{version}] Source ready at {source_root}")
-        return source_root
+        return source_root, zip_path
 
     def _process_library(
         self,
