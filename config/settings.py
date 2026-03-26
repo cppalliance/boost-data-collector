@@ -583,3 +583,14 @@ if ENABLE_ERROR_NOTIFICATIONS:
             "level": "ERROR",
         }
         LOGGING["root"]["handlers"].append("slack")
+
+# You can add your own Django apps here by adding them to the EXTRA_INSTALLED_APPS list in config/local_settings.py.
+try:
+    from . import local_settings as _local_settings
+
+    _LOCAL_EXTRA_INSTALLED_APPS = tuple(
+        getattr(_local_settings, "EXTRA_INSTALLED_APPS", ())
+    )
+except ImportError:
+    _LOCAL_EXTRA_INSTALLED_APPS = ()
+INSTALLED_APPS = [*INSTALLED_APPS, *_LOCAL_EXTRA_INSTALLED_APPS]

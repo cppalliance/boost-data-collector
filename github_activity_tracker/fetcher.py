@@ -376,8 +376,14 @@ def fetch_issues_and_prs_from_github(
       - PRs     → yield {"pr_info": <detail>, "comments": [...], "reviews": [...]}
 
     Uses Link-header pagination (direction=asc, sort=updated) so items are processed
-    oldest-updated-first. If etag_cache is provided, uses conditional GET for the first
-    page; a 304 means nothing has changed and the function returns immediately.
+    oldest-updated-first.
+
+    When etag_cache is provided, list requests built from query params use conditional
+    GET (If-None-Match); ETags are keyed by list type, page, and since_iso in the cache.
+    A 304 response has no JSON for that page; pagination may continue by advancing
+    ``page`` while still on the params path, or by following ``Link`` after a 200.
+
+    Requests made via full ``next`` URLs (``rest_request_url``) do not use the ETag cache.
     """
     logger.debug(
         "Fetching issues+PRs for %s/%s from %s to %s", owner, repo, start_time, end_time
@@ -388,56 +394,19 @@ def fetch_issues_and_prs_from_github(
     next_url: Optional[str] = None
     page_num = 1
 
-    while True:
-        response_etag: Optional[str] = None
-        try:
-            if next_url is not None:
-                items, next_url = client.rest_request_url(next_url)
-                page_num += 1
-            else:
-                params: dict = {
-                    "state": "all",
-                    "per_page": per_page,
-                    "page": page_num,
-                    "sort": "updated",
-                    "direction": "asc",
-                }
-                if start_time:
-                    params["since"] = start_time.isoformat()
-                if etag_cache is not None:
-                    etag = etag_cache.get("issues_and_prs", page_num, since_iso, "")
-                    data, response_etag, next_url = (
-                        client.rest_request_conditional_with_link(
-                            endpoint, params=params, etag=etag
-                        )
-                    )
-                    if data is None:
-                        logger.debug(
-                            "Issues+PRs list page %s: 304 Not Modified, skipping",
-                            page_num,
-                        )
-                        page_num += 1
-                        time.sleep(0.2)
-                        continue
-                    items = data
-                else:
-                    items, next_url = client.rest_request_with_link(endpoint, params)
-        except requests.exceptions.HTTPError as e:
-            if e.response is not None and e.response.status_code == 422:
-                logger.debug(
-                    "Issues+PRs list: 422 Unprocessable Entity, stopping pagination"
-                )
-                break
-            raise
+    def _issues_list_params(page: int) -> dict:
+        params: dict = {
+            "state": "all",
+            "per_page": per_page,
+            "page": page,
+            "sort": "updated",
+            "direction": "asc",
+        }
+        if start_time:
+            params["since"] = start_time.isoformat()
+        return params
 
-        if not items:
-            logger.debug("No more issues/PRs found")
-            break
-
-        logger.debug(
-            "Fetched %d items (issues+PRs combined) from page %s", len(items), page_num
-        )
-
+    def _yield_issue_pr_items_for_list_page(items: list) -> Iterator[dict]:
         for item in items:
             updated_str = item.get("updated_at") or item.get("created_at")
             if not updated_str:
@@ -493,10 +462,79 @@ def fetch_issues_and_prs_from_github(
                 logger.debug("Found %d comments for issue #%s", len(comments), number)
                 yield {"issue_info": item, "comments": comments}
 
+    # Phase 1: params-based list requests (optional conditional GET + ETag cache).
+    while next_url is None:
+        response_etag: Optional[str] = None
+        try:
+            params = _issues_list_params(page_num)
+            if etag_cache is not None:
+                etag = etag_cache.get("issues_and_prs", page_num, since_iso, "")
+                data, response_etag, next_url = (
+                    client.rest_request_conditional_with_link(
+                        endpoint, params=params, etag=etag
+                    )
+                )
+                if data is None:
+                    logger.debug(
+                        "Issues+PRs list page %s: 304 Not Modified, skipping",
+                        page_num,
+                    )
+                    page_num += 1
+                    time.sleep(0.2)
+                    continue
+                items = data
+            else:
+                items, next_url = client.rest_request_with_link(endpoint, params)
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 422:
+                logger.debug(
+                    "Issues+PRs list: 422 Unprocessable Entity, stopping pagination"
+                )
+                return
+            raise
+
+        if not items:
+            logger.debug("No more issues/PRs found")
+            break
+
+        logger.debug(
+            "Fetched %d items (issues+PRs combined) from page %s", len(items), page_num
+        )
+
+        yield from _yield_issue_pr_items_for_list_page(items)
+
         if etag_cache is not None and response_etag:
             etag_cache.set("issues_and_prs", page_num, since_iso, "", response_etag)
 
         if next_url is None:
             logger.debug('Last page reached (no Link rel="next")')
             break
+        break
+
+    # Phase 2: follow Link rel="next" URLs (full GET; no ETag cache).
+    while next_url:
         time.sleep(0.2)
+        try:
+            items, next_url = client.rest_request_url(next_url)
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 422:
+                logger.debug(
+                    "Issues+PRs list: 422 Unprocessable Entity, stopping pagination"
+                )
+                return
+            raise
+        page_num += 1
+
+        if not items:
+            logger.debug("No more issues/PRs found")
+            break
+
+        logger.debug(
+            "Fetched %d items (issues+PRs combined) from page %s", len(items), page_num
+        )
+
+        yield from _yield_issue_pr_items_for_list_page(items)
+
+        if next_url is None:
+            logger.debug('Last page reached (no Link rel="next")')
+            break

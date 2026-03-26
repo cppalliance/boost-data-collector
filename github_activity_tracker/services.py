@@ -196,7 +196,6 @@ def create_or_update_commit(
     commit_at: Optional[datetime] = None,
 ) -> tuple[GitCommit, bool]:
     """Create or update a GitCommit by repo + commit_hash. Returns (commit, created)."""
-    from datetime import datetime
 
     if not commit_at:
         commit_at = datetime.now(timezone.utc)
