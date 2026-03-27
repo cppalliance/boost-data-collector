@@ -4,6 +4,7 @@ Database logic for WG21 Paper Tracker.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import TYPE_CHECKING, Optional
 
 from django.db import IntegrityError, transaction
@@ -40,7 +41,7 @@ def get_or_create_paper(
     paper_id: str,
     url: str,
     title: str,
-    document_date: Optional[str],
+    document_date: date | None,
     mailing: WG21Mailing,
     subgroup: str = "",
     author_names: Optional[list[str]] = None,
@@ -139,6 +140,9 @@ def get_or_create_paper(
             created = False
 
     if author_names:
+        if not created:
+            for author in paper.authors.all():
+                author.delete()
         emails = author_emails or []
         for i, name in enumerate(author_names):
             email = emails[i] if i < len(emails) else None
@@ -156,6 +160,8 @@ def get_or_create_paper_author(
     """Get or create a WG21PaperAuthor link for (paper, profile), with author_order (1-based).
     Updates author_order on existing link if it differs.
     """
+    if not isinstance(author_order, int) or author_order <= 0:
+        raise ValueError("author_order must be a positive integer")
     link, link_created = WG21PaperAuthor.objects.get_or_create(
         paper=paper,
         profile=profile,

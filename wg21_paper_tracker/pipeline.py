@@ -136,7 +136,9 @@ def _valid_paper_entries_for_id(
     return valid
 
 
-def _choose_best_format_entry(valid_list: list[dict[str, Any]]) -> dict[str, Any]:
+def _choose_best_format_entry(
+    valid_list: list[dict[str, Any]],
+) -> dict[str, Any]:
     """Pick one row by format priority (adoc first). Precondition: valid_list non-empty."""
     return min(
         valid_list,
@@ -344,10 +346,12 @@ def run_tracker_pipeline(
             to_mailing_date=to_mailing_date,
         )
     }
+    new_mailing_dates = set(m["mailing_date"] for m in new_mailings)
     for current_m in all_mailings:
-        if current_m["mailing_date"] in retry_dates and current_m[
-            "mailing_date"
-        ] not in [x["mailing_date"] for x in new_mailings]:
+        if (
+            current_m["mailing_date"] in retry_dates
+            and current_m["mailing_date"] not in new_mailing_dates
+        ):
             new_mailings.append(current_m)
 
     # Sort chronologically (oldest to newest)

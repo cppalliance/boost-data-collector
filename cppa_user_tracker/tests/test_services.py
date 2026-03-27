@@ -609,16 +609,25 @@ def test_get_or_create_wg21_paper_author_profile_one_candidate_returns_it():
 
 
 @pytest.mark.django_db
-def test_get_or_create_wg21_paper_author_profile_one_candidate_with_new_email_adds_email():
-    """Existing single match gets the supplied email attached."""
+def test_get_or_create_wg21_paper_author_profile_one_candidate_with_new_email_creates_new_profile():
+    """One name match but email not on that profile: creates a new profile with the email.
+
+    Disambiguation only returns an existing row when the email matches or when no email
+    is passed and the candidate has no emails; otherwise a new profile is created.
+    """
     existing = WG21PaperAuthorProfile.objects.create(display_name="Solo Author")
     profile, created = services.get_or_create_wg21_paper_author_profile(
         display_name="Solo Author",
         email="solo@example.com",
     )
-    assert created is False
-    assert profile.id == existing.id
+    assert created is True
+    assert profile.id != existing.id
+    assert profile.display_name == "Solo Author"
     assert profile.emails.filter(email="solo@example.com").exists()
+    assert (
+        WG21PaperAuthorProfile.objects.filter(display_name="Solo Author").count() == 2
+    )
+    assert not existing.emails.filter(email="solo@example.com").exists()
 
 
 @pytest.mark.django_db
