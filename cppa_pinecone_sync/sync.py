@@ -76,11 +76,17 @@ def _build_documents_from_raw(raw_documents: list[dict[str, Any]]) -> list[Any]:
     for item in raw_documents:
         content = item.get("content", "")
         metadata = dict(item.get("metadata") or {})
-        ids_str = metadata.get("ids") or item.get("ids", "") or ""
+        ids_str = (
+            metadata.get("source_ids")
+            or metadata.get("ids")
+            or item.get("source_ids", "")
+            or item.get("ids", "")
+            or ""
+        )
 
         if "doc_id" not in metadata and "url" not in metadata:
             logger.warning(
-                "Skipping document with ids=%s: metadata must contain 'doc_id' or 'url'",
+                "Skipping document with source_ids=%s: metadata must contain 'doc_id' or 'url'",
                 ids_str,
             )
             continue

@@ -80,7 +80,7 @@ def test_preprocess_metas_when_upserted_and_scraped_after_final_sync(
     assert chunked is False
     assert len(metas) == 1
     assert metas[0]["metadata"]["doc_id"] == boost_doc_content.content_hash
-    assert metas[0]["metadata"]["ids"] == str(boost_doc_content.pk)
+    assert metas[0]["metadata"]["source_ids"] == str(boost_doc_content.pk)
 
 
 @pytest.mark.django_db
@@ -94,7 +94,7 @@ def test_preprocess_no_metas_when_final_sync_at_none(_mock_load, boost_doc_conte
     assert chunked is False
     assert metas == []
     assert len(docs) == 1
-    assert docs[0]["metadata"]["ids"] == str(boost_doc_content.pk)
+    assert docs[0]["metadata"]["source_ids"] == str(boost_doc_content.pk)
 
 
 @pytest.mark.django_db
@@ -136,4 +136,4 @@ def test_preprocess_meta_excludes_failed_ids(_mock_load, boost_doc_content):
     )
     assert metas == []
     assert len(docs) == 1
-    assert docs[0]["metadata"]["ids"] == str(boost_doc_content.pk)
+    assert docs[0]["metadata"]["source_ids"] == str(boost_doc_content.pk)

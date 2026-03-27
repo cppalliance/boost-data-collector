@@ -97,6 +97,33 @@ def test_build_documents_from_raw_mixed():
     assert result[1].page_content == "c"
 
 
+def test_build_documents_from_raw_metadata_source_ids():
+    """metadata['source_ids'] is copied to table_ids (preferred over legacy top-level ids)."""
+    raw = [
+        {
+            "content": "hello",
+            "metadata": {"doc_id": "doc-1", "source_ids": "42"},
+        },
+    ]
+    result = _build_documents_from_raw(raw)
+    assert len(result) == 1
+    assert result[0].metadata.get("table_ids") == "42"
+
+
+def test_build_documents_from_raw_source_ids_overrides_top_level_ids():
+    """When both are present, metadata['source_ids'] wins for table_ids."""
+    raw = [
+        {
+            "ids": "legacy",
+            "content": "x",
+            "metadata": {"doc_id": "d", "source_ids": "from-meta"},
+        },
+    ]
+    result = _build_documents_from_raw(raw)
+    assert len(result) == 1
+    assert result[0].metadata.get("table_ids") == "from-meta"
+
+
 # --- _extract_new_failed_ids ---
 
 

@@ -172,7 +172,7 @@ def _build_documents(
             "doc_id": doc_content.content_hash,
             "url": doc_content.url,
             "library_name": library_name,
-            "ids": str(doc_content.pk),
+            "source_ids": str(doc_content.pk),
         }
         fk = encode_boost_version_string(first_version_str)
         if fk is not None:

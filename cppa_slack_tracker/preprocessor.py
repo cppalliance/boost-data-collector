@@ -382,8 +382,7 @@ def preprocess_slack_for_pinecone(
             "thread_ts": thread_ts if thread_ts else "",
             "group_size": len(message_ids),
             "team_id": team_id,
-            # ids should reference message timestamps for sync bookkeeping
-            "ids": ",".join(message_ids),
+            "source_ids": ",".join(message_ids),
         }
 
         docs.append({"content": content, "metadata": metadata})

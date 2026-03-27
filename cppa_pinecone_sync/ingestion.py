@@ -382,7 +382,7 @@ class PineconeIngestion:
             )
             record: dict[str, Any] = {"id": doc_id, "chunk_text": text}
             record.update(metadata)
-            record.pop("table_ids", None)
+            record.pop("source_ids", None)
             records.append(record)
         return records
 
@@ -413,7 +413,7 @@ class PineconeIngestion:
             meta = doc.metadata or {}
             failed.append(
                 {
-                    "ids": meta.get("table_ids", ""),
+                    "ids": meta.get("source_ids") or meta.get("table_ids", ""),
                     "reason": f"Batch upsert failed: {error}",
                 }
             )
@@ -561,9 +561,9 @@ class PineconeIngestion:
                 record_idx=len(updates),
             )
 
-            source_ids = metadata.get("table_ids", "")
-            metadata.pop("table_ids", None)
-            updates.append({"id": doc_id, "set_metadata": metadata, "ids": source_ids})
+            track_ids = metadata.get("source_ids") or metadata.get("table_ids", "")
+            metadata.pop("source_ids", None)
+            updates.append({"id": doc_id, "set_metadata": metadata, "ids": track_ids})
 
         return updates
 
