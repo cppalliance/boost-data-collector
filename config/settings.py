@@ -541,7 +541,7 @@ PINECONE_ENVIRONMENT = (
 PINECONE_CLOUD = (env("PINECONE_CLOUD", default="aws") or "aws").strip()
 PINECONE_BATCH_SIZE = int(env("PINECONE_BATCH_SIZE", default="96") or "96")
 PINECONE_UPDATE_MAX_WORKERS = int(
-    env("PINECONE_UPDATE_MAX_WORKERS", default="4") or "4"
+    env("PINECONE_UPDATE_MAX_WORKERS", default="8") or "8"
 )
 PINECONE_CHUNK_SIZE = int(env("PINECONE_CHUNK_SIZE", default="1000") or "1000")
 PINECONE_CHUNK_OVERLAP = int(env("PINECONE_CHUNK_OVERLAP", default="200") or "200")
