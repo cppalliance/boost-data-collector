@@ -191,6 +191,30 @@ Run these statements as a superuser (e.g. `postgres`). The app role does not nee
 
 If your dump replays `GRANT … TO app_readonly`, the `app_readonly` role must exist before restore (as above).
 
+### `pg_hba.conf`: Docker containers → host PostgreSQL
+
+With `host.docker.internal` in `DATABASE_URL` (see `docker-compose.yml` `extra_hosts`), Postgres still sees the client as the **container’s bridge IP** (e.g. `172.20.0.4`), not `127.0.0.1`, so `host … 127.0.0.1/32` rules do not match that traffic. `pg_hba.conf` lines match **database**, **user**, and **client address**; without a matching line you may see:
+
+```text
+FATAL:  no pg_hba.conf entry for host "172.20.0.4", user "bdc", database "boost_dashboard", ...
+```
+
+Add something like (adjust user/database names and auth to match your install; `scram-sha-256` is typical):
+
+```conf
+host  boost_dashboard  bdc  172.16.0.0/12  scram-sha-256
+```
+
+**`172.16.0.0/12`** covers `172.16.0.0`–`172.31.255.255`, which includes common Docker bridge subnets. To narrow to one subnet (e.g. only `172.20.*`), use **`172.20.0.0/16`** instead.
+
+Reload Postgres after editing:
+
+```bash
+sudo systemctl reload postgresql
+```
+
+If the client negotiates SSL but the server does not use TLS for this path, add **`?sslmode=disable`** or **`prefer`** to **`DATABASE_URL`** (see `.env.example`).
+
 ### Restoring from `pg_dump` (custom format)
 
 Backups produced with `pg_dump -Fc` are **not** plain SQL. Restore with **`pg_restore`**, not `psql -f`. The file may still be named `*.sql` even though it is custom format—use `pg_restore`, not the extension, to decide the tool.
