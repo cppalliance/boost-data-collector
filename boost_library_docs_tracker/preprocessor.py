@@ -21,6 +21,7 @@ from datetime import datetime
 from typing import Any
 
 from core.utils.boost_version_operations import encode_boost_version_string
+from core.utils.text_processing import clean_text
 
 from .models import BoostDocContent
 from . import workspace
@@ -162,6 +163,8 @@ def _build_documents(
                 doc_content.pk,
             )
             continue
+
+        page_content = clean_text(page_content, remove_extra_spaces=False)
 
         library_name = _get_library_name(doc_content)
 

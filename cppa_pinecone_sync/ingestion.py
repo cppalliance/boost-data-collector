@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
 from typing import Any, Optional
 
@@ -73,16 +74,22 @@ class PineconeIngestion:
         self.sparse_model: str = getattr(
             settings, "PINECONE_SPARSE_MODEL", "pinecone-sparse-english-v0"
         )
+        # Parallel metadata updates (update_documents); 1 = sequential. Cap with Pinecone rate limits.
+        self.update_max_workers: int = max(
+            1, int(getattr(settings, "PINECONE_UPDATE_MAX_WORKERS", 8))
+        )
 
         self._setup_client()
         self._initialize_text_splitter()
         self._setup_indexes()
 
         logger.info(
-            "PineconeIngestion: dense_model=%s, sparse_model=%s, instance=%s",
+            "PineconeIngestion: dense_model=%s, sparse_model=%s, instance=%s, "
+            "update_max_workers=%d",
             self.dense_model,
             self.sparse_model,
             self.instance.value,
+            self.update_max_workers,
         )
 
     @property
@@ -479,24 +486,51 @@ class PineconeIngestion:
                 continue
 
             batch_failed_count = 0
-            for update in batch_updates:
-                try:
-                    self._update_single_record(update, namespace)
-                    updated_count += 1
-                except Exception as e:
-                    error_msg = (
-                        f"Error updating metadata for batch {batch_num} "
-                        f"record {update['id']}: {e}"
-                    )
-                    logger.error(error_msg)
-                    errors.append(error_msg)
-                    failed_docs.append(
-                        {
-                            "ids": update.get("ids", ""),
-                            "reason": f"Metadata update failed: {e}",
-                        }
-                    )
-                    batch_failed_count += 1
+            if self.update_max_workers <= 1:
+                for update in batch_updates:
+                    try:
+                        self._update_single_record(update, namespace)
+                        updated_count += 1
+                    except Exception as e:
+                        error_msg = (
+                            f"Error updating metadata for batch {batch_num} "
+                            f"record {update['id']}: {e}"
+                        )
+                        logger.error(error_msg)
+                        errors.append(error_msg)
+                        failed_docs.append(
+                            {
+                                "ids": update.get("ids", ""),
+                                "reason": f"Metadata update failed: {e}",
+                            }
+                        )
+                        batch_failed_count += 1
+            else:
+                max_workers = min(self.update_max_workers, len(batch_updates))
+                with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                    future_to_update = {
+                        pool.submit(self._update_single_record, u, namespace): u
+                        for u in batch_updates
+                    }
+                    for fut in as_completed(future_to_update):
+                        update = future_to_update[fut]
+                        try:
+                            fut.result()
+                            updated_count += 1
+                        except Exception as e:
+                            error_msg = (
+                                f"Error updating metadata for batch {batch_num} "
+                                f"record {update['id']}: {e}"
+                            )
+                            logger.error(error_msg)
+                            errors.append(error_msg)
+                            failed_docs.append(
+                                {
+                                    "ids": update.get("ids", ""),
+                                    "reason": f"Metadata update failed: {e}",
+                                }
+                            )
+                            batch_failed_count += 1
 
             logger.info(
                 "Updated metadata for batch %d: %d/%d documents",

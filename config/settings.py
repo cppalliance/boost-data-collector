@@ -177,6 +177,8 @@ PINECONE_ENVIRONMENT = (
 PINECONE_CLOUD = (env("PINECONE_CLOUD", default="aws") or "aws").strip() or "aws"
 # Chunking and batching
 PINECONE_BATCH_SIZE = env.int("PINECONE_BATCH_SIZE", default=96)
+# Parallel threads for Pinecone metadata-only updates (update_documents); lower if you hit 429s.
+PINECONE_UPDATE_MAX_WORKERS = env.int("PINECONE_UPDATE_MAX_WORKERS", default=8)
 PINECONE_CHUNK_SIZE = env.int("PINECONE_CHUNK_SIZE", default=1000)
 PINECONE_CHUNK_OVERLAP = env.int("PINECONE_CHUNK_OVERLAP", default=200)
 PINECONE_MIN_TEXT_LENGTH = env.int("PINECONE_MIN_TEXT_LENGTH", default=50)
@@ -538,6 +540,9 @@ PINECONE_ENVIRONMENT = (
 ).strip()
 PINECONE_CLOUD = (env("PINECONE_CLOUD", default="aws") or "aws").strip()
 PINECONE_BATCH_SIZE = int(env("PINECONE_BATCH_SIZE", default="96") or "96")
+PINECONE_UPDATE_MAX_WORKERS = int(
+    env("PINECONE_UPDATE_MAX_WORKERS", default="4") or "4"
+)
 PINECONE_CHUNK_SIZE = int(env("PINECONE_CHUNK_SIZE", default="1000") or "1000")
 PINECONE_CHUNK_OVERLAP = int(env("PINECONE_CHUNK_OVERLAP", default="200") or "200")
 PINECONE_MIN_TEXT_LENGTH = int(env("PINECONE_MIN_TEXT_LENGTH", default="50") or "50")

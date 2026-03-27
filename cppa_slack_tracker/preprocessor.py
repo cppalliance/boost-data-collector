@@ -22,7 +22,7 @@ from django.conf import settings
 from django.db.models import Q
 
 from cppa_slack_tracker.models import SlackMessage
-from cppa_slack_tracker.utils.text_processing import (
+from cppa_slack_tracker.utils import (
     clean_text,
     filter_sentence,
     validate_content_length,
