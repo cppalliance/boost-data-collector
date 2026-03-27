@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Django
+*.log
+logs/
+workspace/
+local_settings.py
+db.sqlite3
+staticfiles/
+media/
+.test_artifacts/
+
+# Testing / coverage
+.coverage
+htmlcov/
+pytest-cache-files*/
+
+# Celery
+celerybeat-schedule
+celerybeat-schedule-*
+celerybeat.pid
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.cursor/
+
+# DiscordChatExporter CLI (download to workspace/discord_activity_tracker/tools/)
+discord_activity_tracker/tools/
+# macOS
+.DS_Store
+._*
+
+
+# Config
+config/boost_collector_schedule.yaml
+# temp files
+temp/
