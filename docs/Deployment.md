@@ -234,6 +234,21 @@ sudo -u postgres pg_restore -h /var/run/postgresql -p 5432 -U postgres \
   /tmp/boost-data-collector-db-2026-03-25.dump
 ```
 
+**After restore — privileges for the app user:** Restore as `postgres` leaves **`public` tables owned by `postgres`**; DB owner `bdc` still has **no table rights** until you `GRANT` (empty `role_table_grants` for `bdc` is expected). Grants to other roles in the dump (e.g. `app_readonly`) do not apply to `bdc`.
+
+1. As superuser: `\c boost_dashboard`, then run (adjust role name if not `bdc`):
+
+```sql
+GRANT USAGE ON SCHEMA public TO bdc;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO bdc;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO bdc;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO bdc;
+```
+
+2. **Check:** `pg_tables` / `information_schema` are **per database**—always `\c boost_dashboard` before querying. After grants, `SELECT COUNT(*) FROM information_schema.role_table_grants WHERE grantee = 'bdc' AND table_schema = 'public'` should be large (on the order of hundreds for a full app schema).
+
+Repeat step 1 after any future restore that leaves table ownership on `postgres`.
+
 ### `.env` for host PostgreSQL
 
 Set **`DATABASE_URL`** (and any `DB_*` overrides) so containers reach the host database, for example:
