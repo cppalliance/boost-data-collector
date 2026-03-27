@@ -9,7 +9,8 @@ This module orchestrates the full flow:
 3. Upsert documents to Pinecone via PineconeIngestion.
 4. Update the fail list and sync status in the database.
 
-See docs/pinecone_sync.md for the full specification.
+See docs/Pinecone_preprocess_guideline.md (preprocess contract) and
+docs/service_api/cppa_pinecone_sync.md (fail list / sync status services).
 """
 
 from __future__ import annotations
@@ -237,11 +238,11 @@ def sync_to_pinecone(
         services.clear_failed_ids(app_type)
         if new_failed_ids:
             services.record_failed_ids(app_type, new_failed_ids)
-        logger.warning(
-            "app_type=%s: %d source IDs recorded as failed",
-            app_type,
-            len(new_failed_ids),
-        )
+            logger.warning(
+                "app_type=%s: %d source IDs recorded as failed",
+                app_type,
+                len(new_failed_ids),
+            )
 
     services.update_sync_status(app_type)
 

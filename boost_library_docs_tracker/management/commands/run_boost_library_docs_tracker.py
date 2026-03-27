@@ -394,7 +394,6 @@ class Command(BaseCommand):
             return
 
         successful_ids = result.get("successful_source_ids", [])
-        failed_ids = result.get("failed_ids", [])
         int_successful_ids: list[int] = []
         for sid in successful_ids:
             try:
