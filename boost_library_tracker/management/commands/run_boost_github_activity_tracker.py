@@ -121,8 +121,6 @@ def _push_markdown_to_github(
     all_new_files: dict[str, str],
 ) -> None:
     """Upload generated Markdown to BOOST_LIBRARY_TRACKER_REPO_*; unlink locals on success."""
-    if not all_new_files:
-        return
     cfg = _markdown_export_repo_config()
     if not cfg:
         logger.error(
@@ -504,17 +502,7 @@ class Command(BaseCommand):
 
             if not skip_remote_push:
                 logger.info("push Markdown to configured GitHub repo")
-                if not all_new_files:
-                    if skip_markdown_export and not skip_github_sync:
-                        logger.warning(
-                            "nothing new to push (--skip-markdown-export); skipping remote push"
-                        )
-                    elif skip_github_sync:
-                        logger.warning(
-                            "nothing to push from this run (sync was skipped)"
-                        )
-                else:
-                    _push_markdown_to_github(md_output_dir, all_new_files)
+                _push_markdown_to_github(md_output_dir, all_new_files)
             else:
                 logger.info("skipping remote push (--skip-remote-push)")
 

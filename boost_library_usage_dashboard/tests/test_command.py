@@ -11,12 +11,14 @@ from django.core.management.base import CommandError
 
 @pytest.mark.django_db
 def test_dashboard_command_exists(dashboard_cmd_name):
+    """The dashboard management command is registered with Django."""
     commands = get_commands()
     assert dashboard_cmd_name in commands
 
 
 @pytest.mark.django_db
 def test_dashboard_command_runs_generation_only(dashboard_cmd_name, tmp_path):
+    """Default collect+render runs; publish is skipped when ``--skip-publish`` is passed."""
     fake_analyzer = MagicMock()
     fake_analyzer.run.return_value = {"total_repositories": 0}
     fake_analyzer.report_file = tmp_path / "Boost_Usage_Report_total.md"

@@ -105,12 +105,17 @@ GIT_CMD_TIMEOUT_SECONDS = 300
 
 
 def _url_with_token(url: str, token: str) -> str:
-    """Inject token into GitHub HTTPS URL for auth."""
+    """Inject credentials into a GitHub HTTPS URL for Git over HTTPS.
+
+    Uses ``x-access-token:<token>`` as the userinfo segment. Required for
+    fine-grained PATs (``github_pat_...``); classic PATs work with this form too.
+    """
     if not token:
         return url
+    auth = f"x-access-token:{token}"
     return re.sub(
         r"^(https://)(github\.com/)",
-        r"\1" + token + r"@\2",
+        r"\1" + auth + r"@\2",
         url,
         count=1,
     )
@@ -162,11 +167,13 @@ def clone_repo(
         )
         raise
     except subprocess.CalledProcessError as e:
+        err_tail = ((e.stderr or "") + (e.stdout or ""))[-500:]
         logger.warning(
-            "git clone failed (%s -> %s), returncode=%s",
+            "git clone failed (%s -> %s), returncode=%s, stderr/stdout_tail=%r",
             url_or_slug,
             dest_dir,
             e.returncode,
+            err_tail,
         )
         raise
 
@@ -190,6 +197,8 @@ def push(
 
     git_user_name / git_user_email: if set, passed only to the ``git commit`` subprocess
     via GIT_AUTHOR_* / GIT_COMMITTER_* env vars (does not modify repo ``git config``).
+    Any existing GIT_AUTHOR_* / GIT_COMMITTER_* entries are removed from the commit
+    environment first so ambient or Django-set values are not inherited when unset.
     """
     repo_dir = Path(repo_dir)
     if token is None:
@@ -209,6 +218,13 @@ def push(
         text=True,
     )
     commit_env = dict(os.environ)
+    for _key in (
+        "GIT_AUTHOR_NAME",
+        "GIT_AUTHOR_EMAIL",
+        "GIT_COMMITTER_NAME",
+        "GIT_COMMITTER_EMAIL",
+    ):
+        commit_env.pop(_key, None)
     if git_user_name:
         commit_env["GIT_AUTHOR_NAME"] = git_user_name
         commit_env["GIT_COMMITTER_NAME"] = git_user_name

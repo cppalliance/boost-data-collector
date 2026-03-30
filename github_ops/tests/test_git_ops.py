@@ -26,10 +26,10 @@ def test_url_with_token_empty_token_returns_unchanged():
 
 
 def test_url_with_token_injects_token_before_github_com():
-    """_url_with_token injects token into HTTPS GitHub URL."""
+    """_url_with_token uses x-access-token form for GitHub HTTPS Git auth."""
     url = "https://github.com/owner/repo.git"
     out = _url_with_token(url, "secret")
-    assert out == "https://secret@github.com/owner/repo.git"
+    assert out == "https://x-access-token:secret@github.com/owner/repo.git"
 
 
 def test_url_with_token_none_like_token_returns_unchanged():
@@ -42,7 +42,7 @@ def test_url_with_token_only_replaces_first_occurrence():
     """_url_with_token uses count=1 so only first https://github.com/ is modified."""
     url = "https://github.com/boostorg/boost.git"
     out = _url_with_token(url, "tok")
-    assert out == "https://tok@github.com/boostorg/boost.git"
+    assert out == "https://x-access-token:tok@github.com/boostorg/boost.git"
 
 
 # --- clone_repo ---
@@ -69,9 +69,9 @@ def test_clone_repo_slug_converted_to_https_url(tmp_path):
     with patch("github_ops.git_ops.subprocess.run", MagicMock()) as run_mock:
         clone_repo("owner/repo", tmp_path, token="t")
     call_args = run_mock.call_args[0][0]
-    assert (
-        "https://github.com/owner/repo.git" in call_args[2]
-        or "t@github.com" in call_args[2]
+    clone_url = call_args[2]
+    assert "https://github.com/owner/repo.git" in clone_url or (
+        "x-access-token:t@" in clone_url and "github.com/owner/repo.git" in clone_url
     )
 
 

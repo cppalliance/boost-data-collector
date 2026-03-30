@@ -1,3 +1,5 @@
+"""Build the Boost library usage dashboard from DB data and optionally publish to GitHub."""
+
 import logging
 
 from django.conf import settings
@@ -13,12 +15,15 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
+    """Django management command: collect metrics, render HTML, optionally push to GitHub."""
+
     help = (
         "Generate Boost library usage report/dashboard from PostgreSQL data, "
         "then publish generated files to a target GitHub repository unless skipped."
     )
 
     def add_arguments(self, parser):
+        """Register skip flags and publish target overrides."""
         parser.add_argument(
             "--skip-collect",
             action="store_true",
@@ -54,6 +59,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        """Run collect/render steps, then publish when configured and artifacts exist."""
         output_dir = get_workspace_path("boost_library_usage_dashboard").resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
 

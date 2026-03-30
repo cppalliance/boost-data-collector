@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +14,25 @@ from django.core.management.base import CommandError
 from github_ops.git_ops import clone_repo, prepare_repo_for_pull, pull, push
 
 logger = logging.getLogger(__name__)
+
+# GitHub owner/login and repository name: single path segment, no traversal.
+_GITHUB_OWNER_REPO_SLUG = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$")
+
+
+def _validate_github_slug(label: str, value: str) -> str:
+    """Return stripped owner or repo name, or raise CommandError if unsafe or invalid."""
+    v = (value or "").strip()
+    if not v:
+        raise CommandError(f"Invalid GitHub {label}: empty")
+    if v in (".", ".."):
+        raise CommandError(f"Invalid GitHub {label}: {v!r}")
+    if "/" in v or "\\" in v:
+        raise CommandError(f"Invalid GitHub {label}: {v!r}")
+    if Path(v).is_absolute():
+        raise CommandError(f"Invalid GitHub {label}: {v!r}")
+    if not _GITHUB_OWNER_REPO_SLUG.fullmatch(v):
+        raise CommandError(f"Invalid GitHub {label}: {v!r}")
+    return v
 
 
 def publish_dashboard(
@@ -30,8 +50,18 @@ def publish_dashboard(
     ``settings.GIT_AUTHOR_NAME`` / ``settings.GIT_AUTHOR_EMAIL`` for the commit
     identity (via env vars on ``git commit`` only).
     """
-    clone_dir = Path(settings.RAW_DIR) / "boost_library_usage_dashboard" / owner / repo
-    clone_dir = clone_dir.resolve()
+    owner = _validate_github_slug("owner", owner)
+    repo = _validate_github_slug("repo", repo)
+
+    publish_root = (Path(settings.RAW_DIR) / "boost_library_usage_dashboard").resolve()
+    clone_dir = (publish_root / owner / repo).resolve()
+    try:
+        clone_dir.relative_to(publish_root)
+    except ValueError:
+        raise CommandError(
+            f"Publish clone path escapes dashboard publish root: {clone_dir}"
+        ) from None
+
     output_dir = output_dir.resolve()
     if (
         clone_dir == output_dir
