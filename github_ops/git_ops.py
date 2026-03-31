@@ -66,9 +66,7 @@ def _wait_seconds_for_github_403(r: requests.Response, attempt: int) -> float:
     try:
         if remaining is not None and int(remaining) == 0 and reset_raw is not None:
             reset_ts = int(reset_raw)
-            wait = max(0.0, float(reset_ts) - time.time())
-            if wait < 1.0:
-                wait = 1.0
+            wait = max(1.0, float(reset_ts) - time.time())
             wait += random.uniform(0, 2)
             return min(wait, max_sleep)
     except (TypeError, ValueError):
