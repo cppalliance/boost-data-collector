@@ -105,12 +105,17 @@ GIT_CMD_TIMEOUT_SECONDS = 300
 
 
 def _url_with_token(url: str, token: str) -> str:
-    """Inject token into GitHub HTTPS URL for auth."""
+    """Inject credentials into a GitHub HTTPS URL for Git over HTTPS.
+
+    Uses ``x-access-token:<token>`` as the userinfo segment. Required for
+    fine-grained PATs (``github_pat_...``); classic PATs work with this form too.
+    """
     if not token:
         return url
+    auth = f"x-access-token:{token}"
     return re.sub(
         r"^(https://)(github\.com/)",
-        r"\1" + token + r"@\2",
+        r"\1" + auth + r"@\2",
         url,
         count=1,
     )
@@ -162,11 +167,13 @@ def clone_repo(
         )
         raise
     except subprocess.CalledProcessError as e:
+        err_tail = ((e.stderr or "") + (e.stdout or ""))[-500:]
         logger.warning(
-            "git clone failed (%s -> %s), returncode=%s",
+            "git clone failed (%s -> %s), returncode=%s, stderr/stdout_tail=%r",
             url_or_slug,
             dest_dir,
             e.returncode,
+            err_tail,
         )
         raise
 
@@ -179,12 +186,19 @@ def push(
     commit_message: Optional[str] = None,
     add_paths: Optional[list[str | Path]] = None,
     token: Optional[str] = None,
+    git_user_name: Optional[str] = None,
+    git_user_email: Optional[str] = None,
 ) -> None:
     """
     Push to remote. Uses push token by default.
     Always runs git add, git commit, then push. Uses commit_message if provided,
     otherwise "Auto commit in <YYYY-MM-DD HH:MM:SS UTC>". add_paths: paths to add
     (relative to repo_dir); if None, adds all (git add .).
+
+    git_user_name / git_user_email: if set, passed only to the ``git commit`` subprocess
+    via GIT_AUTHOR_* / GIT_COMMITTER_* env vars (does not modify repo ``git config``).
+    Any existing GIT_AUTHOR_* / GIT_COMMITTER_* entries are removed from the commit
+    environment first so ambient or Django-set values are not inherited when unset.
     """
     repo_dir = Path(repo_dir)
     if token is None:
@@ -203,10 +217,27 @@ def push(
         capture_output=True,
         text=True,
     )
+    commit_env = dict(os.environ)
+    for _key in (
+        "GIT_AUTHOR_NAME",
+        "GIT_AUTHOR_EMAIL",
+        "GIT_COMMITTER_NAME",
+        "GIT_COMMITTER_EMAIL",
+    ):
+        commit_env.pop(_key, None)
+    if git_user_name:
+        commit_env["GIT_AUTHOR_NAME"] = git_user_name
+        commit_env["GIT_COMMITTER_NAME"] = git_user_name
+    if git_user_email:
+        commit_env["GIT_AUTHOR_EMAIL"] = git_user_email
+        commit_env["GIT_COMMITTER_EMAIL"] = git_user_email
     commit_result = subprocess.run(
         ["git", "-C", str(repo_dir), "commit", "-m", message],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=commit_env,
     )
     if commit_result.returncode != 0:
         out = (commit_result.stderr or "") + (commit_result.stdout or "")
@@ -287,6 +318,68 @@ def pull(
         cmd.append(branch)
     logger.info("Pulling %s %s", repo_dir, branch or "(current)")
     subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+
+def prepare_repo_for_pull(
+    repo_dir: str | Path,
+    *,
+    remote: str = "origin",
+    token: Optional[str] = None,
+) -> None:
+    """
+    Fetch remote branch refs (prune), remove untracked files, and reset the working tree.
+
+    Use before checkout/pull on a reused clone that may have local changes or lack
+    remote-tracking refs for branches that exist only on the remote.
+    """
+    repo_dir = Path(repo_dir)
+    if token is None:
+        token = get_github_token(use="push")
+    result = subprocess.run(
+        ["git", "-C", str(repo_dir), "remote", "get-url", remote],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    remote_url = result.stdout.strip()
+    auth_url = _url_with_token(remote_url, token or "")
+
+    logger.info("Fetching %s refs (prune) in %s", remote, repo_dir)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_dir),
+            "fetch",
+            auth_url,
+            f"+refs/heads/*:refs/remotes/{remote}/*",
+            "--prune",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=GIT_CMD_TIMEOUT_SECONDS,
+    )
+    logger.info("Running git clean -fd in %s", repo_dir)
+    subprocess.run(
+        ["git", "-C", str(repo_dir), "clean", "-fd"],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    logger.info("Running git reset --hard in %s", repo_dir)
+    subprocess.run(
+        ["git", "-C", str(repo_dir), "reset", "--hard"],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
 
 
 def fetch_file_content(
