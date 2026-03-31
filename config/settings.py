@@ -26,6 +26,22 @@ DEBUG = env("DEBUG")
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
+# Reverse proxy (e.g. nginx terminating TLS). Enable USE_TLS_PROXY_HEADERS only behind a trusted proxy.
+USE_X_FORWARDED_HOST = env.bool("USE_X_FORWARDED_HOST", default=False)
+if env.bool("USE_TLS_PROXY_HEADERS", default=False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+
+_static_url = (env("STATIC_URL", default="static/") or "static/").strip()
+if _static_url and not _static_url.endswith("/"):
+    _static_url += "/"
+STATIC_URL = _static_url
+
+_force_script_name = (env("FORCE_SCRIPT_NAME", default="") or "").strip()
+if _force_script_name:
+    FORCE_SCRIPT_NAME = _force_script_name
+
 # Application definition
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -35,6 +51,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.staticfiles",
     # Project apps (github_ops before github_activity_tracker - tracker depends on ops)
+    "core",
     "workflow",
     "boost_collector_runner",  # YAML-driven schedule; run_scheduled_collectors
     "cppa_user_tracker",
@@ -123,8 +140,7 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-# Static files
-STATIC_URL = "static/"
+# Static files (STATIC_URL set above from env; STATIC_ROOT is collectstatic output)
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Workspace: one folder for raw/processed files, subfolders per app (see docs/Workspace.md)
@@ -151,6 +167,72 @@ WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 for _slug in _WORKSPACE_APP_SLUGS:
     (WORKSPACE_DIR / _slug).mkdir(parents=True, exist_ok=True)
 
+# =============================================================================
+# Clang GitHub Tracker
+# Syncs llvm/llvm-project (issues, PRs, commits) to raw workspace only (no DB).
+# After sync, updated issues/PRs are exported as Markdown and pushed to the
+# private repo below. If OWNER or NAME is not set, upload is skipped and an
+# error is logged.
+# Folder structure: issues/YYYY/YYYY-MM/#N - title.md  (no repo prefix)
+# =============================================================================
+# Boost GitHub owner (used by boost_library_tracker preprocessors for Pinecone sync)
+BOOST_GITHUB_OWNER = (
+    env("BOOST_GITHUB_OWNER", default="boostorg") or "boostorg"
+).strip() or "boostorg"
+
+# Pinecone (cppa_pinecone_sync) — read from .env
+# Public API key (used when --pinecone-instance=public or unset)
+PINECONE_API_KEY = (env("PINECONE_API_KEY", default="") or "").strip()
+# Private API key (used when --pinecone-instance=private)
+PINECONE_PRIVATE_API_KEY = (env("PINECONE_PRIVATE_API_KEY", default="") or "").strip()
+PINECONE_INDEX_NAME = (
+    env("PINECONE_INDEX_NAME", default="") or ""
+).strip() or "boost-dashboard"
+PINECONE_ENVIRONMENT = (
+    env("PINECONE_ENVIRONMENT", default="us-east-1") or "us-east-1"
+).strip() or "us-east-1"
+PINECONE_CLOUD = (env("PINECONE_CLOUD", default="aws") or "aws").strip() or "aws"
+# Chunking and batching
+PINECONE_BATCH_SIZE = env.int("PINECONE_BATCH_SIZE", default=96)
+PINECONE_CHUNK_SIZE = env.int("PINECONE_CHUNK_SIZE", default=1000)
+PINECONE_CHUNK_OVERLAP = env.int("PINECONE_CHUNK_OVERLAP", default=200)
+PINECONE_MIN_TEXT_LENGTH = env.int("PINECONE_MIN_TEXT_LENGTH", default=50)
+PINECONE_MIN_WORDS = env.int("PINECONE_MIN_WORDS", default=5)
+# Embedding models (Pinecone integrated embeddings)
+PINECONE_DENSE_MODEL = (
+    env("PINECONE_DENSE_MODEL", default="multilingual-e5-large")
+    or "multilingual-e5-large"
+).strip() or "multilingual-e5-large"
+PINECONE_SPARSE_MODEL = (
+    env("PINECONE_SPARSE_MODEL", default="pinecone-sparse-english-v0")
+    or "pinecone-sparse-english-v0"
+).strip() or "pinecone-sparse-english-v0"
+
+# Pinecone sync: app_type and namespace per app (used when CLI does not pass --pinecone-app-type/--pinecone-namespace)
+# Boost Mailing List Tracker
+BOOST_MAILING_LIST_PINECONE_APP_TYPE = (
+    env("BOOST_MAILING_LIST_PINECONE_APP_TYPE", default="mailing") or "mailing"
+).strip() or "mailing"
+BOOST_MAILING_LIST_PINECONE_NAMESPACE = (
+    env("BOOST_MAILING_LIST_PINECONE_NAMESPACE", default="mailing") or "mailing"
+).strip() or "mailing"
+# Boost Library Tracker (GitHub issues/PRs)
+BOOST_GITHUB_PINECONE_APP_TYPE = (
+    env("BOOST_GITHUB_PINECONE_APP_TYPE", default="github-boostorg")
+    or "github-boostorg"
+).strip() or "github-boostorg"
+BOOST_GITHUB_PINECONE_NAMESPACE = (
+    env("BOOST_GITHUB_PINECONE_NAMESPACE", default="github-boostorg")
+    or "github-boostorg"
+).strip() or "github-boostorg"
+# Clang GitHub Tracker (GitHub issues/PRs)
+CLANG_GITHUB_PINECONE_APP_TYPE = (
+    env("CLANG_GITHUB_PINECONE_APP_TYPE", default="github-clang") or "github-clang"
+).strip() or "github-clang"
+CLANG_GITHUB_PINECONE_NAMESPACE = (
+    env("CLANG_GITHUB_PINECONE_NAMESPACE", default="github-clang") or "github-clang"
+).strip() or "github-clang"
+
 # Clang GitHub Tracker (raw sync: commits, issues, PRs for one repo)
 CLANG_GITHUB_OWNER = (
     env("CLANG_GITHUB_OWNER", default="llvm") or "llvm"
@@ -158,6 +240,15 @@ CLANG_GITHUB_OWNER = (
 CLANG_GITHUB_REPO = (
     env("CLANG_GITHUB_REPO", default="llvm-project") or "llvm-project"
 ).strip() or "llvm-project"
+CLANG_GITHUB_TRACKER_PRIVATE_REPO_OWNER = (
+    env("CLANG_GITHUB_TRACKER_PRIVATE_REPO_OWNER", default="") or ""
+).strip()
+CLANG_GITHUB_TRACKER_PRIVATE_REPO_NAME = (
+    env("CLANG_GITHUB_TRACKER_PRIVATE_REPO_NAME", default="") or ""
+).strip()
+CLANG_GITHUB_TRACKER_PRIVATE_REPO_BRANCH = (
+    env("CLANG_GITHUB_TRACKER_PRIVATE_REPO_BRANCH", default="main") or "main"
+).strip()
 
 # GitHub tokens (multiple use cases: scraping, write)
 # - GITHUB_TOKEN: fallback when a specific token is not set
@@ -179,6 +270,25 @@ GITHUB_SLACK_HUDDLE_REPO_OWNER = (
 ).strip()
 GITHUB_SLACK_HUDDLE_REPO_NAME = (
     env("GITHUB_SLACK_HUDDLE_REPO_NAME", default="") or ""
+).strip()
+
+# =============================================================================
+# Boost Library Tracker
+# Syncs boostorg/boost + all submodules (issues, PRs, commits) to DB.
+# After sync, updated issues/PRs are exported as Markdown and pushed to the
+# repo below. If OWNER or NAME is not set, upload is skipped and an error is
+# logged.
+# Folder structure: boost/issues/YYYY/YYYY-MM/#N - title.md        (main repo)
+#                   boost.<submodule>/issues/YYYY/YYYY-MM/#N - title.md
+# =============================================================================
+BOOST_LIBRARY_TRACKER_REPO_OWNER = (
+    env("BOOST_LIBRARY_TRACKER_REPO_OWNER", default="") or ""
+).strip()
+BOOST_LIBRARY_TRACKER_REPO_NAME = (
+    env("BOOST_LIBRARY_TRACKER_REPO_NAME", default="") or ""
+).strip()
+BOOST_LIBRARY_TRACKER_REPO_BRANCH = (
+    env("BOOST_LIBRARY_TRACKER_REPO_BRANCH", default="master") or "master"
 ).strip()
 
 # Settings for publishing boost_library_usage_dashboard
@@ -317,7 +427,10 @@ SLACK_PR_BOT_CHANNEL_NAME = (
     env("SLACK_PR_BOT_CHANNEL_NAME", default="slack-bot") or "slack-bot"
 ).strip()
 SLACK_PR_BOT_COMMENT_TEMPLATE = (
-    env("SLACK_PR_BOT_COMMENT_TEMPLATE", default="Automated comment from Slack bot.")
+    env(
+        "SLACK_PR_BOT_COMMENT_TEMPLATE",
+        default="Automated comment from Slack bot.",
+    )
     or ""
 ).strip() or "Automated comment from Slack bot."
 SLACK_PR_BOT_COMMENTS_MAX_PER_WINDOW = int(
@@ -358,6 +471,8 @@ _LOG_FILE_PATH = LOG_DIR / LOG_FILE
 ENABLE_ERROR_NOTIFICATIONS = env.bool("ENABLE_ERROR_NOTIFICATIONS", default=False)
 DISCORD_WEBHOOK_URL = env("DISCORD_WEBHOOK_URL", default="")
 SLACK_WEBHOOK_URL = env("SLACK_WEBHOOK_URL", default="")
+# Post to webhooks after deploy (see make notify / send_startup_notification)
+ENABLE_STARTUP_NOTIFICATIONS = env.bool("ENABLE_STARTUP_NOTIFICATIONS", default=True)
 
 LOGGING = {
     "version": 1,
@@ -378,7 +493,7 @@ LOGGING = {
             "formatter": "verbose",
         },
         "file": {
-            "class": "logging.handlers.RotatingFileHandler",
+            "class": "config.logging_handlers.SafeRotatingFileHandler",
             "filename": str(_LOG_FILE_PATH),
             "maxBytes": LOG_MAX_BYTES,
             "backupCount": LOG_BACKUP_COUNT,
@@ -411,7 +526,7 @@ CELERY_RESULT_BACKEND = env(
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = "America/Los_Angeles"
+# CELERY_TIMEZONE = "America/Los_Angeles"
 CELERY_ENABLE_UTC = True  # Beat schedule times (default_time from YAML) are UTC
 
 # Schedule from YAML (boost_collector_runner); on load error fall back to empty beat schedule ({})
@@ -427,6 +542,39 @@ except Exception:
         "Could not load boost collector schedule from YAML.",
     )
     CELERY_BEAT_SCHEDULE = {}
+
+# =============================================================================
+# Pinecone (cppa_pinecone_sync) - vector index for RAG sync
+# =============================================================================
+# Public API key (default). Used when instance=public or unset.
+PINECONE_API_KEY = (env("PINECONE_API_KEY", default="") or "").strip()
+# Private API key. Used when instance=private.
+PINECONE_PRIVATE_API_KEY = (env("PINECONE_PRIVATE_API_KEY", default="") or "").strip()
+# Index name (required for sync). Set in .env to enable Slack/mailing list → Pinecone.
+PINECONE_INDEX_NAME = (env("PINECONE_INDEX_NAME", default="") or "").strip()
+PINECONE_ENVIRONMENT = (
+    env("PINECONE_ENVIRONMENT", default="us-east-1") or "us-east-1"
+).strip()
+PINECONE_CLOUD = (env("PINECONE_CLOUD", default="aws") or "aws").strip()
+PINECONE_BATCH_SIZE = int(env("PINECONE_BATCH_SIZE", default="96") or "96")
+PINECONE_CHUNK_SIZE = int(env("PINECONE_CHUNK_SIZE", default="1000") or "1000")
+PINECONE_CHUNK_OVERLAP = int(env("PINECONE_CHUNK_OVERLAP", default="200") or "200")
+PINECONE_MIN_TEXT_LENGTH = int(env("PINECONE_MIN_TEXT_LENGTH", default="50") or "50")
+PINECONE_MIN_WORDS = int(env("PINECONE_MIN_WORDS", default="5") or "5")
+PINECONE_SLACK_NAMESPACE_PREFIX = (
+    env("PINECONE_SLACK_NAMESPACE_PREFIX", default="slack") or "slack"
+).strip()
+PINECONE_SLACK_APP_TYPE_PREFIX = (
+    env("PINECONE_SLACK_APP_TYPE_PREFIX", default="slack") or "slack"
+).strip()
+PINECONE_DENSE_MODEL = (
+    env("PINECONE_DENSE_MODEL", default="multilingual-e5-large")
+    or "multilingual-e5-large"
+).strip()
+PINECONE_SPARSE_MODEL = (
+    env("PINECONE_SPARSE_MODEL", default="pinecone-sparse-english-v0")
+    or "pinecone-sparse-english-v0"
+).strip()
 
 # GitHub activity tracker: Redis for ETag cache (conditional GET). Use separate DB index.
 # To persist the cache across restarts, enable Redis persistence (RDB or AOF) in redis.conf:
@@ -463,3 +611,13 @@ YOUTUBE_PINECONE_NAMESPACE = (
 YOUTUBE_DEFAULT_PUBLISHED_AFTER = (
     env("YOUTUBE_DEFAULT_PUBLISHED_AFTER", default="") or ""
 ).strip()
+# You can add your own Django apps here by adding them to the EXTRA_INSTALLED_APPS list in config/local_settings.py.
+try:
+    from . import local_settings as _local_settings
+
+    _LOCAL_EXTRA_INSTALLED_APPS = tuple(
+        getattr(_local_settings, "EXTRA_INSTALLED_APPS", ())
+    )
+except ImportError:
+    _LOCAL_EXTRA_INSTALLED_APPS = ()
+INSTALLED_APPS = [*INSTALLED_APPS, *_LOCAL_EXTRA_INSTALLED_APPS]

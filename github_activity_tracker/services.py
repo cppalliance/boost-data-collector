@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from .models import (
@@ -196,7 +196,6 @@ def create_or_update_commit(
     commit_at: Optional[datetime] = None,
 ) -> tuple[GitCommit, bool]:
     """Create or update a GitCommit by repo + commit_hash. Returns (commit, created)."""
-    from datetime import datetime, timezone
 
     if not commit_at:
         commit_at = datetime.now(timezone.utc)
@@ -266,6 +265,16 @@ def add_commit_file_change(
         obj.patch = patch_val
         obj.save(update_fields=["status", "additions", "deletions", "patch"])
     return obj, created
+
+
+def set_github_file_previous_filename(
+    github_file: GitHubFile,
+    previous_file: GitHubFile,
+) -> None:
+    """Set the previous_filename reference for a renamed file."""
+    if github_file.previous_filename_id != previous_file.id:
+        github_file.previous_filename = previous_file
+        github_file.save(update_fields=["previous_filename"])
 
 
 # --- Issue ---
