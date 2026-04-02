@@ -1,12 +1,13 @@
 """Tests for clang_github_tracker management commands."""
 
 import logging
-
-import pytest
 from io import StringIO
 from unittest.mock import patch
 
+import pytest
 from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.test import override_settings
 
 CMD_NAME = "run_clang_github_tracker"
 
@@ -107,8 +108,64 @@ def test_run_clang_github_tracker_skip_pinecone(caplog):
                     stderr=StringIO(),
                 )
     pinecone_calls = [
-        c
-        for c in cc.call_args_list
-        if c[0] and c[0][0] == "run_cppa_pinecone_sync"
+        c for c in cc.call_args_list if c[0] and c[0][0] == "run_cppa_pinecone_sync"
     ]
     assert not pinecone_calls
+
+
+@pytest.mark.django_db
+@override_settings(
+    CLANG_GITHUB_CONTEXT_REPO_OWNER="myorg",
+    CLANG_GITHUB_CONTEXT_REPO_NAME="myrepo",
+    CLANG_GITHUB_CONTEXT_REPO_BRANCH="main",
+)
+def test_push_markdown_calls_publish_and_unlinks_new_files(tmp_path):
+    """_push_markdown invokes publish_clang_markdown then removes per-run md files."""
+    md = tmp_path / "md_export"
+    md.mkdir()
+    f = md / "issues" / "2024" / "2024-01"
+    f.mkdir(parents=True)
+    one = f / "#1 - A.md"
+    one.write_text("x", encoding="utf-8")
+    new_files = {"issues/2024/2024-01/#1 - A.md": str(one)}
+
+    with patch(
+        "clang_github_tracker.management.commands.run_clang_github_tracker.publish_clang_markdown"
+    ) as pub:
+        from clang_github_tracker.management.commands.run_clang_github_tracker import (
+            Command,
+        )
+
+        Command()._push_markdown(md, new_files)
+
+    pub.assert_called_once_with(md, "myorg", "myrepo", "main", new_files)
+    assert not one.exists()
+
+
+@pytest.mark.django_db
+@override_settings(
+    CLANG_GITHUB_CONTEXT_REPO_OWNER="o",
+    CLANG_GITHUB_CONTEXT_REPO_NAME="r",
+    CLANG_GITHUB_CONTEXT_REPO_BRANCH="main",
+)
+def test_push_markdown_publish_failure_does_not_unlink(tmp_path):
+    """Failed publish leaves local md files in place."""
+    md = tmp_path / "md_export"
+    md.mkdir()
+    one = md / "x.md"
+    one.write_text("keep", encoding="utf-8")
+    new_files = {"x.md": str(one)}
+
+    with patch(
+        "clang_github_tracker.management.commands.run_clang_github_tracker.publish_clang_markdown",
+        side_effect=CommandError("publish failed"),
+    ):
+        from clang_github_tracker.management.commands.run_clang_github_tracker import (
+            Command,
+        )
+
+        with pytest.raises(CommandError, match="publish failed"):
+            Command()._push_markdown(md, new_files)
+
+    assert one.exists()
+    assert one.read_text(encoding="utf-8") == "keep"

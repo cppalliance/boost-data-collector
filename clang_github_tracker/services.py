@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -11,6 +12,8 @@ from django.db.models import Max
 from clang_github_tracker.models import ClangGithubCommit, ClangGithubIssueItem
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_UPSERT_BATCH_SIZE = 500
 
 
 def upsert_issue_item(
@@ -57,6 +60,114 @@ def upsert_commit(
         "created" if created else "updated",
     )
     return obj, created
+
+
+def _flush_commits_chunk(
+    pairs: list[tuple[str, datetime | None]],
+) -> tuple[int, int]:
+    """Write one chunk; returns (inserted_count, updated_count)."""
+    if not pairs:
+        return 0, 0
+    shas = [s for s, _ in pairs]
+    existing = set(
+        ClangGithubCommit.objects.filter(sha__in=shas).values_list("sha", flat=True)
+    )
+    objs = [ClangGithubCommit(sha=s, github_committed_at=dt) for s, dt in pairs]
+    ClangGithubCommit.objects.bulk_create(
+        objs,
+        batch_size=len(objs),
+        update_conflicts=True,
+        unique_fields=["sha"],
+        update_fields=["github_committed_at"],
+    )
+    inserted = sum(1 for s, _ in pairs if s not in existing)
+    updated = len(pairs) - inserted
+    return inserted, updated
+
+
+def upsert_commits_batch(
+    rows: Sequence[tuple[str, datetime | None]],
+    *,
+    batch_size: int = DEFAULT_UPSERT_BATCH_SIZE,
+) -> tuple[int, int]:
+    """Batch upsert commits by ``sha``. Skips rows whose sha is not 40 chars.
+
+    Returns:
+        (inserted, updated) counts across all batches.
+    """
+    merged: dict[str, datetime | None] = {}
+    for sha, dt in rows:
+        s = (sha or "").strip()
+        if len(s) != 40:
+            continue
+        merged[s] = dt
+    inserted = updated = 0
+    items = list(merged.items())
+    for i in range(0, len(items), batch_size):
+        di, du = _flush_commits_chunk(items[i : i + batch_size])
+        inserted += di
+        updated += du
+    return inserted, updated
+
+
+def _flush_issue_items_chunk(
+    rows: list[tuple[int, bool, datetime | None, datetime | None]],
+) -> tuple[int, int]:
+    if not rows:
+        return 0, 0
+    nums = [n for n, _, _, _ in rows]
+    existing = set(
+        ClangGithubIssueItem.objects.filter(number__in=nums).values_list(
+            "number", flat=True
+        )
+    )
+    objs = [
+        ClangGithubIssueItem(
+            number=n,
+            is_pull_request=is_pr,
+            github_created_at=gc,
+            github_updated_at=gu,
+        )
+        for n, is_pr, gc, gu in rows
+    ]
+    ClangGithubIssueItem.objects.bulk_create(
+        objs,
+        batch_size=len(objs),
+        update_conflicts=True,
+        unique_fields=["number"],
+        update_fields=[
+            "is_pull_request",
+            "github_created_at",
+            "github_updated_at",
+        ],
+    )
+    inserted = sum(1 for n, _, _, _ in rows if n not in existing)
+    updated = len(rows) - inserted
+    return inserted, updated
+
+
+def upsert_issue_items_batch(
+    rows: Sequence[tuple[int, bool, datetime | None, datetime | None]],
+    *,
+    batch_size: int = DEFAULT_UPSERT_BATCH_SIZE,
+) -> tuple[int, int]:
+    """Batch upsert issue/PR rows by ``number``. Later rows win on duplicate numbers.
+
+    Returns:
+        (inserted, updated) counts across all batches.
+    """
+    merged: dict[int, tuple[bool, datetime | None, datetime | None]] = {}
+    for num, is_pr, gc, gu in rows:
+        if not isinstance(num, int) or num <= 0:
+            continue
+        merged[num] = (is_pr, gc, gu)
+    inserted = updated = 0
+    items = [(n, is_pr, gc, gu) for n, (is_pr, gc, gu) in sorted(merged.items())]
+    for i in range(0, len(items), batch_size):
+        di, du = _flush_issue_items_chunk(items[i : i + batch_size])
+        inserted += di
+        updated += du
+    return inserted, updated
 
 
 def get_issue_item_watermark() -> Optional[datetime]:

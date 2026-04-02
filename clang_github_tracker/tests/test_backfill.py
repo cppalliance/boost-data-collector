@@ -1,7 +1,6 @@
 """Tests for backfill_clang_github_tracker."""
 
 import json
-from pathlib import Path
 
 import pytest
 from django.core.management import call_command
@@ -70,7 +69,7 @@ def test_backfill_from_raw(tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr(
-        "clang_github_tracker.workspace.get_raw_repo_dir",
+        "clang_github_tracker.management.commands.backfill_clang_github_tracker.get_raw_repo_dir",
         lambda *a, **k: root,
     )
     call_command("backfill_clang_github_tracker", "--from-raw")

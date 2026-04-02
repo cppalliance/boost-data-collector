@@ -1,6 +1,6 @@
 # clang_github_tracker.services
 
-**Module path:** `clang_github_tracker.services`  
+**Module path:** `clang_github_tracker.services`
 **Description:** Upserts for `ClangGithubIssueItem` and `ClangGithubCommit` (no FKs to other apps). Used by `sync_clang_github_activity`, `backfill_clang_github_tracker`, and date resolution watermarks.
 
 **Type notation:** Models live in `clang_github_tracker.models`.

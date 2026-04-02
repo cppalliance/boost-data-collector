@@ -2,7 +2,7 @@
 Management command: run_clang_github_tracker
 
 Fetches GitHub activity for llvm/llvm-project, saves raw JSON and DB rows, optionally
-exports Markdown and pushes to the private repo. Resume uses DB watermarks (not state.json).
+exports Markdown and pushes to the configured Clang markdown GitHub repo. Resume uses DB watermarks (not state.json).
 """
 
 import logging
@@ -15,17 +15,14 @@ from django.core.management.base import BaseCommand, CommandError
 from core.utils.datetime_parsing import parse_iso_datetime
 from clang_github_tracker import state_manager as clang_state
 from clang_github_tracker.sync_raw import sync_clang_github_activity
+from clang_github_tracker.publisher import publish_clang_markdown
 from clang_github_tracker.workspace import OWNER, REPO, get_workspace_root
 
-from github_ops import get_github_token, upload_folder_to_github
-from operations.md_ops.github_export import (
-    detect_renames_from_dirs,
-    write_md_files,
-)
+from operations.md_ops.github_export import write_md_files
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_PRIVATE_MD_BRANCH = "master"
+DEFAULT_CLANG_REPO_BRANCH = "master"
 
 
 def _run_pinecone_sync(
@@ -89,7 +86,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--skip-remote-push",
             action="store_true",
-            help="Skip push to CLANG_GITHUB_TRACKER_PRIVATE_REPO_*.",
+            help="Skip push to the repo configured via CLANG_GITHUB_CONTEXT_REPO_OWNER / CLANG_GITHUB_CONTEXT_REPO_NAME.",
         )
         parser.add_argument(
             "--skip-pinecone",
@@ -130,8 +127,8 @@ class Command(BaseCommand):
         except ValueError as e:
             raise CommandError(str(e)) from e
 
-        start_commit, start_item, end_date = (
-            clang_state.resolve_start_end_dates(since, until)
+        start_commit, start_item, end_date = clang_state.resolve_start_end_dates(
+            since, until
         )
         logger.info(
             "Resolved: start_commit=%r start_item=%r end=%r",
@@ -144,23 +141,15 @@ class Command(BaseCommand):
 
         if dry_run:
             if not skip_github_sync:
-                logger.info(
-                    "dry-run: would run GitHub sync for llvm/llvm-project"
-                )
+                logger.info("dry-run: would run GitHub sync for llvm/llvm-project")
             else:
-                logger.info(
-                    "dry-run: skipping GitHub sync (--skip-github-sync)"
-                )
+                logger.info("dry-run: skipping GitHub sync (--skip-github-sync)")
             if not skip_markdown_export:
-                logger.info(
-                    "dry-run: would export Markdown for issues/PRs from sync"
-                )
+                logger.info("dry-run: would export Markdown for issues/PRs from sync")
             if not skip_remote_push:
-                logger.info("dry-run: would push Markdown to private repo")
+                logger.info("dry-run: would push Markdown to configured Clang repo")
             if not skip_pinecone:
-                logger.info(
-                    "dry-run: would run Pinecone upsert for issues and PRs"
-                )
+                logger.info("dry-run: would run Pinecone upsert for issues and PRs")
             logger.info("dry-run finished")
             return
 
@@ -171,12 +160,10 @@ class Command(BaseCommand):
 
         if not skip_github_sync:
             try:
-                commits_saved, issue_numbers, pr_numbers = (
-                    sync_clang_github_activity(
-                        start_commit=start_commit,
-                        start_item=start_item,
-                        end_date=end_date,
-                    )
+                commits_saved, issue_numbers, pr_numbers = sync_clang_github_activity(
+                    start_commit=start_commit,
+                    start_item=start_item,
+                    end_date=end_date,
                 )
                 logger.info(
                     "run_clang_github_tracker: sync done; commits=%s issues=%s prs=%s",
@@ -232,9 +219,7 @@ class Command(BaseCommand):
 
         if not skip_pinecone:
             app_type = (settings.CLANG_GITHUB_PINECONE_APP_TYPE or "").strip()
-            namespace = (
-                settings.CLANG_GITHUB_PINECONE_NAMESPACE or ""
-            ).strip()
+            namespace = (settings.CLANG_GITHUB_PINECONE_NAMESPACE or "").strip()
             _run_pinecone_sync(
                 f"{app_type}-issues",
                 namespace,
@@ -250,62 +235,35 @@ class Command(BaseCommand):
 
         logger.info("run_clang_github_tracker finished successfully")
 
-    def _push_markdown(
-        self, md_output_dir: Path, new_files: dict[str, str]
-    ) -> None:
-        private_owner = getattr(
-            settings, "CLANG_GITHUB_TRACKER_PRIVATE_REPO_OWNER", ""
+    def _push_markdown(self, md_output_dir: Path, new_files: dict[str, str]) -> None:
+        clang_github_context_repo_owner = getattr(
+            settings, "CLANG_GITHUB_CONTEXT_REPO_OWNER", ""
         ).strip()
-        private_repo_name = getattr(
-            settings, "CLANG_GITHUB_TRACKER_PRIVATE_REPO_NAME", ""
+        clang_github_context_repo_name = getattr(
+            settings, "CLANG_GITHUB_CONTEXT_REPO_NAME", ""
         ).strip()
-        private_branch = (
+        clang_github_context_repo_branch = (
             getattr(
                 settings,
-                "CLANG_GITHUB_TRACKER_PRIVATE_REPO_BRANCH",
-                DEFAULT_PRIVATE_MD_BRANCH,
+                "CLANG_GITHUB_CONTEXT_REPO_BRANCH",
+                DEFAULT_CLANG_REPO_BRANCH,
             )
-            or DEFAULT_PRIVATE_MD_BRANCH
+            or DEFAULT_CLANG_REPO_BRANCH
         ).strip()
-        if not private_owner or not private_repo_name:
+        if not clang_github_context_repo_owner or not clang_github_context_repo_name:
             logger.error(
-                "CLANG_GITHUB_TRACKER_PRIVATE_REPO_OWNER / CLANG_GITHUB_TRACKER_PRIVATE_REPO_NAME "
-                "not configured; skipping upload."
+                "CLANG_GITHUB_CONTEXT_REPO_OWNER / CLANG_GITHUB_CONTEXT_REPO_NAME "
+                "not configured; skipping Markdown push."
             )
             return
 
-        token = get_github_token(use="write")
-        delete_paths = detect_renames_from_dirs(
-            private_owner,
-            private_repo_name,
-            private_branch,
+        publish_clang_markdown(
+            md_output_dir,
+            clang_github_context_repo_owner,
+            clang_github_context_repo_name,
+            clang_github_context_repo_branch,
             new_files,
-            token=token,
         )
-        for repo_rel in delete_paths:
-            stale_local = md_output_dir / repo_rel
-            if stale_local.exists():
-                stale_local.unlink()
-        if delete_paths:
-            logger.info(
-                "run_clang_github_tracker: %s renamed file(s) to delete.",
-                len(delete_paths),
-            )
-
-        result = upload_folder_to_github(
-            local_folder=md_output_dir,
-            owner=private_owner,
-            repo=private_repo_name,
-            commit_message="chore: update Clang issues/PRs markdown",
-            branch=private_branch,
-            delete_paths=delete_paths or None,
-        )
-
-        if result.get("success"):
-            logger.info("run_clang_github_tracker: MD upload complete.")
-            for local_path in new_files.values():
-                Path(local_path).unlink(missing_ok=True)
-        else:
-            msg = result.get("message") or "Upload failed"
-            logger.error("run_clang_github_tracker: MD upload failed: %s", msg)
-            raise CommandError(msg)
+        logger.info("run_clang_github_tracker: MD publish complete.")
+        for local_path in new_files.values():
+            Path(local_path).unlink(missing_ok=True)

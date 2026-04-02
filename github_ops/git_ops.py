@@ -162,7 +162,11 @@ def clone_repo(
     depth: Optional[int] = None,
 ) -> None:
     """
-    Clone a GitHub repo. Uses scraping token by default (read-only).
+    Clone a GitHub repo.
+
+    If ``token`` is omitted, uses the scraping token (``get_github_token(use="scraping")``).
+    Callers cloning **private** repos must pass ``token=get_github_token(use="write")``
+    (or equivalent) so GitHub authenticates with a PAT that has repository access.
     """
     dest_dir = Path(dest_dir)
     if token is None:
@@ -208,7 +212,13 @@ def clone_repo(
             e.returncode,
             err_tail,
         )
-        raise
+        # Never re-raise with the real cmd: it embeds the token in the clone URL.
+        safe_cmd: list[str] = ["git", "clone", url_or_slug, str(dest_dir)]
+        if depth is not None:
+            safe_cmd.extend(["--depth", str(depth)])
+        raise subprocess.CalledProcessError(
+            e.returncode, safe_cmd, e.stdout, e.stderr
+        ) from None
 
 
 def push(

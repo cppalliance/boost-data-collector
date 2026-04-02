@@ -15,7 +15,10 @@ from clang_github_tracker.preprocessors import issue_preprocessor, pr_preprocess
 def test_issue_preprocessor_db_and_failed_ids(mock_build, tmp_path, settings):
     settings.CLANG_GITHUB_OWNER = "llvm"
     settings.CLANG_GITHUB_REPO = "llvm-project"
-    mock_build.return_value = {"content": "body", "metadata": {"doc_id": "u", "ids": "x"}}
+    mock_build.return_value = {
+        "content": "body",
+        "metadata": {"doc_id": "u", "ids": "x"},
+    }
 
     p10 = tmp_path / "10.json"
     p10.write_text("{}", encoding="utf-8")
@@ -44,7 +47,9 @@ def test_issue_preprocessor_db_and_failed_ids(mock_build, tmp_path, settings):
 
 @pytest.mark.django_db
 @patch("clang_github_tracker.preprocessors.issue_preprocessor.build_issue_document")
-def test_issue_preprocessor_all_rows_when_final_sync_none(mock_build, tmp_path, settings):
+def test_issue_preprocessor_all_rows_when_final_sync_none(
+    mock_build, tmp_path, settings
+):
     settings.CLANG_GITHUB_OWNER = "llvm"
     settings.CLANG_GITHUB_REPO = "llvm-project"
     mock_build.return_value = None

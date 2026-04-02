@@ -3,7 +3,7 @@ Workspace paths for clang_github_tracker: md export, backfill CSV dir, raw GitHu
 
 Layout:
   workspace/clang_github_activity/
-    - md_export/  (generated Markdown for private repo push)
+    - md_export/  (generated Markdown for GitHub publish)
   workspace/clang_github_tracker/
     - clang_github_tracker_backfill.csv (default CSV backfill path)
   workspace/raw/github_activity_tracker/<owner>/<repo>/

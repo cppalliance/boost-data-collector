@@ -8,6 +8,7 @@ import csv
 import json
 import logging
 import re
+from datetime import datetime
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
@@ -29,6 +30,7 @@ from github_activity_tracker.sync.utils import (
 logger = logging.getLogger(__name__)
 
 _SHA40 = re.compile(r"^[0-9a-fA-F]{40}$")
+_RAW_CHUNK_EVERY = 10_000
 
 
 def _commit_date_from_json(data: dict):
@@ -77,7 +79,9 @@ class Command(BaseCommand):
     def _backfill_from_csv(self, path: Path) -> None:
         if not path.is_file():
             raise CommandError(f"CSV not found: {path}")
-        inserted = updated = skipped = 0
+        commit_rows: list[tuple[str, datetime | None]] = []
+        issue_rows: list[tuple[int, bool, datetime | None, datetime | None]] = []
+        skipped = 0
         with path.open(encoding="utf-8", newline="") as f:
             reader = csv.DictReader(f)
             if not reader.fieldnames:
@@ -87,28 +91,22 @@ class Command(BaseCommand):
                 try:
                     if rt == "issue":
                         num = int((row.get("number") or "").strip())
-                        gc = parse_datetime((row.get("github_created_at") or "").strip())
-                        gu = parse_datetime((row.get("github_updated_at") or "").strip())
-                        _, was_created = clang_services.upsert_issue_item(
-                            num,
-                            is_pull_request=False,
-                            github_created_at=gc,
-                            github_updated_at=gu,
+                        gc = parse_datetime(
+                            (row.get("github_created_at") or "").strip()
                         )
-                        inserted += bool(was_created)
-                        updated += not was_created
+                        gu = parse_datetime(
+                            (row.get("github_updated_at") or "").strip()
+                        )
+                        issue_rows.append((num, False, gc, gu))
                     elif rt == "pr":
                         num = int((row.get("number") or "").strip())
-                        gc = parse_datetime((row.get("github_created_at") or "").strip())
-                        gu = parse_datetime((row.get("github_updated_at") or "").strip())
-                        _, was_created = clang_services.upsert_issue_item(
-                            num,
-                            is_pull_request=True,
-                            github_created_at=gc,
-                            github_updated_at=gu,
+                        gc = parse_datetime(
+                            (row.get("github_created_at") or "").strip()
                         )
-                        inserted += bool(was_created)
-                        updated += not was_created
+                        gu = parse_datetime(
+                            (row.get("github_updated_at") or "").strip()
+                        )
+                        issue_rows.append((num, True, gc, gu))
                     elif rt == "commit":
                         sha = (row.get("sha") or "").strip()
                         if not _SHA40.match(sha):
@@ -118,21 +116,23 @@ class Command(BaseCommand):
                         gcm = parse_datetime(
                             (row.get("github_committed_at") or "").strip()
                         )
-                        _, was_created = clang_services.upsert_commit(
-                            sha, github_committed_at=gcm
-                        )
-                        inserted += bool(was_created)
-                        updated += not was_created
+                        commit_rows.append((sha, gcm))
                     else:
                         logger.warning("skip row: unknown record_type %r", rt)
                         skipped += 1
                 except (TypeError, ValueError) as e:
                     logger.warning("skip row: %s (row=%r)", e, row)
                     skipped += 1
+
+        ins_i, upd_i = clang_services.upsert_issue_items_batch(issue_rows)
+        ins_c, upd_c = clang_services.upsert_commits_batch(commit_rows)
         logger.info(
-            "CSV backfill done: inserted=%s updated=%s skipped=%s path=%s",
-            inserted,
-            updated,
+            "CSV backfill done: issues_prs inserted=%s updated=%s commits inserted=%s "
+            "updated=%s skipped=%s path=%s",
+            ins_i,
+            upd_i,
+            ins_c,
+            upd_c,
             skipped,
             path,
         )
@@ -144,36 +144,53 @@ class Command(BaseCommand):
 
         commits_dir = root / "commits"
         if commits_dir.is_dir():
-            c_ins = c_upd = c_skip = 0
-            for p in commits_dir.glob("*.json"):
+            commit_rows: list[tuple[str, datetime | None]] = []
+            c_skip = 0
+            c_ins_total = c_upd_total = 0
+            for c_read_n, p in enumerate(sorted(commits_dir.glob("*.json")), start=1):
                 try:
                     data = json.loads(p.read_text(encoding="utf-8"))
                     sha = (data.get("sha") or "").strip()
                     if not _SHA40.match(sha):
                         c_skip += 1
                         continue
-                    dt = _commit_date_from_json(data)
-                    _, was_created = clang_services.upsert_commit(
-                        sha, github_committed_at=dt
-                    )
-                    if was_created:
-                        c_ins += 1
-                    else:
-                        c_upd += 1
+                    commit_rows.append((sha, _commit_date_from_json(data)))
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.warning("skip commit file %s: %s", p, e)
                     c_skip += 1
+                if c_read_n % _RAW_CHUNK_EVERY == 0:
+                    if commit_rows:
+                        ins_c, upd_c = clang_services.upsert_commits_batch(commit_rows)
+                        c_ins_total += ins_c
+                        c_upd_total += upd_c
+                        commit_rows.clear()
+                    logger.info(
+                        "raw commits/: read %s JSON files; cumulative "
+                        "inserted=%s updated=%s skipped=%s",
+                        c_read_n,
+                        c_ins_total,
+                        c_upd_total,
+                        c_skip,
+                    )
+            if commit_rows:
+                ins_c, upd_c = clang_services.upsert_commits_batch(commit_rows)
+                c_ins_total += ins_c
+                c_upd_total += upd_c
             logger.info(
-                "raw commits/: inserted=%s updated=%s skipped=%s",
-                c_ins,
-                c_upd,
+                "raw commits/: done inserted=%s updated=%s skipped=%s",
+                c_ins_total,
+                c_upd_total,
                 c_skip,
             )
 
+        issue_rows: list[tuple[int, bool, datetime | None, datetime | None]] = []
+        i_ins_total = i_upd_total = 0
+
         issues_dir = root / "issues"
         if issues_dir.is_dir():
-            i_ins = i_upd = i_skip = 0
-            for p in issues_dir.glob("*.json"):
+            i_skip = 0
+            i_ok = 0
+            for i_read_n, p in enumerate(sorted(issues_dir.glob("*.json")), start=1):
                 try:
                     data = json.loads(p.read_text(encoding="utf-8"))
                     flat = normalize_issue_json(data)
@@ -181,55 +198,90 @@ class Command(BaseCommand):
                     if not isinstance(num, int) or num <= 0:
                         i_skip += 1
                         continue
-                    _, was_created = clang_services.upsert_issue_item(
-                        num,
-                        is_pull_request=False,
-                        github_created_at=parse_datetime(flat.get("created_at")),
-                        github_updated_at=parse_datetime(flat.get("updated_at")),
+                    issue_rows.append(
+                        (
+                            num,
+                            False,
+                            parse_datetime(flat.get("created_at")),
+                            parse_datetime(flat.get("updated_at")),
+                        )
                     )
-                    if was_created:
-                        i_ins += 1
-                    else:
-                        i_upd += 1
+                    i_ok += 1
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.warning("skip issue file %s: %s", p, e)
                     i_skip += 1
-            logger.info(
-                "raw issues/: inserted=%s updated=%s skipped=%s",
-                i_ins,
-                i_upd,
-                i_skip,
-            )
+                if i_read_n % _RAW_CHUNK_EVERY == 0:
+                    if issue_rows:
+                        ins_i, upd_i = clang_services.upsert_issue_items_batch(
+                            issue_rows
+                        )
+                        i_ins_total += ins_i
+                        i_upd_total += upd_i
+                        issue_rows.clear()
+                    logger.info(
+                        "raw issues/: read %s JSON files; cumulative "
+                        "issues+prs inserted=%s updated=%s",
+                        i_read_n,
+                        i_ins_total,
+                        i_upd_total,
+                    )
+            if issue_rows:
+                ins_i, upd_i = clang_services.upsert_issue_items_batch(issue_rows)
+                i_ins_total += ins_i
+                i_upd_total += upd_i
+                issue_rows.clear()
+            logger.info("raw issues/: parsed_ok=%s skipped=%s", i_ok, i_skip)
 
         prs_dir = root / "prs"
         if prs_dir.is_dir():
-            p_ins = p_upd = p_skip = 0
-            for p in prs_dir.glob("*.json"):
+            pr_skip = 0
+            pr_ok = 0
+            for pr_read_n, p in enumerate(sorted(prs_dir.glob("*.json")), start=1):
                 try:
                     data = json.loads(p.read_text(encoding="utf-8"))
                     flat = normalize_pr_json(data)
                     num = flat.get("number")
                     if not isinstance(num, int) or num <= 0:
-                        p_skip += 1
+                        pr_skip += 1
                         continue
-                    _, was_created = clang_services.upsert_issue_item(
-                        num,
-                        is_pull_request=True,
-                        github_created_at=parse_datetime(flat.get("created_at")),
-                        github_updated_at=parse_datetime(flat.get("updated_at")),
+                    issue_rows.append(
+                        (
+                            num,
+                            True,
+                            parse_datetime(flat.get("created_at")),
+                            parse_datetime(flat.get("updated_at")),
+                        )
                     )
-                    if was_created:
-                        p_ins += 1
-                    else:
-                        p_upd += 1
+                    pr_ok += 1
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.warning("skip pr file %s: %s", p, e)
-                    p_skip += 1
-            logger.info(
-                "raw prs/: inserted=%s updated=%s skipped=%s",
-                p_ins,
-                p_upd,
-                p_skip,
-            )
+                    pr_skip += 1
+                if pr_read_n % _RAW_CHUNK_EVERY == 0:
+                    if issue_rows:
+                        ins_i, upd_i = clang_services.upsert_issue_items_batch(
+                            issue_rows
+                        )
+                        i_ins_total += ins_i
+                        i_upd_total += upd_i
+                        issue_rows.clear()
+                    logger.info(
+                        "raw prs/: read %s JSON files; cumulative "
+                        "issues+prs inserted=%s updated=%s",
+                        pr_read_n,
+                        i_ins_total,
+                        i_upd_total,
+                    )
+            if issue_rows:
+                ins_i, upd_i = clang_services.upsert_issue_items_batch(issue_rows)
+                i_ins_total += ins_i
+                i_upd_total += upd_i
+                issue_rows.clear()
+            logger.info("raw prs/: parsed_ok=%s skipped=%s", pr_ok, pr_skip)
+
+        logger.info(
+            "raw issues+prs DB total: inserted=%s updated=%s",
+            i_ins_total,
+            i_upd_total,
+        )
 
         logger.info("raw backfill finished root=%s", root)

@@ -111,17 +111,13 @@ def sync_clang_github_activity(
                         clang_services.upsert_issue_item(
                             num,
                             is_pull_request=True,
-                            github_created_at=parse_datetime(
-                                flat.get("created_at")
-                            ),
-                            github_updated_at=parse_datetime(
-                                flat.get("updated_at")
-                            ),
+                            github_created_at=parse_datetime(flat.get("created_at")),
+                            github_updated_at=parse_datetime(flat.get("updated_at")),
                         )
             else:
-                issue_number = (item.get("issue_info") or {}).get(
+                issue_number = (item.get("issue_info") or {}).get("number") or item.get(
                     "number"
-                ) or item.get("number")
+                )
                 if issue_number is not None:
                     save_issue_raw_source(owner, repo, item)
                     issue_numbers.append(issue_number)
@@ -131,12 +127,8 @@ def sync_clang_github_activity(
                         clang_services.upsert_issue_item(
                             num,
                             is_pull_request=False,
-                            github_created_at=parse_datetime(
-                                flat.get("created_at")
-                            ),
-                            github_updated_at=parse_datetime(
-                                flat.get("updated_at")
-                            ),
+                            github_created_at=parse_datetime(flat.get("created_at")),
+                            github_updated_at=parse_datetime(flat.get("updated_at")),
                         )
 
     except (ConnectionException, RateLimitException) as e:
