@@ -36,7 +36,7 @@ RUN useradd --create-home appuser && chown -R appuser /app
 # Git 2.35+ blocks repos when directory owner != current user; bind mounts often
 # disagree (e.g. Docker Desktop on Windows). System config applies to root and appuser
 # (e.g. docker exec as root vs gosu appuser in entrypoint).
-RUN git config --system --add safe.directory '*'
+RUN git config --system --add safe.directory '/app/workspace/*'
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 # Container starts as root so entrypoint can chown; CMD runs as appuser via gosu
 

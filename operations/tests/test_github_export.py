@@ -40,7 +40,9 @@ def test_detect_renames_from_dirs_no_conflict(mock_list_remote: MagicMock):
 
 
 @patch("operations.md_ops.github_export.list_remote_directory")
-def test_detect_renames_from_dirs_non_numbered_md_ignored(mock_list_remote: MagicMock):
+def test_detect_renames_from_dirs_non_numbered_md_ignored(
+    mock_list_remote: MagicMock,
+):
     """Files not matching #n - prefix are ignored."""
     mock_list_remote.return_value = ["issues/2024/2024-03/README.md"]
     new_files = {"issues/2024/2024-03/#5 - T.md": "/tmp/x"}

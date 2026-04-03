@@ -1,7 +1,9 @@
 """Tests for github_ops git_ops (clone, push, pull, fetch_file_content, upload_folder_to_github)."""
 
+import subprocess
 from unittest.mock import MagicMock, patch
 
+import pytest
 import requests
 
 from github_ops.git_ops import (
@@ -11,6 +13,7 @@ from github_ops.git_ops import (
     fetch_file_content,
     pull,
     get_commit_file_changes,
+    prepare_repo_for_pull,
     push,
     sanitize_git_output,
     upload_folder_to_github,
@@ -275,6 +278,91 @@ def test_push_commit_failure_without_nothing_to_commit_raises(tmp_path):
             assert "Process" in type(e).__name__ or "Error" in type(e).__name__
             return
     assert False, "push should have raised on commit failure"
+
+
+def test_push_failure_redacts_token_from_reraised_exception_cmd(tmp_path):
+    """git push failure re-raises CalledProcessError whose cmd uses the token-free remote URL."""
+    remote = "https://github.com/o/r.git"
+    with patch("github_ops.git_ops.subprocess.run") as run_mock:
+        run_mock.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),
+            MagicMock(returncode=0, stdout="", stderr=""),
+            MagicMock(stdout=f"{remote}\n", stderr=""),
+            subprocess.CalledProcessError(
+                1,
+                [
+                    "git",
+                    "-C",
+                    str(tmp_path),
+                    "push",
+                    "https://x-access-token:SECRET@github.com/o/r.git",
+                    "main",
+                ],
+                "",
+                "rejected",
+            ),
+        ]
+        with pytest.raises(subprocess.CalledProcessError) as excinfo:
+            push(tmp_path, "origin", branch="main", token="SECRET")
+    err = excinfo.value
+    cmd_str = " ".join(err.cmd)
+    assert "SECRET" not in cmd_str
+    assert remote in cmd_str
+    assert err.stderr == "rejected"
+
+
+def test_pull_failure_redacts_token_from_reraised_exception_cmd(tmp_path):
+    """git pull failure re-raises CalledProcessError whose cmd uses the token-free remote URL."""
+    remote = "https://github.com/o/r.git"
+    with patch("github_ops.git_ops.subprocess.run") as run_mock:
+        run_mock.side_effect = [
+            MagicMock(stdout=f"{remote}\n", stderr=""),
+            subprocess.CalledProcessError(
+                1,
+                [
+                    "git",
+                    "-C",
+                    str(tmp_path),
+                    "pull",
+                    "https://x-access-token:XY@github.com/o/r.git",
+                ],
+                "",
+                "error",
+            ),
+        ]
+        with pytest.raises(subprocess.CalledProcessError) as excinfo:
+            pull(tmp_path, token="XY")
+    assert "XY" not in " ".join(excinfo.value.cmd)
+    assert remote in " ".join(excinfo.value.cmd)
+
+
+def test_prepare_repo_fetch_failure_redacts_token_from_reraised_exception_cmd(
+    tmp_path,
+):
+    """prepare_repo_for_pull fetch failure re-raises with cmd without embedded PAT."""
+    remote = "https://github.com/o/r.git"
+    with patch("github_ops.git_ops.subprocess.run") as run_mock:
+        run_mock.side_effect = [
+            MagicMock(stdout=f"{remote}\n", stderr=""),
+            subprocess.CalledProcessError(
+                1,
+                [
+                    "git",
+                    "-C",
+                    str(tmp_path),
+                    "fetch",
+                    "https://x-access-token:PAT@github.com/o/r.git",
+                    "+refs/heads/*:refs/remotes/origin/*",
+                    "--prune",
+                ],
+                "",
+                "fetch failed",
+            ),
+        ]
+        with pytest.raises(subprocess.CalledProcessError) as excinfo:
+            prepare_repo_for_pull(tmp_path, remote="origin", token="PAT")
+    assert "PAT" not in " ".join(excinfo.value.cmd)
+    assert remote in excinfo.value.cmd[4]
 
 
 # --- pull ---

@@ -157,7 +157,12 @@ def write_md_files(
         created_at = _parse_dt(created_at_raw)
 
         out_path = _md_path(
-            output_dir, folder_prefix, "pull_requests", created_at, number, title
+            output_dir,
+            folder_prefix,
+            "pull_requests",
+            created_at,
+            number,
+            title,
         )
         try:
             md_content = pr_json_to_md(pr_data)

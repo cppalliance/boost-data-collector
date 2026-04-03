@@ -58,6 +58,22 @@ def _reset_hard_to_upstream(clone_dir: Path, remote: str, branch: str) -> None:
         raise CommandError(f"Could not reset clone to {ref}: {err}") from e
 
 
+def _md_repo_rel_map(md_output_dir: Path) -> dict[str, str]:
+    """Map repo-relative posix path → absolute path for each .md under md_output_dir."""
+    md_output_dir = md_output_dir.resolve()
+    out: dict[str, str] = {}
+    for path in md_output_dir.rglob("*"):
+        if not path.is_file():
+            continue
+        if ".git" in path.relative_to(md_output_dir).parts:
+            continue
+        if path.suffix.lower() != ".md":
+            continue
+        rel = path.relative_to(md_output_dir).as_posix()
+        out[rel] = str(path.resolve())
+    return out
+
+
 def _copy_md_tree(md_output_dir: Path, clone_dir: Path) -> None:
     """Copy all files under md_output_dir into clone_dir (preserve relative paths)."""
     md_output_dir = md_output_dir.resolve()
@@ -84,6 +100,10 @@ def publish_clang_markdown(
     Clone (if needed) at RAW_DIR/clang_github_tracker/<owner>/<repo>, fetch/clean/pull,
     align to origin/<branch>, remove stale titled .md in md_export and clone, overlay
     md_export into the clone, commit and push.
+
+    Stale paths under ``md_output_dir`` use ``new_files`` (this run's writes). Stale
+    paths in the clone are detected using all ``.md`` files currently on disk under
+    ``md_output_dir`` so the clone matches the export tree.
 
     Uses get_github_token(use=\"write\") and settings GIT_AUTHOR_* for the commit.
     """
@@ -186,15 +206,21 @@ def publish_clang_markdown(
     _reset_hard_to_upstream(clone_dir, "origin", branch)
 
     stale_md = detect_stale_titled_paths(md_output_dir, new_files)
-    stale_clone = detect_stale_titled_paths(clone_dir, new_files)
+
+    for rel in stale_md:
+        p = md_output_dir / rel
+        if p.is_file():
+            p.unlink()
+
+    md_repo_rel_map = _md_repo_rel_map(md_output_dir)
+    stale_clone = detect_stale_titled_paths(clone_dir, md_repo_rel_map)
+
+    for rel in stale_clone:
+        p = clone_dir / rel
+        if p.is_file():
+            p.unlink()
+
     all_stale = sorted(set(stale_md) | set(stale_clone))
-
-    for rel in all_stale:
-        for base in (md_output_dir, clone_dir):
-            p = base / rel
-            if p.is_file():
-                p.unlink()
-
     if all_stale:
         logger.info(
             "clang_github_tracker publish: removed %s stale titled file(s).",

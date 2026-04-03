@@ -329,6 +329,9 @@ def push(
     if branch:
         cmd.append(branch)
     logger.info("Pushing %s %s", repo_dir, branch or "(current)")
+    safe_push_cmd = ["git", "-C", str(repo_dir), "push", remote_url]
+    if branch:
+        safe_push_cmd.append(branch)
     try:
         subprocess.run(
             cmd,
@@ -339,16 +342,32 @@ def push(
             errors="replace",
             timeout=GIT_CMD_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e:
         logger.warning(
             "git push timed out after %ss (%s)",
             GIT_CMD_TIMEOUT_SECONDS,
             repo_dir,
         )
-        raise
+        raise subprocess.TimeoutExpired(
+            safe_push_cmd,
+            e.timeout,
+            output=None if e.output is None else sanitize_git_output(e.output),
+            stderr=None if e.stderr is None else sanitize_git_output(e.stderr),
+        ) from None
     except subprocess.CalledProcessError as e:
-        logger.warning("git push failed (%s), returncode=%s", repo_dir, e.returncode)
-        raise
+        err_tail = ((e.stderr or "") + (e.stdout or ""))[-500:]
+        safe_err_tail = sanitize_git_output(err_tail)
+        logger.warning(
+            "git push failed (%s), returncode=%s, stderr/stdout_tail=%r",
+            repo_dir,
+            e.returncode,
+            safe_err_tail,
+        )
+        safe_stdout = sanitize_git_output(e.stdout or "")
+        safe_stderr = sanitize_git_output(e.stderr or "")
+        raise subprocess.CalledProcessError(
+            e.returncode, safe_push_cmd, safe_stdout, safe_stderr
+        ) from None
 
 
 def pull(
@@ -384,7 +403,32 @@ def pull(
     if branch:
         cmd.append(branch)
     logger.info("Pulling %s %s", repo_dir, branch or "(current)")
-    subprocess.run(cmd, check=True, capture_output=True, text=True)
+    safe_pull_cmd = ["git", "-C", str(repo_dir), "pull", remote_url]
+    if branch:
+        safe_pull_cmd.append(branch)
+    try:
+        subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except subprocess.CalledProcessError as e:
+        err_tail = ((e.stderr or "") + (e.stdout or ""))[-500:]
+        safe_err_tail = sanitize_git_output(err_tail)
+        logger.warning(
+            "git pull failed (%s), returncode=%s, stderr/stdout_tail=%r",
+            repo_dir,
+            e.returncode,
+            safe_err_tail,
+        )
+        safe_stdout = sanitize_git_output(e.stdout or "")
+        safe_stderr = sanitize_git_output(e.stderr or "")
+        raise subprocess.CalledProcessError(
+            e.returncode, safe_pull_cmd, safe_stdout, safe_stderr
+        ) from None
 
 
 def prepare_repo_for_pull(
@@ -412,23 +456,60 @@ def prepare_repo_for_pull(
     auth_url = _url_with_token(remote_url, token or "")
 
     logger.info("Fetching %s refs (prune) in %s", remote, repo_dir)
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(repo_dir),
-            "fetch",
-            auth_url,
-            f"+refs/heads/*:refs/remotes/{remote}/*",
-            "--prune",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=GIT_CMD_TIMEOUT_SECONDS,
-    )
+    fetch_cmd = [
+        "git",
+        "-C",
+        str(repo_dir),
+        "fetch",
+        auth_url,
+        f"+refs/heads/*:refs/remotes/{remote}/*",
+        "--prune",
+    ]
+    safe_fetch_cmd = [
+        "git",
+        "-C",
+        str(repo_dir),
+        "fetch",
+        remote_url,
+        f"+refs/heads/*:refs/remotes/{remote}/*",
+        "--prune",
+    ]
+    try:
+        subprocess.run(
+            fetch_cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GIT_CMD_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as e:
+        logger.warning(
+            "git fetch timed out after %ss (%s)",
+            GIT_CMD_TIMEOUT_SECONDS,
+            repo_dir,
+        )
+        raise subprocess.TimeoutExpired(
+            safe_fetch_cmd,
+            e.timeout,
+            output=None if e.output is None else sanitize_git_output(e.output),
+            stderr=None if e.stderr is None else sanitize_git_output(e.stderr),
+        ) from None
+    except subprocess.CalledProcessError as e:
+        err_tail = ((e.stderr or "") + (e.stdout or ""))[-500:]
+        safe_err_tail = sanitize_git_output(err_tail)
+        logger.warning(
+            "git fetch failed (%s), returncode=%s, stderr/stdout_tail=%r",
+            repo_dir,
+            e.returncode,
+            safe_err_tail,
+        )
+        safe_stdout = sanitize_git_output(e.stdout or "")
+        safe_stderr = sanitize_git_output(e.stderr or "")
+        raise subprocess.CalledProcessError(
+            e.returncode, safe_fetch_cmd, safe_stdout, safe_stderr
+        ) from None
     logger.info("Running git clean -fd in %s", repo_dir)
     subprocess.run(
         ["git", "-C", str(repo_dir), "clean", "-fd"],

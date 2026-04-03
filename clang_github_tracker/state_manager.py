@@ -65,7 +65,7 @@ def resolve_start_end_dates(
 
     - **Starts:** If ``since`` is set (without a valid closed window): ``start_commit``
       and ``start_item`` are both ``since``. If ``since`` is not set: both are
-      ``Max(github_* timestamp) + 1 second`` from the DB when a watermark exists, else
+      ``Max(github_* timestamp) + 1 millisecond`` from the DB when a watermark exists, else
       ``None`` (full history). Watermarks use ``Max(github_committed_at)`` and
       ``Max(github_updated_at)`` on ``ClangGithubCommit`` / ``ClangGithubIssueItem``.
     """

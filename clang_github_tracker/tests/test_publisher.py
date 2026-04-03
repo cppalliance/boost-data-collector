@@ -52,7 +52,6 @@ def test_publish_clang_markdown_success_copies_and_pushes(
     f = sub / "#1 - Title.md"
     f.write_text("body", encoding="utf-8")
     new_files = {"issues/2024/2024-01/#1 - Title.md": str(f)}
-
     with _author_settings(raw):
         publish_clang_markdown(md, "acme", "priv", "main", new_files)
 
@@ -63,6 +62,46 @@ def test_publish_clang_markdown_success_copies_and_pushes(
     kwargs = mock_push.call_args[1]
     assert kwargs["branch"] == "main"
     assert kwargs["commit_message"] == "chore: update Clang issues/PRs markdown"
+
+
+@pytest.mark.django_db
+@patch("clang_github_tracker.publisher.git_push")
+@patch("clang_github_tracker.publisher._reset_hard_to_upstream")
+@patch("clang_github_tracker.publisher.pull")
+@patch("clang_github_tracker.publisher.prepare_repo_for_pull")
+@patch("clang_github_tracker.publisher.get_github_token", return_value="tok")
+def test_publish_clang_markdown_stale_title_cleanup_md_then_clone(
+    _token,
+    _prepare,
+    _pull,
+    _reset,
+    mock_push,
+    raw_and_md,
+):
+    """Stale titled .md is removed from md_export (via new_files), then clone uses post-cleanup disk map."""
+    raw, md, clone_root = raw_and_md
+    sub = md / "issues" / "2024" / "2024-01"
+    sub.mkdir(parents=True)
+    new_path = sub / "#1 - New title.md"
+    old_path = sub / "#1 - Old title.md"
+    new_path.write_text("new", encoding="utf-8")
+    old_path.write_text("old", encoding="utf-8")
+
+    clone_sub = clone_root / "issues" / "2024" / "2024-01"
+    clone_sub.mkdir(parents=True)
+    (clone_sub / "#1 - Old title.md").write_text("stale on clone", encoding="utf-8")
+
+    new_files = {"issues/2024/2024-01/#1 - New title.md": str(new_path)}
+    with _author_settings(raw):
+        publish_clang_markdown(md, "acme", "priv", "main", new_files)
+
+    assert not old_path.is_file()
+    assert new_path.is_file()
+    copied = clone_sub / "#1 - New title.md"
+    assert copied.is_file()
+    assert copied.read_text(encoding="utf-8") == "new"
+    assert not (clone_sub / "#1 - Old title.md").is_file()
+    mock_push.assert_called_once()
 
 
 @pytest.mark.django_db
