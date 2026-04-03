@@ -10,38 +10,6 @@ from clang_github_tracker.workspace import OWNER, REPO
 
 
 @pytest.mark.django_db
-def test_backfill_csv(tmp_path):
-    csv_path = tmp_path / "b.csv"
-    csv_path.write_text(
-        "record_type,number,github_created_at,github_updated_at,sha,github_committed_at\n"
-        "issue,1,2024-01-01T00:00:00Z,2024-01-02T00:00:00Z,,\n"
-        "pr,2,,,,\n"
-        f"commit,,,,{'a' * 40},2024-03-01T00:00:00Z\n",
-        encoding="utf-8",
-    )
-    call_command("backfill_clang_github_tracker", f"--from-csv={csv_path}")
-    assert ClangGithubIssueItem.objects.filter(number=1, is_pull_request=False).exists()
-    assert ClangGithubIssueItem.objects.filter(number=2, is_pull_request=True).exists()
-    assert ClangGithubCommit.objects.filter(sha="a" * 40).exists()
-
-
-@pytest.mark.django_db
-def test_backfill_csv_skips_non_positive_issue_pr_numbers(tmp_path):
-    csv_path = tmp_path / "bad_nums.csv"
-    csv_path.write_text(
-        "record_type,number,github_created_at,github_updated_at,sha,github_committed_at\n"
-        "issue,0,,,,\n"
-        "issue,-3,,,,\n"
-        "pr,-1,,,,\n"
-        "issue,5,2024-01-01T00:00:00Z,2024-01-02T00:00:00Z,,\n",
-        encoding="utf-8",
-    )
-    call_command("backfill_clang_github_tracker", f"--from-csv={csv_path}")
-    assert ClangGithubIssueItem.objects.filter(number=5, is_pull_request=False).exists()
-    assert ClangGithubIssueItem.objects.count() == 1
-
-
-@pytest.mark.django_db
 def test_backfill_from_raw(tmp_path, monkeypatch):
     root = tmp_path / "raw" / OWNER / REPO
     (root / "issues").mkdir(parents=True)
@@ -88,7 +56,7 @@ def test_backfill_from_raw(tmp_path, monkeypatch):
         "clang_github_tracker.management.commands.backfill_clang_github_tracker.get_raw_repo_dir",
         lambda *a, **k: root,
     )
-    call_command("backfill_clang_github_tracker", "--from-raw")
+    call_command("backfill_clang_github_tracker")
     assert ClangGithubIssueItem.objects.filter(number=3, is_pull_request=False).exists()
     assert ClangGithubIssueItem.objects.filter(number=4, is_pull_request=True).exists()
     assert ClangGithubCommit.objects.filter(sha=sha).exists()

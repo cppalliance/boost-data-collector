@@ -40,6 +40,11 @@ def _ensure_utc(dt: datetime | None) -> datetime | None:
     return dt.astimezone(timezone.utc)
 
 
+def _valid_positive_issue_number(n: object) -> bool:
+    """True for a positive issue/PR number; rejects ``bool`` (``type(n) is int``)."""
+    return type(n) is int and n > 0
+
+
 def _commit_date(commit_data: dict) -> datetime | None:
     """Extract author/committer date from GitHub commit payload."""
     commit = commit_data.get("commit") or {}
@@ -104,32 +109,32 @@ def sync_clang_github_activity(
                 pr_number = (item["pr_info"] or {}).get("number")
                 if pr_number is not None:
                     save_pr_raw_source(owner, repo, item)
-                    pr_numbers.append(pr_number)
                     flat = normalize_pr_json(item)
                     num = flat.get("number")
-                    if isinstance(num, int) and num > 0:
+                    if _valid_positive_issue_number(num):
                         clang_services.upsert_issue_item(
                             num,
                             is_pull_request=True,
                             github_created_at=parse_datetime(flat.get("created_at")),
                             github_updated_at=parse_datetime(flat.get("updated_at")),
                         )
+                        pr_numbers.append(num)
             else:
                 issue_number = (item.get("issue_info") or {}).get("number") or item.get(
                     "number"
                 )
                 if issue_number is not None:
                     save_issue_raw_source(owner, repo, item)
-                    issue_numbers.append(issue_number)
                     flat = normalize_issue_json(item)
                     num = flat.get("number")
-                    if isinstance(num, int) and num > 0:
+                    if _valid_positive_issue_number(num):
                         clang_services.upsert_issue_item(
                             num,
                             is_pull_request=False,
                             github_created_at=parse_datetime(flat.get("created_at")),
                             github_updated_at=parse_datetime(flat.get("updated_at")),
                         )
+                        issue_numbers.append(num)
 
     except (ConnectionException, RateLimitException) as e:
         logger.exception("clang_github_tracker sync failed: %s", e)

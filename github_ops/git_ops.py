@@ -205,7 +205,8 @@ def clone_repo(
     cmd = ["git", "clone", clone_url, str(dest_dir)]
     if depth is not None:
         cmd.extend(["--depth", str(depth)])
-    logger.info("Cloning %s -> %s", url_or_slug, dest_dir)
+    safe_url_or_slug = sanitize_git_output(url_or_slug)
+    logger.info("Cloning %s -> %s", safe_url_or_slug, dest_dir)
     try:
         subprocess.run(
             cmd,
@@ -217,10 +218,9 @@ def clone_repo(
             timeout=GIT_CMD_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as e:
-        safe_cmd: list[str] = ["git", "clone", url_or_slug, str(dest_dir)]
+        safe_cmd: list[str] = ["git", "clone", safe_url_or_slug, str(dest_dir)]
         if depth is not None:
             safe_cmd.extend(["--depth", str(depth)])
-        safe_url_or_slug = sanitize_git_output(url_or_slug)
         logger.warning(
             "git clone timed out after %ss (%s -> %s)",
             GIT_CMD_TIMEOUT_SECONDS,
@@ -238,13 +238,13 @@ def clone_repo(
         safe_err_tail = sanitize_git_output(err_tail)
         logger.warning(
             "git clone failed (%s -> %s), returncode=%s, stderr/stdout_tail=%r",
-            url_or_slug,
+            safe_url_or_slug,
             dest_dir,
             e.returncode,
             safe_err_tail,
         )
         # Never re-raise with the real cmd or raw output: they may embed the token.
-        safe_cmd: list[str] = ["git", "clone", url_or_slug, str(dest_dir)]
+        safe_cmd: list[str] = ["git", "clone", safe_url_or_slug, str(dest_dir)]
         if depth is not None:
             safe_cmd.extend(["--depth", str(depth)])
         safe_stdout = sanitize_git_output(e.stdout or "")

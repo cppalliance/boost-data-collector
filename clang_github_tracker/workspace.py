@@ -1,11 +1,9 @@
 """
-Workspace paths for clang_github_tracker: md export, backfill CSV dir, raw GitHub JSON.
+Workspace paths for clang_github_tracker: md export, raw GitHub JSON.
 
 Layout:
   workspace/clang_github_activity/
     - md_export/  (generated Markdown for GitHub publish)
-  workspace/clang_github_tracker/
-    - clang_github_tracker_backfill.csv (default CSV backfill path)
   workspace/raw/github_activity_tracker/<owner>/<repo>/
     - commits/, issues/, prs/
 """
@@ -18,10 +16,7 @@ from django.conf import settings
 from config.workspace import get_workspace_path
 
 _APP_SLUG = "clang_github_activity"
-_TRACKER_DATA_SLUG = "clang_github_tracker"
 _RAW_APP_SLUG = "github_activity_tracker"
-
-DEFAULT_BACKFILL_CSV_NAME = "clang_github_tracker_backfill.csv"
 
 # Repo we sync (raw only, no DB); from settings (env: CLANG_GITHUB_OWNER, CLANG_GITHUB_REPO)
 OWNER = settings.CLANG_GITHUB_OWNER
@@ -42,18 +37,6 @@ def _sanitize_segment(value: str, label: str) -> str:
 def get_workspace_root() -> Path:
     """Return workspace/clang_github_activity/; creates dir if missing."""
     return get_workspace_path(_APP_SLUG)
-
-
-def get_clang_github_tracker_data_dir() -> Path:
-    """Return workspace/clang_github_tracker/; creates dir if missing."""
-    path = get_workspace_path(_TRACKER_DATA_SLUG)
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def default_backfill_csv_path() -> Path:
-    """Default path for CSV backfill: workspace/clang_github_tracker/<DEFAULT_BACKFILL_CSV_NAME>."""
-    return get_clang_github_tracker_data_dir() / DEFAULT_BACKFILL_CSV_NAME
 
 
 def get_raw_root() -> Path:

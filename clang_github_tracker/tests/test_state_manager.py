@@ -87,7 +87,9 @@ def test_resolve_invalid_range_clears_bounds(caplog):
         sc, si, end = clang_state.resolve_start_end_dates(since, until)
     assert any("invalid date range" in r.getMessage() for r in caplog.records)
     assert end is None
-    assert sc is not None and si is not None
+    delta = timedelta(milliseconds=1)
+    assert sc == wm + delta
+    assert si == wm + delta
 
 
 @pytest.mark.django_db

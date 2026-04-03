@@ -16,6 +16,7 @@ from github_ops.git_ops import (
     prepare_repo_for_pull,
     pull,
     push as git_push,
+    sanitize_git_output,
 )
 from github_ops.tokens import get_github_token
 from operations.md_ops.github_export import detect_stale_titled_paths
@@ -23,6 +24,13 @@ from operations.md_ops.github_export import detect_stale_titled_paths
 logger = logging.getLogger(__name__)
 
 _GITHUB_OWNER_REPO_SLUG = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$")
+
+
+def _redacted_git_subprocess_error(e: subprocess.CalledProcessError) -> str:
+    """Stderr/stdout or fallback ``str(e)``, redacted for logs and ``CommandError`` text."""
+    tail = ((e.stderr or "") + (e.stdout or "")).strip()
+    text = tail if tail else str(e)
+    return sanitize_git_output(text)
 
 
 def _validate_github_slug(label: str, value: str) -> str:
@@ -54,7 +62,7 @@ def _reset_hard_to_upstream(clone_dir: Path, remote: str, branch: str) -> None:
             errors="replace",
         )
     except subprocess.CalledProcessError as e:
-        err = ((e.stderr or "") + (e.stdout or "")).strip() or str(e)
+        err = _redacted_git_subprocess_error(e)
         raise CommandError(f"Could not reset clone to {ref}: {err}") from e
 
 
@@ -132,7 +140,10 @@ def publish_clang_markdown(
 
     # Private CLANG_GITHUB_CONTEXT_* repos need a PAT that can read them (clone/pull)
     # and push; get_github_token("write") uses GITHUB_TOKEN_WRITE or GITHUB_TOKEN.
-    token = get_github_token(use="write")
+    try:
+        token = get_github_token(use="write")
+    except ValueError as e:
+        raise CommandError(str(e)) from e
     git_user_name = (
         getattr(settings, "GIT_AUTHOR_NAME", None) or ""
     ).strip() or "unknown"
@@ -157,7 +168,7 @@ def publish_clang_markdown(
         try:
             clone_repo(repo_slug, clone_dir, token=token)
         except subprocess.CalledProcessError as e:
-            tail = ((e.stderr or "") + (e.stdout or "")).strip()
+            msg = _redacted_git_subprocess_error(e)
             hint = (
                 "Clone already uses get_github_token(use='write') (GITHUB_TOKEN_WRITE "
                 "or GITHUB_TOKEN). Verify CLANG_GITHUB_CONTEXT_REPO_OWNER / _NAME, "
@@ -166,18 +177,16 @@ def publish_clang_markdown(
                 "that repository. GitHub often returns 'not found' when the token "
                 "lacks access."
             )
-            logger.error(
-                "clang_github_tracker publish: git clone failed: %s", tail or e
-            )
+            logger.error("clang_github_tracker publish: git clone failed: %s", msg)
             raise CommandError(
-                f"Git clone failed for {repo_slug}: {tail or e.returncode}. {hint}"
+                f"Git clone failed for {repo_slug}: {msg}. {hint}"
             ) from e
 
     logger.info("Bootstrapping clone before pull: fetch, clean, reset (%s)", clone_dir)
     try:
         prepare_repo_for_pull(clone_dir, remote="origin", token=token)
     except subprocess.CalledProcessError as e:
-        err = ((e.stderr or "") + (e.stdout or "")).strip() or str(e)
+        err = _redacted_git_subprocess_error(e)
         logger.error(
             "clang_github_tracker publish: prepare clone for pull failed "
             "(clone_dir=%s, branch=%s): %s",
@@ -192,7 +201,7 @@ def publish_clang_markdown(
     try:
         pull(clone_dir, branch=branch, token=token)
     except subprocess.CalledProcessError as e:
-        err = ((e.stderr or "") + (e.stdout or "")).strip() or str(e)
+        err = _redacted_git_subprocess_error(e)
         logger.error(
             "clang_github_tracker publish: git pull failed (clone_dir=%s, branch=%s): %s",
             clone_dir,
@@ -240,7 +249,7 @@ def publish_clang_markdown(
             git_user_email=git_user_email,
         )
     except subprocess.CalledProcessError as e:
-        err = ((e.stderr or "") + (e.stdout or "")).strip() or str(e)
+        err = _redacted_git_subprocess_error(e)
         logger.error("clang_github_tracker publish: git push failed: %s", err)
         raise CommandError(f"Git push failed: {err}") from e
 
