@@ -7,6 +7,7 @@ import pytest
 import requests
 
 from github_ops.git_ops import (
+    GIT_CMD_TIMEOUT_SECONDS,
     _create_blob_with_retry,
     _url_with_token,
     clone_repo,
@@ -118,6 +119,27 @@ def test_clone_repo_uses_get_github_token_when_token_not_provided(tmp_path):
         with patch("github_ops.git_ops.subprocess.run", MagicMock()):
             clone_repo("https://github.com/o/r.git", tmp_path)
     get_token.assert_called_once_with(use="scraping")
+
+
+def test_clone_repo_timeout_redacts_token_from_reraised_exception_cmd(tmp_path):
+    """clone timeout re-raises TimeoutExpired whose cmd omits the PAT (matches real clone cmd)."""
+    with patch("github_ops.git_ops.subprocess.run") as run_mock:
+        run_mock.side_effect = subprocess.TimeoutExpired(
+            [
+                "git",
+                "clone",
+                "https://x-access-token:LEAK@github.com/o/r.git",
+                str(tmp_path),
+            ],
+            300,
+            output="",
+            stderr="",
+        )
+        with pytest.raises(subprocess.TimeoutExpired) as excinfo:
+            clone_repo("https://github.com/o/r.git", tmp_path, token="LEAK")
+    assert "LEAK" not in " ".join(excinfo.value.cmd)
+    assert "https://github.com/o/r.git" in excinfo.value.cmd[2]
+    assert excinfo.value.timeout == 300
 
 
 # --- push ---
@@ -336,6 +358,32 @@ def test_pull_failure_redacts_token_from_reraised_exception_cmd(tmp_path):
     assert remote in " ".join(excinfo.value.cmd)
 
 
+def test_pull_timeout_redacts_token_from_reraised_exception_cmd(tmp_path):
+    """git pull timeout re-raises TimeoutExpired whose cmd omits the PAT."""
+    remote = "https://github.com/o/r.git"
+    with patch("github_ops.git_ops.subprocess.run") as run_mock:
+        run_mock.side_effect = [
+            MagicMock(stdout=f"{remote}\n", stderr=""),
+            subprocess.TimeoutExpired(
+                [
+                    "git",
+                    "-C",
+                    str(tmp_path),
+                    "pull",
+                    "https://x-access-token:XY@github.com/o/r.git",
+                ],
+                GIT_CMD_TIMEOUT_SECONDS,
+                output="",
+                stderr="",
+            ),
+        ]
+        with pytest.raises(subprocess.TimeoutExpired) as excinfo:
+            pull(tmp_path, token="XY")
+    assert "XY" not in " ".join(excinfo.value.cmd)
+    assert remote in " ".join(excinfo.value.cmd)
+    assert excinfo.value.timeout == GIT_CMD_TIMEOUT_SECONDS
+
+
 def test_prepare_repo_fetch_failure_redacts_token_from_reraised_exception_cmd(
     tmp_path,
 ):
@@ -383,6 +431,7 @@ def test_pull_with_branch_runs_checkout_then_pull(tmp_path):
     assert calls[0][-1] == "main"
     assert "pull" in calls[2]
     assert "main" in calls[2]
+    assert run_mock.call_args_list[2][1].get("timeout") == GIT_CMD_TIMEOUT_SECONDS
 
 
 def test_pull_without_branch_does_not_run_checkout(tmp_path):
@@ -396,6 +445,7 @@ def test_pull_without_branch_does_not_run_checkout(tmp_path):
     calls = [c[0][0] for c in run_mock.call_args_list]
     checkout_calls = [c for c in calls if "checkout" in c]
     assert len(checkout_calls) == 0
+    assert run_mock.call_args_list[-1][1].get("timeout") == GIT_CMD_TIMEOUT_SECONDS
 
 
 def test_pull_uses_get_github_token_when_token_not_provided(tmp_path):

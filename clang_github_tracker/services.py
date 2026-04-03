@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 DEFAULT_UPSERT_BATCH_SIZE = 500
 
 
+def _invalid_issue_number(n: object) -> bool:
+    """True if ``n`` is not a positive ``int`` (rejects ``bool`` — it subclasses ``int``)."""
+    return isinstance(n, bool) or not isinstance(n, int) or n <= 0
+
+
 def _max_dt(current: datetime | None, incoming: datetime | None) -> datetime | None:
     """Return the later of two datetimes; ``None`` is treated as missing (never wins over a value)."""
     if current is None:
@@ -54,6 +59,8 @@ def upsert_issue_item(
     github_updated_at: datetime | None,
 ) -> tuple[ClangGithubIssueItem, bool]:
     """Create or update a ClangGithubIssueItem by ``number``. Returns (instance, created)."""
+    if _invalid_issue_number(number):
+        raise ValueError(f"issue number must be a positive integer, got {number!r}")
     existing = ClangGithubIssueItem.objects.filter(number=number).first()
     is_pr, gc, gu = _merge_issue_item_fields(
         existing,
@@ -84,7 +91,7 @@ def upsert_commit(
     github_committed_at: datetime | None,
 ) -> tuple[ClangGithubCommit, bool]:
     """Create or update a ClangGithubCommit by ``sha``. Returns (instance, created)."""
-    sha_clean = (sha or "").strip()
+    sha_clean = (sha or "").strip().lower()
     if len(sha_clean) != 40:
         raise ValueError(f"commit sha must be 40 hex chars, got {sha_clean!r}")
     existing = ClangGithubCommit.objects.filter(sha=sha_clean).first()
@@ -151,7 +158,7 @@ def upsert_commits_batch(
     """
     merged: dict[str, datetime | None] = {}
     for sha, dt in rows:
-        s = (sha or "").strip()
+        s = (sha or "").strip().lower()
         if len(s) != 40:
             continue
         merged[s] = _max_dt(merged.get(s), dt)
@@ -230,7 +237,7 @@ def upsert_issue_items_batch(
     """
     merged: dict[int, tuple[bool, datetime | None, datetime | None]] = {}
     for num, is_pr, gc, gu in rows:
-        if not isinstance(num, int) or num <= 0:
+        if _invalid_issue_number(num):
             continue
         prev = merged.get(num)
         if prev is None:

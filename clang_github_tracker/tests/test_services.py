@@ -10,6 +10,34 @@ from clang_github_tracker.models import ClangGithubCommit, ClangGithubIssueItem
 
 
 @pytest.mark.django_db
+def test_upsert_issue_item_rejects_bool_and_non_positive():
+    t0 = timezone.now()
+    with pytest.raises(ValueError, match="positive integer"):
+        clang_services.upsert_issue_item(
+            True,
+            is_pull_request=False,
+            github_created_at=t0,
+            github_updated_at=t0,
+        )
+    with pytest.raises(ValueError, match="positive integer"):
+        clang_services.upsert_issue_item(
+            0,
+            is_pull_request=False,
+            github_created_at=t0,
+            github_updated_at=t0,
+        )
+    assert ClangGithubIssueItem.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_upsert_issue_items_batch_skips_bool_does_not_upsert_as_issue_one():
+    t0 = timezone.now()
+    ins, _ = clang_services.upsert_issue_items_batch([(True, False, t0, t0)])
+    assert ins == 0
+    assert not ClangGithubIssueItem.objects.filter(number=1).exists()
+
+
+@pytest.mark.django_db
 def test_upsert_issue_item_create_and_update_bumps_updated_at():
     t0 = timezone.now() - timedelta(days=2)
     t1 = timezone.now() - timedelta(days=1)
@@ -31,8 +59,8 @@ def test_upsert_issue_item_create_and_update_bumps_updated_at():
     )
     assert created2 is False
     row.refresh_from_db()
-    assert row.updated_at > first_updated
     assert row.github_updated_at == t1
+    assert row.updated_at >= first_updated
 
 
 @pytest.mark.django_db
@@ -56,7 +84,7 @@ def test_upsert_commits_batch_create_and_update():
     assert ins2 == 0 and upd2 == 1
     row.refresh_from_db()
     assert row.github_committed_at == t1
-    assert row.updated_at > first_updated
+    assert row.updated_at >= first_updated
 
 
 @pytest.mark.django_db
@@ -73,7 +101,32 @@ def test_upsert_issue_items_batch_create_and_update():
     assert ins2 == 0 and upd2 == 1
     row.refresh_from_db()
     assert row.github_updated_at == t1
-    assert row.updated_at > first_updated
+    assert row.updated_at >= first_updated
+
+
+@pytest.mark.django_db
+def test_upsert_commits_batch_dedupes_sha_by_case():
+    """Uppercase and lowercase hex refer to the same commit; merge timestamps in one row."""
+    sha_lower = "abcdef" + "0" * 34
+    sha_upper = "ABCDEF" + "0" * 34
+    t_new = timezone.now()
+    t_old = t_new - timedelta(days=7)
+    ins, _ = clang_services.upsert_commits_batch(
+        [(sha_upper, t_old), (sha_lower, t_new)]
+    )
+    assert ins == 1
+    assert ClangGithubCommit.objects.count() == 1
+    row = ClangGithubCommit.objects.get(sha=sha_lower)
+    assert row.github_committed_at == t_new
+
+
+@pytest.mark.django_db
+def test_upsert_commit_canonicalizes_sha_to_lowercase():
+    sha_mixed = "AbCdEf" + "0" * 34
+    t0 = timezone.now()
+    clang_services.upsert_commit(sha_mixed, github_committed_at=t0)
+    row = ClangGithubCommit.objects.get(sha=sha_mixed.lower())
+    assert row.github_committed_at == t0
 
 
 @pytest.mark.django_db

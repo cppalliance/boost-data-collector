@@ -216,14 +216,23 @@ def clone_repo(
             errors="replace",
             timeout=GIT_CMD_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e:
+        safe_cmd: list[str] = ["git", "clone", url_or_slug, str(dest_dir)]
+        if depth is not None:
+            safe_cmd.extend(["--depth", str(depth)])
+        safe_url_or_slug = sanitize_git_output(url_or_slug)
         logger.warning(
             "git clone timed out after %ss (%s -> %s)",
             GIT_CMD_TIMEOUT_SECONDS,
-            url_or_slug,
+            safe_url_or_slug,
             dest_dir,
         )
-        raise
+        raise subprocess.TimeoutExpired(
+            safe_cmd,
+            e.timeout,
+            output=None if e.output is None else sanitize_git_output(e.output),
+            stderr=None if e.stderr is None else sanitize_git_output(e.stderr),
+        ) from None
     except subprocess.CalledProcessError as e:
         err_tail = ((e.stderr or "") + (e.stdout or ""))[-500:]
         safe_err_tail = sanitize_git_output(err_tail)
@@ -414,7 +423,20 @@ def pull(
             text=True,
             encoding="utf-8",
             errors="replace",
+            timeout=GIT_CMD_TIMEOUT_SECONDS,
         )
+    except subprocess.TimeoutExpired as e:
+        logger.warning(
+            "git pull timed out after %ss (%s)",
+            GIT_CMD_TIMEOUT_SECONDS,
+            repo_dir,
+        )
+        raise subprocess.TimeoutExpired(
+            safe_pull_cmd,
+            e.timeout,
+            output=None if e.output is None else sanitize_git_output(e.output),
+            stderr=None if e.stderr is None else sanitize_git_output(e.stderr),
+        ) from None
     except subprocess.CalledProcessError as e:
         err_tail = ((e.stderr or "") + (e.stdout or ""))[-500:]
         safe_err_tail = sanitize_git_output(err_tail)
