@@ -11,7 +11,7 @@ from boost_mailing_list_tracker.preprocessor import (
 
 
 @pytest.mark.django_db
-def test_preprocesser_returns_empty_when_no_messages():
+def test_preprocessor_returns_empty_when_no_messages():
     """No source rows -> empty docs and is_chunked=False."""
     docs, is_chunked = preprocess_mailing_list_for_pinecone([], None)
     assert docs == []
@@ -19,7 +19,7 @@ def test_preprocesser_returns_empty_when_no_messages():
 
 
 @pytest.mark.django_db
-def test_preprocesser_first_sync_returns_all_messages(
+def test_preprocessor_first_sync_returns_all_messages(
     mailing_list_profile,
     default_list_name,
     sample_sent_at,
@@ -52,7 +52,7 @@ def test_preprocesser_first_sync_returns_all_messages(
 
 
 @pytest.mark.django_db
-def test_preprocesser_incremental_by_created_at(
+def test_preprocessor_incremental_by_created_at(
     mailing_list_profile,
     default_list_name,
     sample_sent_at,
@@ -92,7 +92,7 @@ def test_preprocesser_incremental_by_created_at(
 
 
 @pytest.mark.django_db
-def test_preprocesser_retries_failed_ids_even_if_old(
+def test_preprocessor_retries_failed_ids_even_if_old(
     mailing_list_profile,
     default_list_name,
     sample_sent_at,
@@ -124,7 +124,7 @@ def test_preprocesser_retries_failed_ids_even_if_old(
 
 
 @pytest.mark.django_db
-def test_preprocesser_deduplicates_overlap_between_failed_and_incremental(
+def test_preprocessor_deduplicates_overlap_between_failed_and_incremental(
     mailing_list_profile,
     default_list_name,
     sample_sent_at,
@@ -153,7 +153,7 @@ def test_preprocesser_deduplicates_overlap_between_failed_and_incremental(
 
 
 @pytest.mark.django_db
-def test_preprocesser_document_shape_and_metadata_fields(
+def test_preprocessor_document_shape_and_metadata_fields(
     mailing_list_profile,
     default_list_name,
     sample_sent_at,
@@ -198,7 +198,7 @@ def test_preprocesser_document_shape_and_metadata_fields(
 
 
 @pytest.mark.django_db
-def test_preprocesser_handles_empty_body_with_metadata_fallback_content(
+def test_preprocessor_handles_empty_body_with_metadata_fallback_content(
     mailing_list_profile,
     default_list_name,
     sample_sent_at,
