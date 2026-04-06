@@ -105,13 +105,14 @@ def fetch_team_info(
 def fetch_channel_list(
     _team_id: str,
     *,
-    types: str = "public_channel",
+    types: str = "public_channel,private_channel,mpim,im",
     exclude_archived: bool = False,
     client=None,
 ) -> list[dict]:
     """
     Fetch channel list for the workspace (team_id).
     The bot token is scoped to one workspace. Returns list of channel dicts (id, name, ...).
+    Default types include public, private, multi-party IM, and IM (see Slack conversations.list).
     """
     if client is None:
         client = get_slack_client(team_id=_team_id)

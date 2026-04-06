@@ -21,6 +21,14 @@ class SlackChannelType(models.TextChoices):
     IM = "im", "Direct message"
 
 
+class SlackChannelPrivateType(models.TextChoices):
+    """Channel kinds stored in SlackChannelPrivate (non-public only)."""
+
+    PRIVATE_CHANNEL = "private_channel", "Private channel"
+    MPIM = "mpim", "Multi-party direct message"
+    IM = "im", "Direct message"
+
+
 class SlackTeam(models.Model):
     """
     Slack team (workspace) model.
@@ -84,6 +92,54 @@ class SlackChannel(models.Model):
 
     def __str__(self):
         return f"#{self.channel_name} ({self.channel_id})"
+
+
+class SlackChannelPrivate(models.Model):
+    """
+    Non-public Slack channels (private, mpim, im) stored separately from SlackChannel.
+
+    Public channels remain in cppa_slack_tracker_slackchannel; this table holds the rest.
+    """
+
+    team = models.ForeignKey(
+        SlackTeam,
+        on_delete=models.CASCADE,
+        related_name="private_channels",
+        db_column="team_id",
+    )
+    channel_id = models.CharField(max_length=50, db_index=True)
+    channel_name = models.CharField(max_length=255, db_index=True)
+    channel_type = models.CharField(
+        max_length=50,
+        choices=SlackChannelPrivateType.choices,
+        db_index=True,
+        help_text="Type: private_channel, mpim, or im (not public_channel).",
+    )
+    description = models.TextField(null=True, blank=True)
+    creator = models.ForeignKey(
+        SlackUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_private_channels",
+        db_column="creator_user_id",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "cppa_slack_tracker_slackchannel_private"
+        verbose_name = "Slack Channel (non-public)"
+        verbose_name_plural = "Slack Channels (non-public)"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["team", "channel_id"],
+                name="unique_team_channel_id_private",
+            ),
+        ]
+
+    def __str__(self):
+        return f"#{self.channel_name} ({self.channel_id}) [{self.channel_type}]"
 
 
 class SlackMessage(models.Model):

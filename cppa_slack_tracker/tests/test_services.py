@@ -14,6 +14,7 @@ from cppa_slack_tracker.services import (
     _parse_slack_ts_string,
 )
 from cppa_slack_tracker.models import (
+    SlackChannelPrivate,
     SlackChannelMembership,
     SlackChannelMembershipChangeLog,
 )
@@ -92,16 +93,41 @@ class TestSlackService:
         self, sample_slack_team, sample_slack_user, sample_slack_channel_data
     ):
         """Test adding a Slack channel."""
-        channel, _ = get_or_create_slack_channel(
+        channel, priv, _ = get_or_create_slack_channel(
             sample_slack_channel_data,
             sample_slack_team,
         )
 
+        assert priv is None
+        assert channel is not None
         assert channel.channel_id == "C87654321"
         assert channel.channel_name == "random"
         assert channel.channel_type == "public_channel"
         assert channel.description == "Random discussions"
         assert channel.creator == sample_slack_user
+
+    def test_add_slack_channel_private(
+        self, sample_slack_team, sample_slack_user
+    ):
+        """Non-public channels are stored in SlackChannelPrivate."""
+        data = {
+            "id": "G012PRIVATE1",
+            "name": "private-team",
+            "is_private": True,
+            "is_channel": True,
+            "creator": sample_slack_user.slack_user_id,
+            "purpose": {"value": "Private stuff"},
+        }
+        pub, priv, created = get_or_create_slack_channel(data, sample_slack_team)
+        assert pub is None
+        assert created is True
+        assert priv is not None
+        assert priv.channel_id == "G012PRIVATE1"
+        assert priv.channel_name == "private-team"
+        assert priv.channel_type == "private_channel"
+        assert priv.description == "Private stuff"
+        assert priv.creator == sample_slack_user
+        assert SlackChannelPrivate.objects.filter(channel_id="G012PRIVATE1").exists()
 
     def test_add_channel_membership_change(
         self, sample_slack_channel, sample_slack_user

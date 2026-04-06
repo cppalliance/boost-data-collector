@@ -7,6 +7,7 @@ from django.contrib import admin
 from .models import (
     SlackTeam,
     SlackChannel,
+    SlackChannelPrivate,
     SlackMessage,
     SlackChannelMembership,
     SlackChannelMembershipChangeLog,
@@ -24,6 +25,23 @@ class SlackTeamAdmin(admin.ModelAdmin):
 
 @admin.register(SlackChannel)
 class SlackChannelAdmin(admin.ModelAdmin):
+    list_display = (
+        "channel_id",
+        "channel_name",
+        "channel_type",
+        "team",
+        "creator",
+        "created_at",
+    )
+    list_filter = ("channel_type", "created_at", "updated_at")
+    search_fields = ("channel_id", "channel_name", "description")
+    readonly_fields = ("created_at", "updated_at")
+    date_hierarchy = "created_at"
+    raw_id_fields = ("team", "creator")
+
+
+@admin.register(SlackChannelPrivate)
+class SlackChannelPrivateAdmin(admin.ModelAdmin):
     list_display = (
         "channel_id",
         "channel_name",

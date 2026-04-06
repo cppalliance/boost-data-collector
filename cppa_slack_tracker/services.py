@@ -22,6 +22,7 @@ from cppa_user_tracker.services import get_or_create_slack_user
 from .fetcher import fetch_user_info
 from .models import (
     SlackChannel,
+    SlackChannelPrivate,
     SlackChannelMembership,
     SlackChannelMembershipChangeLog,
     SlackMessage,
@@ -110,15 +111,12 @@ def get_or_create_slack_team(
     return team, created
 
 
-# --- SlackChannel ---
-@transaction.atomic
-def get_or_create_slack_channel(
+# --- SlackChannel / SlackChannelPrivate ---
+def _slack_channel_payload_fields(
     slack_channel: dict[str, Any],
     team: SlackTeam,
-) -> tuple[Optional[SlackChannel], bool]:
-    """Get or create a Slack channel. Returns (channel, created); channel is None when skipped."""
-    if not slack_channel.get("id"):
-        raise ValueError("Slack channel ID is required")
+) -> tuple[str, str, str, Optional[SlackUser]]:
+    """Parse Slack API channel object: channel_type, channel_name, description, creator."""
     creator = None
     creator_user_id = slack_channel.get("creator")
     if creator_user_id:
@@ -141,12 +139,52 @@ def get_or_create_slack_channel(
         channel_type = "public_channel"
     else:
         channel_type = slack_channel.get("type", "public_channel")
-    if channel_type != "public_channel":
-        logger.warning(f"Skipping non-public channel: {slack_channel['id']}")
-        return None, False
-    channel, created = SlackChannel.objects.get_or_create(
+    return channel_type, channel_name, description, creator
+
+
+@transaction.atomic
+def get_or_create_slack_channel(
+    slack_channel: dict[str, Any],
+    team: SlackTeam,
+) -> tuple[Optional[SlackChannel], Optional[SlackChannelPrivate], bool]:
+    """
+    Get or create a Slack channel row.
+
+    Public channels use SlackChannel; non-public use SlackChannelPrivate
+    (table cppa_slack_tracker_slackchannel_private).
+
+    Returns (public_channel, private_channel, created). Exactly one of the first two
+    is set on success; both None only when the payload is invalid (e.g. missing id).
+    """
+    if not slack_channel.get("id"):
+        raise ValueError("Slack channel ID is required")
+    channel_type, channel_name, description, creator = _slack_channel_payload_fields(
+        slack_channel, team
+    )
+    cid = slack_channel["id"]
+    if channel_type == "public_channel":
+        channel, created = SlackChannel.objects.get_or_create(
+            team=team,
+            channel_id=cid,
+            defaults={
+                "channel_name": channel_name,
+                "channel_type": channel_type,
+                "description": description,
+                "creator": creator,
+            },
+        )
+        if not created:
+            channel.channel_name = channel_name or channel.channel_name
+            channel.channel_type = channel_type or channel.channel_type
+            channel.description = description
+            if creator is not None:
+                channel.creator = creator
+            channel.save()
+        return channel, None, created
+
+    priv, created = SlackChannelPrivate.objects.get_or_create(
         team=team,
-        channel_id=slack_channel["id"],
+        channel_id=cid,
         defaults={
             "channel_name": channel_name,
             "channel_type": channel_type,
@@ -155,13 +193,13 @@ def get_or_create_slack_channel(
         },
     )
     if not created:
-        channel.channel_name = channel_name or channel.channel_name
-        channel.channel_type = channel_type or channel.channel_type
-        channel.description = description
+        priv.channel_name = channel_name or priv.channel_name
+        priv.channel_type = channel_type or priv.channel_type
+        priv.description = description
         if creator is not None:
-            channel.creator = creator
-        channel.save()
-    return channel, created
+            priv.creator = creator
+        priv.save()
+    return None, priv, created
 
 
 # --- SlackChannelMembership ---
