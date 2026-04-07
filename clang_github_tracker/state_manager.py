@@ -20,16 +20,6 @@ from clang_github_tracker.services import (
 logger = logging.getLogger(__name__)
 
 
-def parse_iso(s: str | None) -> datetime | None:
-    """Parse ISO datetime string; returns None if missing or invalid."""
-    if not s or not isinstance(s, str) or not s.strip():
-        return None
-    try:
-        return datetime.fromisoformat(s.strip().replace("Z", "+00:00"))
-    except (ValueError, TypeError):
-        return None
-
-
 def _aware_utc(dt: datetime | None) -> datetime | None:
     """Normalize ``dt`` to timezone-aware UTC, or return ``None``."""
     if dt is None:

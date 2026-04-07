@@ -22,7 +22,9 @@ def _invalid_issue_number(n: object) -> bool:
     return isinstance(n, bool) or not isinstance(n, int) or n <= 0
 
 
-def _max_dt(current: datetime | None, incoming: datetime | None) -> datetime | None:
+def _max_dt(
+    current: datetime | None, incoming: datetime | None
+) -> datetime | None:
     """Return the later of two datetimes; ``None`` is treated as missing (never wins over a value)."""
     if current is None:
         return incoming
@@ -60,7 +62,9 @@ def upsert_issue_item(
 ) -> tuple[ClangGithubIssueItem, bool]:
     """Create or update a ClangGithubIssueItem by ``number``. Returns (instance, created)."""
     if _invalid_issue_number(number):
-        raise ValueError(f"issue number must be a positive integer, got {number!r}")
+        raise ValueError(
+            f"issue number must be a positive integer, got {number!r}"
+        )
     existing = ClangGithubIssueItem.objects.filter(number=number).first()
     is_pr, gc, gu = _merge_issue_item_fields(
         existing,
@@ -156,6 +160,17 @@ def upsert_commits_batch(
     Returns:
         (inserted, updated) counts across all batches.
     """
+    if batch_size <= 0:
+        logger.warning(
+            "batch_size must be positive, using %s", DEFAULT_UPSERT_BATCH_SIZE
+        )
+        batch_size = DEFAULT_UPSERT_BATCH_SIZE
+    if batch_size > len(rows):
+        logger.warning(
+            "batch_size is greater than the number of rows, using %s",
+            len(rows),
+        )
+        batch_size = len(rows)
     merged: dict[str, datetime | None] = {}
     for sha, dt in rows:
         s = (sha or "").strip().lower()
@@ -250,7 +265,9 @@ def upsert_issue_items_batch(
                 _max_dt(prev_gu, gu),
             )
     inserted = updated = 0
-    items = [(n, is_pr, gc, gu) for n, (is_pr, gc, gu) in sorted(merged.items())]
+    items = [
+        (n, is_pr, gc, gu) for n, (is_pr, gc, gu) in sorted(merged.items())
+    ]
     for i in range(0, len(items), batch_size):
         di, du = _flush_issue_items_chunk(items[i : i + batch_size])
         inserted += di

@@ -19,12 +19,12 @@ from github_activity_tracker.sync.raw_source import (
 from github_activity_tracker.sync.utils import (
     normalize_issue_json,
     normalize_pr_json,
-    parse_datetime,
 )
+
+from core.utils.datetime_parsing import parse_iso_datetime as parse_datetime
 from github_ops import get_github_client
 from github_ops.client import ConnectionException, RateLimitException
 
-from clang_github_tracker import state_manager as clang_state
 from clang_github_tracker import services as clang_services
 from clang_github_tracker.workspace import OWNER, REPO
 
@@ -45,14 +45,14 @@ def _valid_positive_issue_number(n: object) -> bool:
     return type(n) is int and n > 0
 
 
-def _commit_date(commit_data: dict) -> datetime | None:
+def commit_date(commit_data: dict) -> datetime | None:
     """Extract author/committer date from GitHub commit payload."""
     commit = commit_data.get("commit") or {}
     author = commit.get("author") or commit.get("committer") or {}
-    date_str = author.get("date")
+    date_str = author.get("date") or ""
     if not date_str:
         return None
-    return parse_datetime(date_str) or clang_state.parse_iso(date_str)
+    return parse_datetime(date_str)
 
 
 def sync_clang_github_activity(
@@ -93,7 +93,7 @@ def sync_clang_github_activity(
             if sha:
                 save_commit_raw_source(owner, repo, commit_data)
                 commits_saved += 1
-                committed_at = _commit_date(commit_data)
+                committed_at = commit_date(commit_data)
                 try:
                     clang_services.upsert_commit(
                         str(sha).strip(),
@@ -115,14 +115,18 @@ def sync_clang_github_activity(
                         clang_services.upsert_issue_item(
                             num,
                             is_pull_request=True,
-                            github_created_at=parse_datetime(flat.get("created_at")),
-                            github_updated_at=parse_datetime(flat.get("updated_at")),
+                            github_created_at=parse_datetime(
+                                flat.get("created_at")
+                            ),
+                            github_updated_at=parse_datetime(
+                                flat.get("updated_at")
+                            ),
                         )
                         pr_numbers.append(num)
             else:
-                issue_number = (item.get("issue_info") or {}).get("number") or item.get(
+                issue_number = (item.get("issue_info") or {}).get(
                     "number"
-                )
+                ) or item.get("number")
                 if issue_number is not None:
                     save_issue_raw_source(owner, repo, item)
                     flat = normalize_issue_json(item)
@@ -131,8 +135,12 @@ def sync_clang_github_activity(
                         clang_services.upsert_issue_item(
                             num,
                             is_pull_request=False,
-                            github_created_at=parse_datetime(flat.get("created_at")),
-                            github_updated_at=parse_datetime(flat.get("updated_at")),
+                            github_created_at=parse_datetime(
+                                flat.get("created_at")
+                            ),
+                            github_updated_at=parse_datetime(
+                                flat.get("updated_at")
+                            ),
                         )
                         issue_numbers.append(num)
 
