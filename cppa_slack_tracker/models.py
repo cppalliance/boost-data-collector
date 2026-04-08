@@ -128,7 +128,9 @@ class SlackChannelPrivate(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "cppa_slack_tracker_slackchannel_private"
+        # Django quotes db_table as one identifier unless we inject a closing quote;
+        # this yields "slack_private"."cppa_slack_tracker_slackchannel_private" in SQL.
+        db_table = 'slack_private"."cppa_slack_tracker_slackchannel_private'
         verbose_name = "Slack Channel (non-public)"
         verbose_name_plural = "Slack Channels (non-public)"
         constraints = [
@@ -181,6 +183,58 @@ class SlackMessage(models.Model):
     class Meta:
         verbose_name = "Slack Message"
         verbose_name_plural = "Slack Messages"
+        unique_together = [["channel", "ts"]]
+
+    def __str__(self):
+        message_preview = (
+            self.message[:50] + "..." if len(self.message) > 50 else self.message
+        )
+        return f"Message by {self.user} in {self.channel}: {message_preview}"
+
+
+class SlackMessagePrivate(models.Model):
+    """
+    Slack messages for non-public channels (private, mpim, im).
+
+    Stored in cppa_slack_tracker_slackmessage_private; mirrors SlackMessage but
+    references SlackChannelPrivate.
+    """
+
+    channel = models.ForeignKey(
+        SlackChannelPrivate,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    ts = models.CharField(
+        max_length=50,
+        db_index=True,
+        help_text="Slack message timestamp (unique per channel)",
+    )
+    user = models.ForeignKey(
+        SlackUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="private_slack_messages",
+        db_column="slack_user_id",
+    )
+    message = models.TextField(blank=True)
+    thread_ts = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Thread timestamp if this is a threaded message",
+    )
+    slack_message_created_at = models.DateTimeField(db_index=True)
+    slack_message_updated_at = models.DateTimeField(
+        db_index=True, null=True, blank=True
+    )
+
+    class Meta:
+        db_table = 'slack_private"."cppa_slack_tracker_slackmessage_private'
+        verbose_name = "Slack Message (non-public channel)"
+        verbose_name_plural = "Slack Messages (non-public channels)"
         unique_together = [["channel", "ts"]]
 
     def __str__(self):

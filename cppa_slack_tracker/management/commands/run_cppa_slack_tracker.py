@@ -17,10 +17,11 @@ from typing import Optional
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from cppa_slack_tracker.models import SlackTeam
-from cppa_slack_tracker.services import save_slack_message
+from cppa_slack_tracker.models import SlackChannelPrivate, SlackTeam
+from cppa_slack_tracker.services import save_slack_message, save_slack_message_private
 from cppa_slack_tracker.sync import (
     get_channels_to_sync,
+    get_private_channels_to_sync,
     sync_channel_users,
     sync_channels,
     sync_messages,
@@ -302,10 +303,12 @@ class Command(BaseCommand):
         Sync messages via sync.sync_messages (workspace JSONs, then fetch by day).
         Optional legacy: load from --messages-json path and save to DB first.
         """
-        channels = get_channels_to_sync(
-            team, channel_id=(options.get("channel_id") or "").strip() or None
+        channel_id_opt = (options.get("channel_id") or "").strip() or None
+        channels = get_channels_to_sync(team, channel_id=channel_id_opt)
+        private_channels = get_private_channels_to_sync(
+            team, channel_id=channel_id_opt
         )
-        if not channels:
+        if not channels and not private_channels:
             logger.warning("No channels to sync. Sync channels first.")
             return
 
@@ -324,6 +327,9 @@ class Command(BaseCommand):
                     len(all_loaded),
                 )
                 channel_by_id = {c.channel_id: c for c in channels}
+                channel_by_id.update(
+                    {c.channel_id: c for c in private_channels}
+                )
                 load_failures = 0
                 for msg in all_loaded:
                     if not isinstance(msg, dict):
@@ -344,7 +350,10 @@ class Command(BaseCommand):
                         )
                         continue
                     try:
-                        save_slack_message(channel, msg)
+                        if isinstance(channel, SlackChannelPrivate):
+                            save_slack_message_private(channel, msg)
+                        else:
+                            save_slack_message(channel, msg)
                     except Exception:
                         msg_ts = msg.get("ts", msg.get("client_msg_id", "?"))
                         logger.exception(
@@ -367,6 +376,14 @@ class Command(BaseCommand):
             s, e = sync_messages(channel, start_date=start_d, end_date=end_d)
             logger.info(
                 "  #%s: %s saved, %s errors",
+                channel.channel_name,
+                s,
+                e,
+            )
+        for channel in private_channels:
+            s, e = sync_messages(channel, start_date=start_d, end_date=end_d)
+            logger.info(
+                "  #%s (non-public): %s saved, %s errors",
                 channel.channel_name,
                 s,
                 e,

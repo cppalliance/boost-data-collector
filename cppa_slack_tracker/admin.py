@@ -9,6 +9,7 @@ from .models import (
     SlackChannel,
     SlackChannelPrivate,
     SlackMessage,
+    SlackMessagePrivate,
     SlackChannelMembership,
     SlackChannelMembershipChangeLog,
 )
@@ -59,6 +60,36 @@ class SlackChannelPrivateAdmin(admin.ModelAdmin):
 
 @admin.register(SlackMessage)
 class SlackMessageAdmin(admin.ModelAdmin):
+    list_display = (
+        "ts",
+        "channel",
+        "user",
+        "message_preview",
+        "slack_message_created_at",
+    )
+    list_filter = ("slack_message_created_at", "slack_message_updated_at")
+    search_fields = (
+        "ts",
+        "message",
+        "channel__channel_name",
+        "user__username",
+    )
+    readonly_fields = (
+        "ts",
+        "slack_message_created_at",
+        "slack_message_updated_at",
+    )
+    date_hierarchy = "slack_message_created_at"
+    raw_id_fields = ("channel", "user")
+
+    @admin.display(description="Message Preview")
+    def message_preview(self, obj):
+        """Return a short preview of the message."""
+        return obj.message[:50] + "..." if len(obj.message) > 50 else obj.message
+
+
+@admin.register(SlackMessagePrivate)
+class SlackMessagePrivateAdmin(admin.ModelAdmin):
     list_display = (
         "ts",
         "channel",

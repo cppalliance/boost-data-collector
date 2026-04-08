@@ -26,6 +26,7 @@ from .models import (
     SlackChannelMembership,
     SlackChannelMembershipChangeLog,
     SlackMessage,
+    SlackMessagePrivate,
     SlackTeam,
 )
 
@@ -370,6 +371,78 @@ def save_slack_message(
     updated_at = _parse_slack_ts_string(edited.get("ts", ts)) if edited else created_at
 
     message, created = SlackMessage.objects.get_or_create(
+        channel=channel,
+        ts=ts,
+        defaults={
+            "user": user,
+            "message": clean_text,
+            "thread_ts": slack_message.get("thread_ts"),
+            "slack_message_created_at": created_at,
+            "slack_message_updated_at": updated_at,
+        },
+    )
+    if not created:
+        message.user = user
+        message.message = clean_text
+        message.thread_ts = slack_message.get("thread_ts")
+        message.slack_message_created_at = created_at
+        message.slack_message_updated_at = updated_at
+        message.save()
+    return message
+
+
+@transaction.atomic
+def save_slack_message_private(
+    channel: SlackChannelPrivate,
+    slack_message: dict[str, Any],
+) -> Optional[SlackMessagePrivate]:
+    """
+    Save or update a Slack message for a non-public channel.
+
+    Same rules as save_slack_message, but persists to SlackMessagePrivate.
+    channel_join / channel_leave are ignored here: membership for non-public
+    channels is not modeled on SlackChannelMembership (public SlackChannel only).
+    """
+    subtype = slack_message.get("subtype")
+    if subtype in SUBTYPE_IGNORE:
+        return None
+    if subtype in ("channel_join", "channel_leave"):
+        return None
+
+    user: Optional[SlackUser] = None
+    text: str
+    if subtype == "file_comment":
+        user = _get_or_fetch_slack_user(
+            slack_message.get("user", "") or "-1", team_id=channel.team.team_id
+        )
+        text = slack_message.get("text", "")
+        comment = slack_message.get("comment")
+        if isinstance(comment, dict):
+            text += f"\nComment: {comment.get('comment', '')}"
+    elif subtype:
+        text = _message_text_for_subtype(slack_message, subtype) or ""
+    else:
+        text = slack_message.get("text", "")
+
+    if user is None:
+        user_id = slack_message.get("user")
+        if not user_id:
+            if slack_message.get("text") == "A file was commented on":
+                return None
+            raise ValueError("User not found")
+        user = _get_or_fetch_slack_user(user_id, team_id=channel.team.team_id)
+
+    clean_text = text.replace("\x00", "").replace("\u0000", "")
+    ts = slack_message.get("ts")
+    if not ts:
+        raise ValueError("Message timestamp (ts) is required")
+    created_at = _parse_slack_ts_string(ts)
+    edited = slack_message.get("edited")
+    if not isinstance(edited, dict):
+        edited = {}
+    updated_at = _parse_slack_ts_string(edited.get("ts", ts)) if edited else created_at
+
+    message, created = SlackMessagePrivate.objects.get_or_create(
         channel=channel,
         ts=ts,
         defaults={
