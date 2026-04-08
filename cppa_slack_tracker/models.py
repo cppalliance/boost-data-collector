@@ -303,3 +303,68 @@ class SlackChannelMembershipChangeLog(models.Model):
     def __str__(self):
         action = "joined" if self.is_joined else "left"
         return f"{self.user} {action} {self.channel} at {self.created_at}"
+
+
+class SlackChannelMembershipPrivate(models.Model):
+    """
+    Current membership for non-public channels (private_channel, mpim, im).
+
+    Stored in schema ``slack_private`` alongside SlackChannelPrivate.
+    """
+
+    channel = models.ForeignKey(
+        SlackChannelPrivate,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    user = models.ForeignKey(
+        SlackUser,
+        on_delete=models.CASCADE,
+        related_name="private_channel_memberships",
+        db_column="slack_user_id",
+    )
+    is_restricted = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'slack_private"."cppa_slack_tracker_slackchannelmembership_private'
+        verbose_name = "Slack Channel Membership (non-public)"
+        verbose_name_plural = "Slack Channel Memberships (non-public)"
+        unique_together = [["channel", "user"]]
+
+    def __str__(self):
+        return f"{self.user} in {self.channel}"
+
+
+class SlackChannelMembershipChangeLogPrivate(models.Model):
+    """
+    Join/leave history for non-public channels (private_channel, mpim, im).
+    """
+
+    channel = models.ForeignKey(
+        SlackChannelPrivate,
+        on_delete=models.CASCADE,
+        related_name="membership_changes",
+    )
+    user = models.ForeignKey(
+        SlackUser,
+        on_delete=models.CASCADE,
+        related_name="private_membership_changes",
+        db_column="slack_user_id",
+    )
+    is_joined = models.BooleanField(help_text="True if joined, False if left")
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        db_table = (
+            'slack_private"."cppa_slack_tracker_slackchannelmembershipchangelog_private'
+        )
+        verbose_name = "Slack Channel Membership Change Log (non-public)"
+        verbose_name_plural = "Slack Channel Membership Change Logs (non-public)"
+        unique_together = [["channel", "user", "created_at"]]
+
+    def __str__(self):
+        action = "joined" if self.is_joined else "left"
+        return f"{self.user} {action} {self.channel} at {self.created_at}"

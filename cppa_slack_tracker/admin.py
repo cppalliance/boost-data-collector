@@ -12,6 +12,8 @@ from .models import (
     SlackMessagePrivate,
     SlackChannelMembership,
     SlackChannelMembershipChangeLog,
+    SlackChannelMembershipPrivate,
+    SlackChannelMembershipChangeLogPrivate,
 )
 
 
@@ -141,6 +143,41 @@ class SlackChannelMembershipAdmin(admin.ModelAdmin):
 
 @admin.register(SlackChannelMembershipChangeLog)
 class SlackChannelMembershipChangeLogAdmin(admin.ModelAdmin):
+    list_display = ("channel", "user", "is_joined", "created_at")
+    list_filter = ("is_joined", "created_at")
+    search_fields = (
+        "channel__channel_name",
+        "user__username",
+        "user__display_name",
+    )
+    readonly_fields = ("created_at",)
+    date_hierarchy = "created_at"
+    raw_id_fields = ("channel", "user")
+
+
+@admin.register(SlackChannelMembershipPrivate)
+class SlackChannelMembershipPrivateAdmin(admin.ModelAdmin):
+    list_display = (
+        "channel",
+        "user",
+        "is_restricted",
+        "is_deleted",
+        "created_at",
+        "updated_at",
+    )
+    list_filter = ("is_restricted", "is_deleted", "created_at", "updated_at")
+    search_fields = (
+        "channel__channel_name",
+        "user__username",
+        "user__display_name",
+    )
+    readonly_fields = ("created_at", "updated_at")
+    date_hierarchy = "created_at"
+    raw_id_fields = ("channel", "user")
+
+
+@admin.register(SlackChannelMembershipChangeLogPrivate)
+class SlackChannelMembershipChangeLogPrivateAdmin(admin.ModelAdmin):
     list_display = ("channel", "user", "is_joined", "created_at")
     list_filter = ("is_joined", "created_at")
     search_fields = (

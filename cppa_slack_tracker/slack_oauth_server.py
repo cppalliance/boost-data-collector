@@ -28,13 +28,22 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.routing import Route
 
-# Load .env from project root (src/ingestion -> src -> project root)
-_ROOT = Path(__file__).resolve().parent.parent.parent
-load_dotenv(_ROOT / ".env")
+# Repo root: cppa_slack_tracker/slack_oauth_server.py -> parent.parent
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_REPO_ROOT / ".env")
 
 logger = logging.getLogger(__name__)
 
-TOKENS_FILE = _ROOT / "credential" / "slack_user_tokens.json"
+
+def _slack_user_tokens_file() -> Path:
+    """Path to JSON map of OAuth user tokens; override with SLACK_USER_TOKENS_PATH."""
+    override = (os.environ.get("SLACK_USER_TOKENS_PATH") or "").strip()
+    if override:
+        return Path(override)
+    return _REPO_ROOT / "credential" / "slack_user_tokens.json"
+
+
+TOKENS_FILE = _slack_user_tokens_file()
 
 # CSRF: one-time OAuth state values (server-side). Values are secrets.token_urlsafe;
 # each maps to unix expiry time. Prevents replay after TTL via expiry + pop-on-use.

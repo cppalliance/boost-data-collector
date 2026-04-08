@@ -30,6 +30,9 @@ celerybeat-schedule
 celerybeat-schedule-*
 celerybeat.pid
 
+# Credentials
+credential/
+
 # Environment
 .env
 .env.local

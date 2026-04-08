@@ -137,6 +137,40 @@ def fetch_channel_list(
     return channels
 
 
+def fetch_im_channel_list_for_user(
+    team_id: str,
+    user_token: str,
+    *,
+    exclude_archived: bool = False,
+) -> list[dict]:
+    """
+    List IM (direct message) conversations visible to the authorizing user.
+
+    Uses a user OAuth token (``xoxp-``); the bot token cannot see user-to-user DMs.
+    Paginates ``conversations.list`` with ``types=im`` only.
+    """
+    client = get_slack_client(bot_token=user_token, team_id=team_id)
+    channels: list[dict] = []
+    cursor = None
+    while True:
+        data = client.conversations_list(
+            types="im",
+            exclude_archived=exclude_archived,
+            limit=500,
+            cursor=cursor,
+        )
+        if not data.get("ok"):
+            logger.warning(
+                "conversations.list (im) failed: %s", data.get("error", "unknown")
+            )
+            break
+        channels.extend(data.get("channels", []))
+        cursor = (data.get("response_metadata") or {}).get("next_cursor")
+        if not cursor:
+            break
+    return channels
+
+
 def _ts_to_utc_date(ts: Optional[str]) -> Optional[date]:
     """Convert Slack ts string to UTC date, or None if invalid."""
     if not ts:

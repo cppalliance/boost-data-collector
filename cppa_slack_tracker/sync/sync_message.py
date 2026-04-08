@@ -24,9 +24,12 @@ import json
 import logging
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from django.db.models import F
+
+if TYPE_CHECKING:
+    from operations.slack_ops.client import SlackAPIClient
 from django.db.models.functions import Coalesce
 
 from cppa_slack_tracker.fetcher import fetch_messages
@@ -170,6 +173,8 @@ def sync_messages(
     channel: SlackChannel | SlackChannelPrivate,
     start_date: date | datetime | None = None,
     end_date: date | datetime | None = None,
+    *,
+    client: Optional["SlackAPIClient"] = None,
 ) -> tuple[int, int]:
     """
     Sync messages for a channel over a date range (UTC).
@@ -184,6 +189,9 @@ def sync_messages(
     For each day in the fetched range:
       - Write JSON to workspace. Merge into raw file by ts (same ts → update, new ts → add).
       - Process workspace → save to DB → remove workspace file.
+
+    If ``client`` is set (e.g. user OAuth token for IMs), it is used for
+    ``conversations.history``; otherwise the workspace bot token is used.
 
     Returns (success_count, error_count).
     """
@@ -217,7 +225,11 @@ def sync_messages(
     # Step 2: fetch messages ([start_date, end_date] or all up to end_date if start_date is None)
     try:
         all_messages = fetch_messages(
-            channel_id, start_date, end_date, team_id=channel.team.team_id
+            channel_id,
+            start_date,
+            end_date,
+            client=client,
+            team_id=channel.team.team_id,
         )
     except Exception:
         logger.exception(

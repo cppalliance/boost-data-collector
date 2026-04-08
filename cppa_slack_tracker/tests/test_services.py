@@ -9,14 +9,19 @@ from cppa_slack_tracker.services import (
     get_or_create_slack_channel,
     get_or_create_slack_team,
     add_channel_membership_change,
+    add_channel_membership_change_private,
     save_slack_message,
+    save_slack_message_private,
     sync_channel_memberships,
+    sync_channel_memberships_private,
     _parse_slack_ts_string,
 )
 from cppa_slack_tracker.models import (
     SlackChannelPrivate,
     SlackChannelMembership,
     SlackChannelMembershipChangeLog,
+    SlackChannelMembershipPrivate,
+    SlackChannelMembershipChangeLogPrivate,
 )
 from cppa_user_tracker.models import Email, SlackUser
 
@@ -331,3 +336,110 @@ class TestSlackService:
         calls = [c[0][0] for c in mock_fetch.call_args_list]
         assert "U99999999" in calls
         assert "-1" not in calls
+
+    def test_add_channel_membership_change_private(
+        self, sample_slack_channel_private, sample_slack_user
+    ):
+        """Join/leave for private_channel updates private membership tables."""
+        log = add_channel_membership_change_private(
+            sample_slack_channel_private,
+            "U12345678",
+            "1609459200.123456",
+            is_joined=True,
+        )
+        assert log.channel == sample_slack_channel_private
+        assert log.user == sample_slack_user
+        assert log.is_joined
+        m = SlackChannelMembershipPrivate.objects.get(
+            channel=sample_slack_channel_private,
+            user=sample_slack_user,
+        )
+        assert not m.is_deleted
+
+    def test_add_channel_membership_change_private_rejects_im(
+        self, sample_slack_channel_im, sample_slack_user
+    ):
+        """Membership helpers are not used for im channels."""
+        with pytest.raises(ValueError, match="private_channel and mpim"):
+            add_channel_membership_change_private(
+                sample_slack_channel_im,
+                sample_slack_user.slack_user_id,
+                "1609459200.123456",
+                is_joined=True,
+            )
+
+    def test_save_slack_message_private_channel_join(
+        self, sample_slack_channel_private, sample_slack_user
+    ):
+        """channel_join on private_channel records membership; no SlackMessagePrivate row."""
+        message_data = {
+            "user": "U12345678",
+            "text": "joined the channel",
+            "ts": "1609459200.123456",
+            "subtype": "channel_join",
+        }
+        msg = save_slack_message_private(
+            sample_slack_channel_private,
+            message_data,
+        )
+        assert msg is None
+        assert SlackChannelMembershipChangeLogPrivate.objects.filter(
+            channel=sample_slack_channel_private,
+            user=sample_slack_user,
+            is_joined=True,
+        ).exists()
+
+    def test_save_slack_message_private_channel_join_skipped_for_im(
+        self, sample_slack_channel_im, sample_slack_user
+    ):
+        """channel_join on im does not create private membership rows."""
+        message_data = {
+            "user": "U12345678",
+            "text": "joined",
+            "ts": "1609459200.123456",
+            "subtype": "channel_join",
+        }
+        msg = save_slack_message_private(sample_slack_channel_im, message_data)
+        assert msg is None
+        assert not SlackChannelMembershipChangeLogPrivate.objects.filter(
+            channel=sample_slack_channel_im,
+            user=sample_slack_user,
+        ).exists()
+
+    def test_sync_channel_memberships_private(
+        self, sample_slack_channel_private, sample_slack_user, sample_identity
+    ):
+        """sync_channel_memberships_private adds/removes rows for private_channel."""
+        user2 = SlackUser.objects.create(
+            identity=sample_identity,
+            slack_user_id="U22222222",
+            username="user2",
+        )
+        SlackChannelMembershipPrivate.objects.create(
+            channel=sample_slack_channel_private,
+            user=sample_slack_user,
+        )
+        sync_channel_memberships_private(
+            sample_slack_channel_private,
+            ["U22222222"],
+        )
+        m1 = SlackChannelMembershipPrivate.objects.get(
+            channel=sample_slack_channel_private, user=sample_slack_user
+        )
+        assert m1.is_deleted
+        m2 = SlackChannelMembershipPrivate.objects.get(
+            channel=sample_slack_channel_private, user=user2
+        )
+        assert not m2.is_deleted
+
+    def test_sync_channel_memberships_private_noop_for_im(
+        self, sample_slack_channel_im, sample_slack_user
+    ):
+        """Member list sync does not persist rows for im."""
+        sync_channel_memberships_private(
+            sample_slack_channel_im,
+            [sample_slack_user.slack_user_id],
+        )
+        assert not SlackChannelMembershipPrivate.objects.filter(
+            channel=sample_slack_channel_im
+        ).exists()

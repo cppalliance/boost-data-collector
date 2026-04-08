@@ -2,9 +2,10 @@
 Sync Slack channel memberships with the database.
 
 Fetches channel member lists via cppa_slack_tracker.fetcher.fetch_channel_user_list
-and syncs memberships to the database. Use get_channels_to_sync() to get the list
-of channels to sync (one or all in a team); get_private_channels_to_sync does
-the same for SlackChannelPrivate. run_cppa_slack_tracker uses both for message sync.
+and syncs memberships to the database. Public channels use SlackChannelMembership;
+private_channel and mpim use SlackChannelMembershipPrivate (im is skipped).
+
+Use get_channels_to_sync() / get_private_channels_to_sync() for message sync lists.
 """
 
 from __future__ import annotations
@@ -13,8 +14,16 @@ import logging
 from typing import Optional
 
 from cppa_slack_tracker.fetcher import fetch_channel_user_list
-from cppa_slack_tracker.models import SlackChannel, SlackChannelPrivate, SlackTeam
-from cppa_slack_tracker.services import sync_channel_memberships
+from cppa_slack_tracker.models import (
+    SlackChannel,
+    SlackChannelPrivate,
+    SlackChannelPrivateType,
+    SlackTeam,
+)
+from cppa_slack_tracker.services import (
+    sync_channel_memberships,
+    sync_channel_memberships_private,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +88,12 @@ def sync_channel_users(
     """
     Sync channel memberships for all (or one) channels in a team.
 
-    Uses get_channels_to_sync(team, channel_id=channel_id) to get the channel
-    list, then for each channel fetches member IDs from the Slack API and
-    syncs memberships to the database. Returns (success_count, error_count).
+    Public channels: get_channels_to_sync → SlackChannelMembership.
+
+    Non-public private_channel and mpim: get_private_channels_to_sync →
+    SlackChannelMembershipPrivate (skips im).
+
+    Returns (success_count, error_count).
     """
     channels = get_channels_to_sync(team, channel_id=channel_id)
     success_count = 0
@@ -96,6 +108,28 @@ def sync_channel_users(
         except Exception as e:
             logger.exception(
                 "Failed to fetch/sync members for %s: %s", channel.channel_id, e
+            )
+            error_count += 1
+
+    private_channels = get_private_channels_to_sync(team, channel_id=channel_id)
+    membership_private = [
+        c
+        for c in private_channels
+        if c.channel_type
+        in (SlackChannelPrivateType.PRIVATE_CHANNEL, SlackChannelPrivateType.MPIM)
+    ]
+    for channel in membership_private:
+        try:
+            member_ids = fetch_channel_user_list(
+                channel.channel_id, team_id=channel.team.team_id
+            )
+            sync_channel_memberships_private(channel, member_ids)
+            success_count += 1
+        except Exception as e:
+            logger.exception(
+                "Failed to fetch/sync members for private/mpim %s: %s",
+                channel.channel_id,
+                e,
             )
             error_count += 1
     return success_count, error_count
