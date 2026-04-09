@@ -21,8 +21,22 @@ def _patch_django_context_copy_py314():
         BaseContext.__copy__ = __copy__
 
 
+def _ensure_slack_private_schema_on_postgres_connect():
+    """Create slack_private before table sync when pytest uses --no-migrations."""
+    from django.db.backends.signals import connection_created
+
+    def on_connection_created(sender, connection, **kwargs):
+        if connection.vendor != "postgresql":
+            return
+        with connection.cursor() as cursor:
+            cursor.execute("CREATE SCHEMA IF NOT EXISTS slack_private;")
+
+    connection_created.connect(on_connection_created)
+
+
 def pytest_configure(config):  # noqa: F841 (pytest hook; name must match spec)
     _patch_django_context_copy_py314()
+    _ensure_slack_private_schema_on_postgres_connect()
 
 
 # Load app-level fixture modules so fixtures from each app are available everywhere.

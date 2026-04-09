@@ -83,7 +83,8 @@ def _consume_oauth_state(state: str | None) -> bool:
 # Static HTML responses (predefined at import time)
 # ---------------------------------------------------------------------------
 
-_HTML_INDEX = HTMLResponse(content="""
+_HTML_INDEX = HTMLResponse(
+    content="""
         <!DOCTYPE html>
         <html>
         <head><meta charset="utf-8"><title>WG21 Paralegal — Slack OAuth</title></head>
@@ -97,7 +98,8 @@ _HTML_INDEX = HTMLResponse(content="""
         <p>Slack redirects to <code>/slack/oauth/callback</code> after authorization.</p>
         </body>
         </html>
-        """)
+        """
+)
 
 _HTML_MISSING_CODE = HTMLResponse(
     content="""
@@ -113,7 +115,8 @@ _HTML_MISSING_CODE = HTMLResponse(
     status_code=400,
 )
 
-_HTML_SUCCESS = HTMLResponse(content="""
+_HTML_SUCCESS = HTMLResponse(
+    content="""
         <!DOCTYPE html>
         <html>
         <head><meta charset="utf-8"><title>Slack OAuth</title></head>
@@ -124,12 +127,14 @@ _HTML_SUCCESS = HTMLResponse(content="""
         <p>Token stored in <code>slack_user_tokens.json</code>.</p>
         </body>
         </html>
-        """)
+        """
+)
 
 
 # ---------------------------------------------------------------------------
 # Dynamic HTML response builders (depend on runtime values)
 # ---------------------------------------------------------------------------
+
 
 def _html_auth_error(error: str) -> HTMLResponse:
     safe_error = escape(error)
@@ -175,7 +180,8 @@ def _html_invalid_oauth_state() -> HTMLResponse:
 
 
 def _html_authorized(table_body: str) -> HTMLResponse:
-    return HTMLResponse(content=f"""
+    return HTMLResponse(
+        content=f"""
         <!DOCTYPE html>
         <html>
         <head><meta charset="utf-8"><title>Authorized users</title></head>
@@ -192,12 +198,14 @@ def _html_authorized(table_body: str) -> HTMLResponse:
         <p><a href="/slack/connect">Add another user</a></p>
         </body>
         </html>
-        """)
+        """
+    )
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_env(key: str) -> str:
     val = (os.environ.get(key) or "").strip()
@@ -305,7 +313,10 @@ async def _exchange_code(code: str) -> dict:  # type: ignore[type-arg]
         return {"ok": False, "error": f"Invalid response from Slack (not JSON): {exc}"}
 
     if not isinstance(data, dict):
-        return {"ok": False, "error": "Unexpected response from Slack (expected JSON object)."}
+        return {
+            "ok": False,
+            "error": "Unexpected response from Slack (expected JSON object).",
+        }
     return data
 
 

@@ -80,9 +80,7 @@ def _messages_by_day(
     return dict(by_day)
 
 
-def _process_message(
-    channel: SlackChannel | SlackChannelPrivate, msg: dict
-) -> bool:
+def _process_message(channel: SlackChannel | SlackChannelPrivate, msg: dict) -> bool:
     """
     Process one message: save to SlackMessage or SlackMessagePrivate. Returns True
     if saved, False if skipped (e.g. ignored subtype). Raises on error.

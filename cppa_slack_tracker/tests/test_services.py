@@ -111,9 +111,7 @@ class TestSlackService:
         assert channel.description == "Random discussions"
         assert channel.creator == sample_slack_user
 
-    def test_add_slack_channel_private(
-        self, sample_slack_team, sample_slack_user
-    ):
+    def test_add_slack_channel_private(self, sample_slack_team, sample_slack_user):
         """Non-public channels are stored in SlackChannelPrivate."""
         data = {
             "id": "G012PRIVATE1",

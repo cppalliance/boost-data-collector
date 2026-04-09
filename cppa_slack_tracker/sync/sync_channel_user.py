@@ -66,18 +66,14 @@ def get_private_channels_to_sync(
     """
     if channel_id:
         try:
-            return [
-                SlackChannelPrivate.objects.get(team=team, channel_id=channel_id)
-            ]
+            return [SlackChannelPrivate.objects.get(team=team, channel_id=channel_id)]
         except SlackChannelPrivate.DoesNotExist:
             logger.warning(
                 "Private channel %s not found in team %s; syncing all non-public channels.",
                 channel_id,
                 team.team_id,
             )
-    return list(
-        SlackChannelPrivate.objects.filter(team=team).order_by("channel_id")
-    )
+    return list(SlackChannelPrivate.objects.filter(team=team).order_by("channel_id"))
 
 
 def sync_channel_users(

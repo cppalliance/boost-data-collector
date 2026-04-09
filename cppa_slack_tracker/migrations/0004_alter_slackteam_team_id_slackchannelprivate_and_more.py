@@ -8,11 +8,15 @@ import django.utils.timezone
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('cppa_user_tracker', '0008_alter_youtubespeaker_display_name'),
-        ('cppa_slack_tracker', '0003_alter_slackchannel_unique_team_channel_id'),
+        ("cppa_user_tracker", "0007_youtubespeaker_external_id"),
+        ("cppa_slack_tracker", "0003_alter_slackchannel_unique_team_channel_id"),
     ]
 
     operations = [
+        migrations.RunSQL(
+            sql='CREATE SCHEMA IF NOT EXISTS slack_private;',
+            reverse_sql=migrations.RunSQL.noop,
+        ),
         migrations.AlterField(
             model_name='slackteam',
             name='team_id',

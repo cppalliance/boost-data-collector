@@ -310,9 +310,7 @@ class Command(BaseCommand):
         """
         channel_id_opt = (options.get("channel_id") or "").strip() or None
         channels = get_channels_to_sync(team, channel_id=channel_id_opt)
-        private_channels = get_private_channels_to_sync(
-            team, channel_id=channel_id_opt
-        )
+        private_channels = get_private_channels_to_sync(team, channel_id=channel_id_opt)
         has_user_tokens = any(iter_user_tokens_for_team(team.team_id))
         if not channels and not private_channels and not has_user_tokens:
             logger.warning(
@@ -336,9 +334,7 @@ class Command(BaseCommand):
                     len(all_loaded),
                 )
                 channel_by_id = {c.channel_id: c for c in channels}
-                channel_by_id.update(
-                    {c.channel_id: c for c in private_channels}
-                )
+                channel_by_id.update({c.channel_id: c for c in private_channels})
                 load_failures = 0
                 for msg in all_loaded:
                     if not isinstance(msg, dict):
@@ -427,13 +423,9 @@ class Command(BaseCommand):
             len(tokens),
         )
         for user_slack_id, access_token in tokens:
-            user_client = get_slack_client(
-                bot_token=access_token, team_id=team.team_id
-            )
+            user_client = get_slack_client(bot_token=access_token, team_id=team.team_id)
             try:
-                im_channels = fetch_im_channel_list_for_user(
-                    team.team_id, access_token
-                )
+                im_channels = fetch_im_channel_list_for_user(team.team_id, access_token)
             except Exception:
                 logger.exception(
                     "Failed to list IM channels for user %s", user_slack_id
@@ -456,9 +448,7 @@ class Command(BaseCommand):
                     if ch_obj is None:
                         continue
                 except Exception:
-                    logger.exception(
-                        "Failed to upsert IM channel %s", ch.get("id")
-                    )
+                    logger.exception("Failed to upsert IM channel %s", ch.get("id"))
                     continue
 
                 try:
