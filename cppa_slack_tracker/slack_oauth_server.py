@@ -228,9 +228,7 @@ def _load_tokens() -> dict[str, dict]:  # type: ignore[type-arg]
         with TOKENS_FILE.open(encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError) as exc:
-        logger.warning(
-            "Could not load Slack user tokens from %s: %s", TOKENS_FILE, exc
-        )
+        logger.warning("Could not load Slack user tokens from %s: %s", TOKENS_FILE, exc)
         return {}
     if not isinstance(data, dict):
         return {}
