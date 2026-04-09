@@ -444,7 +444,8 @@ def save_slack_message(
         if isinstance(comment, dict):
             text += f"\nComment: {comment.get('comment', '')}"
     elif subtype:
-        text = _message_text_for_subtype(slack_message, subtype) or ""
+        subtype_text = _message_text_for_subtype(slack_message, subtype)
+        text = subtype_text or slack_message.get("text", "")
     else:
         text = slack_message.get("text", "")
 
@@ -551,7 +552,8 @@ def save_slack_message_private(
         if isinstance(comment, dict):
             text += f"\nComment: {comment.get('comment', '')}"
     elif subtype:
-        text = _message_text_for_subtype(slack_message, subtype) or ""
+        subtype_text = _message_text_for_subtype(slack_message, subtype)
+        text = subtype_text or slack_message.get("text", "")
     else:
         text = slack_message.get("text", "")
 

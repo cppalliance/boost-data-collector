@@ -1,7 +1,8 @@
 """
 Slack user OAuth server
 
-Loads .env from project root.
+Loads `.env` from a fixed path beside this package; default token file is under
+the same directory as that `.env` (see `_SLACK_OAUTH_DOTENV_PATH`).
 
 - GET /                    → landing page with links (root is not Slack's callback)
 - GET /slack/connect       → Slack authorize URL with CSRF `state` (server-side, TTL)
@@ -28,9 +29,10 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.routing import Route
 
-# Repo root: cppa_slack_tracker/slack_oauth_server.py -> parent.parent
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(_REPO_ROOT / ".env")
+# Default .env: cppa_slack_tracker/ -> project root .env
+_SLACK_OAUTH_DOTENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(_SLACK_OAUTH_DOTENV_PATH)
+_DOTENV_DIR = _SLACK_OAUTH_DOTENV_PATH.parent
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ def _slack_user_tokens_file() -> Path:
     override = (os.environ.get("SLACK_USER_TOKENS_PATH") or "").strip()
     if override:
         return Path(override)
-    return _REPO_ROOT / "credential" / "slack_user_tokens.json"
+    return _DOTENV_DIR / "credential" / "slack_user_tokens.json"
 
 
 TOKENS_FILE = _slack_user_tokens_file()
@@ -87,7 +89,7 @@ _HTML_INDEX = HTMLResponse(
     content="""
         <!DOCTYPE html>
         <html>
-        <head><meta charset="utf-8"><title>WG21 Paralegal — Slack OAuth</title></head>
+        <head><meta charset="utf-8"><title>Boost data collector — Slack OAuth</title></head>
         <body>
         <h1>Slack OAuth helper</h1>
         <p>Use these links:</p>
@@ -222,8 +224,17 @@ def _get_env(key: str) -> str:
 def _load_tokens() -> dict[str, dict]:  # type: ignore[type-arg]
     if not TOKENS_FILE.exists():
         return {}
-    with TOKENS_FILE.open(encoding="utf-8") as f:
-        return json.load(f)  # type: ignore[no-any-return]
+    try:
+        with TOKENS_FILE.open(encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning(
+            "Could not load Slack user tokens from %s: %s", TOKENS_FILE, exc
+        )
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return data  # type: ignore[no-any-return]
 
 
 def _ensure_tokens_dir() -> None:

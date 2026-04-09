@@ -422,6 +422,9 @@ class Command(BaseCommand):
             "Syncing IM channels with user tokens (%s authorized user(s))...",
             len(tokens),
         )
+        # Same IM (D…) appears in every participant's conversations.list; sync once
+        # per channel per run using the first token that lists it.
+        seen_channel_ids: set[str] = set()
         for user_slack_id, access_token in tokens:
             user_client = get_slack_client(bot_token=access_token, team_id=team.team_id)
             try:
@@ -442,13 +445,24 @@ class Command(BaseCommand):
             for ch in im_channels:
                 if not isinstance(ch, dict) or not ch.get("id"):
                     continue
+                ch_id = ch["id"]
+                if ch_id in seen_channel_ids:
+                    logger.debug(
+                        "Skipping IM channel %s for user %s (already synced this run)",
+                        ch_id,
+                        user_slack_id,
+                    )
+                    continue
+                seen_channel_ids.add(ch_id)
                 try:
                     pub, priv, _created = get_or_create_slack_channel(ch, team)
                     ch_obj = pub or priv
                     if ch_obj is None:
+                        seen_channel_ids.discard(ch_id)
                         continue
                 except Exception:
                     logger.exception("Failed to upsert IM channel %s", ch.get("id"))
+                    seen_channel_ids.discard(ch_id)
                     continue
 
                 try:
@@ -471,6 +485,7 @@ class Command(BaseCommand):
                         ch.get("id"),
                         user_slack_id,
                     )
+                    seen_channel_ids.discard(ch_id)
 
     def sync_to_pinecone(self, team: SlackTeam):
         """Sync Slack messages to Pinecone after message sync."""
