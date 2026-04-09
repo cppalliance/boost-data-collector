@@ -1,6 +1,9 @@
 """
 Sync Slack messages with the database.
 
+Works for both SlackChannel (public) and SlackChannelPrivate (non-public); the
+latter persists rows via SlackMessagePrivate (cppa_slack_tracker_slackmessage_private).
+
 Flow when start_date is None:
   1. Process any existing workspace JSONs for the channel (old → new), remove them.
   2. Determine start_date: same day as last message in DB (to avoid missing same-day
@@ -21,14 +24,22 @@ import json
 import logging
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from django.db.models import F
+
+if TYPE_CHECKING:
+    from operations.slack_ops.client import SlackAPIClient
 from django.db.models.functions import Coalesce
 
 from cppa_slack_tracker.fetcher import fetch_messages
-from cppa_slack_tracker.models import SlackChannel, SlackMessage
-from cppa_slack_tracker.services import save_slack_message
+from cppa_slack_tracker.models import (
+    SlackChannel,
+    SlackChannelPrivate,
+    SlackMessage,
+    SlackMessagePrivate,
+)
+from cppa_slack_tracker.services import save_slack_message, save_slack_message_private
 from cppa_slack_tracker.workspace import (
     get_message_json_path,
     get_raw_message_json_path,
@@ -69,15 +80,19 @@ def _messages_by_day(
     return dict(by_day)
 
 
-def _process_message(channel: SlackChannel, msg: dict) -> bool:
+def _process_message(channel: SlackChannel | SlackChannelPrivate, msg: dict) -> bool:
     """
-    Process one message: save_slack_message. Returns True if saved, False if
-    skipped (e.g. ignored subtype). Raises on error.
+    Process one message: save to SlackMessage or SlackMessagePrivate. Returns True
+    if saved, False if skipped (e.g. ignored subtype). Raises on error.
     """
+    if isinstance(channel, SlackChannelPrivate):
+        return save_slack_message_private(channel, msg) is not None
     return save_slack_message(channel, msg) is not None
 
 
-def _process_workspace_jsons(channel: SlackChannel) -> tuple[int, int]:
+def _process_workspace_jsons(
+    channel: SlackChannel | SlackChannelPrivate,
+) -> tuple[int, int]:
     """
     Process all existing workspace JSONs for the channel in date order (old to new).
     Saves messages to DB and removes each workspace file.
@@ -113,11 +128,16 @@ def _process_workspace_jsons(channel: SlackChannel) -> tuple[int, int]:
     return success_count, error_count
 
 
-def _last_message_date(channel: SlackChannel) -> Optional[date]:
+def _last_message_date(
+    channel: SlackChannel | SlackChannelPrivate,
+) -> Optional[date]:
     """Return the date (UTC) of the most recently updated (or created) message in DB for this channel, or None."""
+    if isinstance(channel, SlackChannelPrivate):
+        qs = SlackMessagePrivate.objects.filter(channel=channel)
+    else:
+        qs = SlackMessage.objects.filter(channel=channel)
     last_dt = (
-        SlackMessage.objects.filter(channel=channel)
-        .annotate(
+        qs.annotate(
             effective=Coalesce(
                 F("slack_message_updated_at"), F("slack_message_created_at")
             )
@@ -148,9 +168,11 @@ def _merge_messages_by_ts(
 
 
 def sync_messages(
-    channel: SlackChannel,
+    channel: SlackChannel | SlackChannelPrivate,
     start_date: date | datetime | None = None,
     end_date: date | datetime | None = None,
+    *,
+    client: Optional["SlackAPIClient"] = None,
 ) -> tuple[int, int]:
     """
     Sync messages for a channel over a date range (UTC).
@@ -165,6 +187,9 @@ def sync_messages(
     For each day in the fetched range:
       - Write JSON to workspace. Merge into raw file by ts (same ts → update, new ts → add).
       - Process workspace → save to DB → remove workspace file.
+
+    If ``client`` is set (e.g. user OAuth token for IMs), it is used for
+    ``conversations.history``; otherwise the workspace bot token is used.
 
     Returns (success_count, error_count).
     """
@@ -198,7 +223,11 @@ def sync_messages(
     # Step 2: fetch messages ([start_date, end_date] or all up to end_date if start_date is None)
     try:
         all_messages = fetch_messages(
-            channel_id, start_date, end_date, team_id=channel.team.team_id
+            channel_id,
+            start_date,
+            end_date,
+            client=client,
+            team_id=channel.team.team_id,
         )
     except Exception:
         logger.exception(

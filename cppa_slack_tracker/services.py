@@ -22,13 +22,31 @@ from cppa_user_tracker.services import get_or_create_slack_user
 from .fetcher import fetch_user_info
 from .models import (
     SlackChannel,
+    SlackChannelPrivate,
+    SlackChannelPrivateType,
     SlackChannelMembership,
     SlackChannelMembershipChangeLog,
+    SlackChannelMembershipChangeLogPrivate,
+    SlackChannelMembershipPrivate,
     SlackMessage,
+    SlackMessagePrivate,
     SlackTeam,
 )
 
 logger = logging.getLogger(__name__)
+
+# Non-public channels that store membership in SlackChannelMembership*Private
+# (excludes `im`: DMs are not synced here).
+_PRIVATE_MEMBERSHIP_CHANNEL_TYPES = frozenset(
+    {
+        SlackChannelPrivateType.PRIVATE_CHANNEL,
+        SlackChannelPrivateType.MPIM,
+    }
+)
+
+
+def _private_channel_tracks_membership(channel: SlackChannelPrivate) -> bool:
+    return channel.channel_type in _PRIVATE_MEMBERSHIP_CHANNEL_TYPES
 
 
 # Slack message subtypes to ignore
@@ -110,15 +128,12 @@ def get_or_create_slack_team(
     return team, created
 
 
-# --- SlackChannel ---
-@transaction.atomic
-def get_or_create_slack_channel(
+# --- SlackChannel / SlackChannelPrivate ---
+def _slack_channel_payload_fields(
     slack_channel: dict[str, Any],
     team: SlackTeam,
-) -> tuple[Optional[SlackChannel], bool]:
-    """Get or create a Slack channel. Returns (channel, created); channel is None when skipped."""
-    if not slack_channel.get("id"):
-        raise ValueError("Slack channel ID is required")
+) -> tuple[str, str, str, Optional[SlackUser]]:
+    """Parse Slack API channel object: channel_type, channel_name, description, creator."""
     creator = None
     creator_user_id = slack_channel.get("creator")
     if creator_user_id:
@@ -141,12 +156,52 @@ def get_or_create_slack_channel(
         channel_type = "public_channel"
     else:
         channel_type = slack_channel.get("type", "public_channel")
-    if channel_type != "public_channel":
-        logger.warning(f"Skipping non-public channel: {slack_channel['id']}")
-        return None, False
-    channel, created = SlackChannel.objects.get_or_create(
+    return channel_type, channel_name, description, creator
+
+
+@transaction.atomic
+def get_or_create_slack_channel(
+    slack_channel: dict[str, Any],
+    team: SlackTeam,
+) -> tuple[Optional[SlackChannel], Optional[SlackChannelPrivate], bool]:
+    """
+    Get or create a Slack channel row.
+
+    Public channels use SlackChannel; non-public use SlackChannelPrivate
+    (table cppa_slack_tracker_slackchannel_private).
+
+    Returns (public_channel, private_channel, created). Exactly one of the first two
+    is set on success; both None only when the payload is invalid (e.g. missing id).
+    """
+    if not slack_channel.get("id"):
+        raise ValueError("Slack channel ID is required")
+    channel_type, channel_name, description, creator = _slack_channel_payload_fields(
+        slack_channel, team
+    )
+    cid = slack_channel["id"]
+    if channel_type == "public_channel":
+        channel, created = SlackChannel.objects.get_or_create(
+            team=team,
+            channel_id=cid,
+            defaults={
+                "channel_name": channel_name,
+                "channel_type": channel_type,
+                "description": description,
+                "creator": creator,
+            },
+        )
+        if not created:
+            channel.channel_name = channel_name or channel.channel_name
+            channel.channel_type = channel_type or channel.channel_type
+            channel.description = description
+            if creator is not None:
+                channel.creator = creator
+            channel.save()
+        return channel, None, created
+
+    priv, created = SlackChannelPrivate.objects.get_or_create(
         team=team,
-        channel_id=slack_channel["id"],
+        channel_id=cid,
         defaults={
             "channel_name": channel_name,
             "channel_type": channel_type,
@@ -155,13 +210,13 @@ def get_or_create_slack_channel(
         },
     )
     if not created:
-        channel.channel_name = channel_name or channel.channel_name
-        channel.channel_type = channel_type or channel.channel_type
-        channel.description = description
+        priv.channel_name = channel_name or priv.channel_name
+        priv.channel_type = channel_type or priv.channel_type
+        priv.description = description
         if creator is not None:
-            channel.creator = creator
-        channel.save()
-    return channel, created
+            priv.creator = creator
+        priv.save()
+    return None, priv, created
 
 
 # --- SlackChannelMembership ---
@@ -232,6 +287,86 @@ def sync_channel_memberships(channel: SlackChannel, member_ids: list[str]) -> No
             SlackChannelMembership.objects.filter(channel=channel, user=user).update(
                 is_deleted=True
             )
+        except SlackUser.DoesNotExist:
+            continue
+
+
+# --- SlackChannelMembershipPrivate (private_channel, mpim only) ---
+@transaction.atomic
+def add_channel_membership_change_private(
+    channel: SlackChannelPrivate,
+    slack_user_id: str,
+    ts: str,
+    is_joined: bool,
+) -> SlackChannelMembershipChangeLogPrivate:
+    """Record join/leave for a non-public channel; updates current membership row."""
+    if not _private_channel_tracks_membership(channel):
+        raise ValueError(
+            "Membership is only tracked for private_channel and mpim conversations"
+        )
+    try:
+        user = SlackUser.objects.get(slack_user_id=slack_user_id)
+    except SlackUser.DoesNotExist:
+        raise ValueError(f"User {slack_user_id} not found")
+    created_at = _parse_slack_ts_string(ts)
+    change_log, _ = SlackChannelMembershipChangeLogPrivate.objects.get_or_create(
+        channel=channel,
+        user=user,
+        created_at=created_at,
+        defaults={"is_joined": is_joined},
+    )
+    if change_log.is_joined != is_joined:
+        change_log.is_joined = is_joined
+        change_log.save(update_fields=["is_joined"])
+    if is_joined:
+        membership, _ = SlackChannelMembershipPrivate.objects.get_or_create(
+            channel=channel,
+            user=user,
+            defaults={"is_deleted": False},
+        )
+        if membership.is_deleted:
+            membership.is_deleted = False
+            membership.save()
+    else:
+        SlackChannelMembershipPrivate.objects.filter(channel=channel, user=user).update(
+            is_deleted=True
+        )
+    return change_log
+
+
+@transaction.atomic
+def sync_channel_memberships_private(
+    channel: SlackChannelPrivate, member_ids: list[str]
+) -> None:
+    """Sync memberships for a private_channel or mpim; no-op if channel type is not supported."""
+    if not _private_channel_tracks_membership(channel):
+        return
+    existing_memberships = SlackChannelMembershipPrivate.objects.filter(
+        channel=channel,
+        is_deleted=False,
+    ).select_related("user")
+    existing_user_ids = {m.user.slack_user_id for m in existing_memberships}
+    new_member_ids = set(member_ids) - existing_user_ids
+    removed_member_ids = existing_user_ids - set(member_ids)
+    for user_id in new_member_ids:
+        try:
+            user = SlackUser.objects.get(slack_user_id=user_id)
+            membership, created = SlackChannelMembershipPrivate.objects.get_or_create(
+                channel=channel,
+                user=user,
+                defaults={"is_deleted": False},
+            )
+            if not created and membership.is_deleted:
+                membership.is_deleted = False
+                membership.save()
+        except SlackUser.DoesNotExist:
+            continue
+    for user_id in removed_member_ids:
+        try:
+            user = SlackUser.objects.get(slack_user_id=user_id)
+            SlackChannelMembershipPrivate.objects.filter(
+                channel=channel, user=user
+            ).update(is_deleted=True)
         except SlackUser.DoesNotExist:
             continue
 
@@ -309,7 +444,8 @@ def save_slack_message(
         if isinstance(comment, dict):
             text += f"\nComment: {comment.get('comment', '')}"
     elif subtype:
-        text = _message_text_for_subtype(slack_message, subtype) or ""
+        subtype_text = _message_text_for_subtype(slack_message, subtype)
+        text = subtype_text or slack_message.get("text", "")
     else:
         text = slack_message.get("text", "")
 
@@ -332,6 +468,114 @@ def save_slack_message(
     updated_at = _parse_slack_ts_string(edited.get("ts", ts)) if edited else created_at
 
     message, created = SlackMessage.objects.get_or_create(
+        channel=channel,
+        ts=ts,
+        defaults={
+            "user": user,
+            "message": clean_text,
+            "thread_ts": slack_message.get("thread_ts"),
+            "slack_message_created_at": created_at,
+            "slack_message_updated_at": updated_at,
+        },
+    )
+    if not created:
+        message.user = user
+        message.message = clean_text
+        message.thread_ts = slack_message.get("thread_ts")
+        message.slack_message_created_at = created_at
+        message.slack_message_updated_at = updated_at
+        message.save()
+    return message
+
+
+@transaction.atomic
+def save_slack_message_private(
+    channel: SlackChannelPrivate,
+    slack_message: dict[str, Any],
+) -> Optional[SlackMessagePrivate]:
+    """
+    Save or update a Slack message for a non-public channel.
+
+    Same rules as save_slack_message, but persists to SlackMessagePrivate.
+    For private_channel and mpim, channel_join / channel_leave update
+    SlackChannelMembershipPrivate / SlackChannelMembershipChangeLogPrivate.
+    Join/leave on im is ignored (no membership rows for DMs).
+    """
+    subtype = slack_message.get("subtype")
+    if subtype in SUBTYPE_IGNORE:
+        return None
+    if subtype == "channel_join":
+        if not _private_channel_tracks_membership(channel):
+            return None
+        event_ts = slack_message.get("ts")
+        if not event_ts:
+            logger.warning("Skipping channel_join without ts (private channel)")
+            return None
+        if slack_message.get("user"):
+            user = _get_or_fetch_slack_user(
+                slack_message["user"], team_id=channel.team.team_id
+            )
+            add_channel_membership_change_private(
+                channel,
+                user.slack_user_id,
+                event_ts,
+                True,
+            )
+        return None
+    if subtype == "channel_leave":
+        if not _private_channel_tracks_membership(channel):
+            return None
+        event_ts = slack_message.get("ts")
+        if not event_ts:
+            logger.warning("Skipping channel_leave without ts (private channel)")
+            return None
+        if slack_message.get("user"):
+            user = _get_or_fetch_slack_user(
+                slack_message["user"], team_id=channel.team.team_id
+            )
+            add_channel_membership_change_private(
+                channel,
+                user.slack_user_id,
+                event_ts,
+                False,
+            )
+        return None
+
+    user: Optional[SlackUser] = None
+    text: str
+    if subtype == "file_comment":
+        user = _get_or_fetch_slack_user(
+            slack_message.get("user", "") or "-1", team_id=channel.team.team_id
+        )
+        text = slack_message.get("text", "")
+        comment = slack_message.get("comment")
+        if isinstance(comment, dict):
+            text += f"\nComment: {comment.get('comment', '')}"
+    elif subtype:
+        subtype_text = _message_text_for_subtype(slack_message, subtype)
+        text = subtype_text or slack_message.get("text", "")
+    else:
+        text = slack_message.get("text", "")
+
+    if user is None:
+        user_id = slack_message.get("user")
+        if not user_id:
+            if slack_message.get("text") == "A file was commented on":
+                return None
+            raise ValueError("User not found")
+        user = _get_or_fetch_slack_user(user_id, team_id=channel.team.team_id)
+
+    clean_text = text.replace("\x00", "").replace("\u0000", "")
+    ts = slack_message.get("ts")
+    if not ts:
+        raise ValueError("Message timestamp (ts) is required")
+    created_at = _parse_slack_ts_string(ts)
+    edited = slack_message.get("edited")
+    if not isinstance(edited, dict):
+        edited = {}
+    updated_at = _parse_slack_ts_string(edited.get("ts", ts)) if edited else created_at
+
+    message, created = SlackMessagePrivate.objects.get_or_create(
         channel=channel,
         ts=ts,
         defaults={

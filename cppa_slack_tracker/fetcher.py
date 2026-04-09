@@ -105,13 +105,14 @@ def fetch_team_info(
 def fetch_channel_list(
     _team_id: str,
     *,
-    types: str = "public_channel",
+    types: str = "public_channel,private_channel,mpim,im",
     exclude_archived: bool = False,
     client=None,
 ) -> list[dict]:
     """
     Fetch channel list for the workspace (team_id).
     The bot token is scoped to one workspace. Returns list of channel dicts (id, name, ...).
+    Default types include public, private, multi-party IM, and IM (see Slack conversations.list).
     """
     if client is None:
         client = get_slack_client(team_id=_team_id)
@@ -127,6 +128,40 @@ def fetch_channel_list(
         if not data.get("ok"):
             logger.warning(
                 "conversations.list failed: %s", data.get("error", "unknown")
+            )
+            break
+        channels.extend(data.get("channels", []))
+        cursor = (data.get("response_metadata") or {}).get("next_cursor")
+        if not cursor:
+            break
+    return channels
+
+
+def fetch_im_channel_list_for_user(
+    team_id: str,
+    user_token: str,
+    *,
+    exclude_archived: bool = False,
+) -> list[dict]:
+    """
+    List IM (direct message) conversations visible to the authorizing user.
+
+    Uses a user OAuth token (``xoxp-``); the bot token cannot see user-to-user DMs.
+    Paginates ``conversations.list`` with ``types=im`` only.
+    """
+    client = get_slack_client(bot_token=user_token, team_id=team_id)
+    channels: list[dict] = []
+    cursor = None
+    while True:
+        data = client.conversations_list(
+            types="im",
+            exclude_archived=exclude_archived,
+            limit=500,
+            cursor=cursor,
+        )
+        if not data.get("ok"):
+            logger.warning(
+                "conversations.list (im) failed: %s", data.get("error", "unknown")
             )
             break
         channels.extend(data.get("channels", []))

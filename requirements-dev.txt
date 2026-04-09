@@ -1,6 +1,9 @@
 # Include production dependencies
 -r requirements.txt
 
+# slack_oauth_server (python -m cppa_slack_tracker.slack_oauth_server): httpx, starlette,
+# uvicorn, python-dotenv are listed in requirements.txt — pip install -r requirements-dev.txt
+
 # Test stack (see docs/testing or project testing summary)
 pytest>=7.4
 pytest-django>=4.5

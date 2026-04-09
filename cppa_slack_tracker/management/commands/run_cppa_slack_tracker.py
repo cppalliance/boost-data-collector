@@ -17,10 +17,16 @@ from typing import Optional
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from cppa_slack_tracker.models import SlackTeam
-from cppa_slack_tracker.services import save_slack_message
+from cppa_slack_tracker.models import SlackChannelPrivate, SlackTeam
+from cppa_slack_tracker.services import (
+    get_or_create_slack_channel,
+    save_slack_message,
+    save_slack_message_private,
+)
+from cppa_slack_tracker.user_tokens import iter_user_tokens_for_team
 from cppa_slack_tracker.sync import (
     get_channels_to_sync,
+    get_private_channels_to_sync,
     sync_channel_users,
     sync_channels,
     sync_messages,
@@ -302,11 +308,15 @@ class Command(BaseCommand):
         Sync messages via sync.sync_messages (workspace JSONs, then fetch by day).
         Optional legacy: load from --messages-json path and save to DB first.
         """
-        channels = get_channels_to_sync(
-            team, channel_id=(options.get("channel_id") or "").strip() or None
-        )
-        if not channels:
-            logger.warning("No channels to sync. Sync channels first.")
+        channel_id_opt = (options.get("channel_id") or "").strip() or None
+        channels = get_channels_to_sync(team, channel_id=channel_id_opt)
+        private_channels = get_private_channels_to_sync(team, channel_id=channel_id_opt)
+        has_user_tokens = any(iter_user_tokens_for_team(team.team_id))
+        if not channels and not private_channels and not has_user_tokens:
+            logger.warning(
+                "No channels to sync and no user OAuth tokens for this team. "
+                "Sync channels first or authorize users via slack_oauth_server for IMs."
+            )
             return
 
         start_date_str = (options.get("start_date") or "").strip() or None
@@ -324,6 +334,7 @@ class Command(BaseCommand):
                     len(all_loaded),
                 )
                 channel_by_id = {c.channel_id: c for c in channels}
+                channel_by_id.update({c.channel_id: c for c in private_channels})
                 load_failures = 0
                 for msg in all_loaded:
                     if not isinstance(msg, dict):
@@ -344,7 +355,10 @@ class Command(BaseCommand):
                         )
                         continue
                     try:
-                        save_slack_message(channel, msg)
+                        if isinstance(channel, SlackChannelPrivate):
+                            save_slack_message_private(channel, msg)
+                        else:
+                            save_slack_message(channel, msg)
                     except Exception:
                         msg_ts = msg.get("ts", msg.get("client_msg_id", "?"))
                         logger.exception(
@@ -371,6 +385,107 @@ class Command(BaseCommand):
                 s,
                 e,
             )
+        for channel in private_channels:
+            s, e = sync_messages(channel, start_date=start_d, end_date=end_d)
+            logger.info(
+                "  #%s (non-public): %s saved, %s errors",
+                channel.channel_name,
+                s,
+                e,
+            )
+
+        self._sync_im_messages_user_tokens(team, start_d, end_d, channel_id_opt)
+
+    def _sync_im_messages_user_tokens(
+        self,
+        team: SlackTeam,
+        start_d,
+        end_d,
+        channel_id_opt: Optional[str],
+    ) -> None:
+        """
+        List IMs per authorized user token and sync history (user-to-user DMs
+        not visible to the bot).
+        """
+        from cppa_slack_tracker.fetcher import fetch_im_channel_list_for_user
+        from operations.slack_ops.tokens import get_slack_client
+
+        tokens = list(iter_user_tokens_for_team(team.team_id))
+        if not tokens:
+            logger.info(
+                "No Slack user OAuth tokens for team %s; skipping IM user-token sync.",
+                team.team_id,
+            )
+            return
+
+        logger.info(
+            "Syncing IM channels with user tokens (%s authorized user(s))...",
+            len(tokens),
+        )
+        # Same IM (D…) appears in every participant's conversations.list; sync once
+        # per channel per run using the first token that lists it.
+        seen_channel_ids: set[str] = set()
+        for user_slack_id, access_token in tokens:
+            user_client = get_slack_client(bot_token=access_token, team_id=team.team_id)
+            try:
+                im_channels = fetch_im_channel_list_for_user(team.team_id, access_token)
+            except Exception:
+                logger.exception(
+                    "Failed to list IM channels for user %s", user_slack_id
+                )
+                continue
+
+            if channel_id_opt:
+                im_channels = [
+                    c
+                    for c in im_channels
+                    if isinstance(c, dict) and c.get("id") == channel_id_opt
+                ]
+
+            for ch in im_channels:
+                if not isinstance(ch, dict) or not ch.get("id"):
+                    continue
+                ch_id = ch["id"]
+                if ch_id in seen_channel_ids:
+                    logger.debug(
+                        "Skipping IM channel %s for user %s (already synced this run)",
+                        ch_id,
+                        user_slack_id,
+                    )
+                    continue
+                seen_channel_ids.add(ch_id)
+                try:
+                    pub, priv, _created = get_or_create_slack_channel(ch, team)
+                    ch_obj = pub or priv
+                    if ch_obj is None:
+                        seen_channel_ids.discard(ch_id)
+                        continue
+                except Exception:
+                    logger.exception("Failed to upsert IM channel %s", ch.get("id"))
+                    seen_channel_ids.discard(ch_id)
+                    continue
+
+                try:
+                    s, e = sync_messages(
+                        ch_obj,
+                        start_date=start_d,
+                        end_date=end_d,
+                        client=user_client,
+                    )
+                    logger.info(
+                        "  IM #%s (user %s): %s saved, %s errors",
+                        ch_obj.channel_name,
+                        user_slack_id,
+                        s,
+                        e,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to sync messages for IM channel %s user %s",
+                        ch.get("id"),
+                        user_slack_id,
+                    )
+                    seen_channel_ids.discard(ch_id)
 
     def sync_to_pinecone(self, team: SlackTeam):
         """Sync Slack messages to Pinecone after message sync."""

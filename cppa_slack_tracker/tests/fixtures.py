@@ -8,6 +8,7 @@ from cppa_user_tracker.models import Identity, Email, SlackUser
 from cppa_slack_tracker.models import (
     SlackTeam,
     SlackChannel,
+    SlackChannelPrivate,
     SlackMessage,
     SlackChannelMembership,
 )
@@ -74,6 +75,34 @@ def sample_slack_channel(db, sample_slack_team, sample_slack_user):
         channel_name="general",
         channel_type="public_channel",
         description="General discussion",
+        creator=sample_slack_user,
+    )
+
+
+@pytest.fixture
+def sample_slack_channel_private(db, sample_slack_team, sample_slack_user):
+    """Create a sample private Slack channel (private_channel)."""
+    _ = db
+    return SlackChannelPrivate.objects.create(
+        team=sample_slack_team,
+        channel_id="G012PRIVATE1",
+        channel_name="private-team",
+        channel_type="private_channel",
+        description="Private stuff",
+        creator=sample_slack_user,
+    )
+
+
+@pytest.fixture
+def sample_slack_channel_im(db, sample_slack_team, sample_slack_user):
+    """Create a sample IM channel (membership not tracked)."""
+    _ = db
+    return SlackChannelPrivate.objects.create(
+        team=sample_slack_team,
+        channel_id="D01IM00001",
+        channel_name="someone",
+        channel_type="im",
+        description="",
         creator=sample_slack_user,
     )
 

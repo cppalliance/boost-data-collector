@@ -47,13 +47,13 @@ def sync_team(team_id: str, team_name: Optional[str] = None) -> SlackTeam:
 
 def _process_channel_info(ch: dict, team: SlackTeam) -> bool:
     """
-    Process one channel: get_or_create_slack_channel. Returns True if synced,
-    False if skipped (missing id or non-public channel). Raises on error.
+    Process one channel: get_or_create_slack_channel. Returns True if synced
+    to SlackChannel (public) or SlackChannelPrivate (non-public). Raises on error.
     """
     if not ch.get("id"):
         return False
-    channel, _ = get_or_create_slack_channel(ch, team)
-    return channel is not None
+    pub, priv, _ = get_or_create_slack_channel(ch, team)
+    return pub is not None or priv is not None
 
 
 def sync_channels(
@@ -61,14 +61,15 @@ def sync_channels(
     *,
     channel_id: Optional[str] = None,
     team_id: Optional[str] = None,
-    types: str = "public_channel",
+    types: str = "public_channel,private_channel,mpim,im",
     exclude_archived: bool = False,
 ) -> tuple[int, int]:
     """
     Sync channels for a team to the database.
 
     If channel_id is set, fetch only that channel (conversations.info).
-    Otherwise fetch via fetch_channel_list(team_id). Returns (success_count, error_count).
+    Otherwise fetch via fetch_channel_list(team_id). Default types are all
+    Slack conversation kinds (public, private, mpim, im). Returns (success_count, error_count).
     """
     success_count = 0
     error_count = 0

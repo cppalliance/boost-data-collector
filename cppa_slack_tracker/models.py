@@ -21,6 +21,14 @@ class SlackChannelType(models.TextChoices):
     IM = "im", "Direct message"
 
 
+class SlackChannelPrivateType(models.TextChoices):
+    """Channel kinds stored in SlackChannelPrivate (non-public only)."""
+
+    PRIVATE_CHANNEL = "private_channel", "Private channel"
+    MPIM = "mpim", "Multi-party direct message"
+    IM = "im", "Direct message"
+
+
 class SlackTeam(models.Model):
     """
     Slack team (workspace) model.
@@ -86,6 +94,56 @@ class SlackChannel(models.Model):
         return f"#{self.channel_name} ({self.channel_id})"
 
 
+class SlackChannelPrivate(models.Model):
+    """
+    Non-public Slack channels (private, mpim, im) stored separately from SlackChannel.
+
+    Public channels remain in cppa_slack_tracker_slackchannel; this table holds the rest.
+    """
+
+    team = models.ForeignKey(
+        SlackTeam,
+        on_delete=models.CASCADE,
+        related_name="private_channels",
+        db_column="team_id",
+    )
+    channel_id = models.CharField(max_length=50, db_index=True)
+    channel_name = models.CharField(max_length=255, db_index=True)
+    channel_type = models.CharField(
+        max_length=50,
+        choices=SlackChannelPrivateType.choices,
+        db_index=True,
+        help_text="Type: private_channel, mpim, or im (not public_channel).",
+    )
+    description = models.TextField(null=True, blank=True)
+    creator = models.ForeignKey(
+        SlackUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_private_channels",
+        db_column="creator_user_id",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        # Django quotes db_table as one identifier unless we inject a closing quote;
+        # this yields "slack_private"."cppa_slack_tracker_slackchannel_private" in SQL.
+        db_table = 'slack_private"."cppa_slack_tracker_slackchannel_private'
+        verbose_name = "Slack Channel (non-public)"
+        verbose_name_plural = "Slack Channels (non-public)"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["team", "channel_id"],
+                name="unique_team_channel_id_private",
+            ),
+        ]
+
+    def __str__(self):
+        return f"#{self.channel_name} ({self.channel_id}) [{self.channel_type}]"
+
+
 class SlackMessage(models.Model):
     """
     Slack message model.
@@ -125,6 +183,58 @@ class SlackMessage(models.Model):
     class Meta:
         verbose_name = "Slack Message"
         verbose_name_plural = "Slack Messages"
+        unique_together = [["channel", "ts"]]
+
+    def __str__(self):
+        message_preview = (
+            self.message[:50] + "..." if len(self.message) > 50 else self.message
+        )
+        return f"Message by {self.user} in {self.channel}: {message_preview}"
+
+
+class SlackMessagePrivate(models.Model):
+    """
+    Slack messages for non-public channels (private, mpim, im).
+
+    Stored in cppa_slack_tracker_slackmessage_private; mirrors SlackMessage but
+    references SlackChannelPrivate.
+    """
+
+    channel = models.ForeignKey(
+        SlackChannelPrivate,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    ts = models.CharField(
+        max_length=50,
+        db_index=True,
+        help_text="Slack message timestamp (unique per channel)",
+    )
+    user = models.ForeignKey(
+        SlackUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="private_slack_messages",
+        db_column="slack_user_id",
+    )
+    message = models.TextField(blank=True)
+    thread_ts = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Thread timestamp if this is a threaded message",
+    )
+    slack_message_created_at = models.DateTimeField(db_index=True)
+    slack_message_updated_at = models.DateTimeField(
+        db_index=True, null=True, blank=True
+    )
+
+    class Meta:
+        db_table = 'slack_private"."cppa_slack_tracker_slackmessage_private'
+        verbose_name = "Slack Message (non-public channel)"
+        verbose_name_plural = "Slack Messages (non-public channels)"
         unique_together = [["channel", "ts"]]
 
     def __str__(self):
@@ -188,6 +298,71 @@ class SlackChannelMembershipChangeLog(models.Model):
     class Meta:
         verbose_name = "Slack Channel Membership Change Log"
         verbose_name_plural = "Slack Channel Membership Change Logs"
+        unique_together = [["channel", "user", "created_at"]]
+
+    def __str__(self):
+        action = "joined" if self.is_joined else "left"
+        return f"{self.user} {action} {self.channel} at {self.created_at}"
+
+
+class SlackChannelMembershipPrivate(models.Model):
+    """
+    Current membership for non-public channels (private_channel, mpim, im).
+
+    Stored in schema ``slack_private`` alongside SlackChannelPrivate.
+    """
+
+    channel = models.ForeignKey(
+        SlackChannelPrivate,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    user = models.ForeignKey(
+        SlackUser,
+        on_delete=models.CASCADE,
+        related_name="private_channel_memberships",
+        db_column="slack_user_id",
+    )
+    is_restricted = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'slack_private"."cppa_slack_tracker_slackchannelmembership_private'
+        verbose_name = "Slack Channel Membership (non-public)"
+        verbose_name_plural = "Slack Channel Memberships (non-public)"
+        unique_together = [["channel", "user"]]
+
+    def __str__(self):
+        return f"{self.user} in {self.channel}"
+
+
+class SlackChannelMembershipChangeLogPrivate(models.Model):
+    """
+    Join/leave history for non-public channels (private_channel, mpim, im).
+    """
+
+    channel = models.ForeignKey(
+        SlackChannelPrivate,
+        on_delete=models.CASCADE,
+        related_name="membership_changes",
+    )
+    user = models.ForeignKey(
+        SlackUser,
+        on_delete=models.CASCADE,
+        related_name="private_membership_changes",
+        db_column="slack_user_id",
+    )
+    is_joined = models.BooleanField(help_text="True if joined, False if left")
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        db_table = (
+            'slack_private"."cppa_slack_tracker_slackchannelmembershipchangelog_private'
+        )
+        verbose_name = "Slack Channel Membership Change Log (non-public)"
+        verbose_name_plural = "Slack Channel Membership Change Logs (non-public)"
         unique_together = [["channel", "user", "created_at"]]
 
     def __str__(self):
