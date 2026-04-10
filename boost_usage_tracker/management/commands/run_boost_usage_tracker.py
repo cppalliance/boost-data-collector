@@ -21,6 +21,7 @@ from django.core.management.base import BaseCommand
 from django.utils.dateparse import parse_datetime
 
 from boost_usage_tracker.models import BoostExternalRepository
+from boost_usage_tracker.services import resolve_all_missing_header_tmp_batch
 from github_activity_tracker.models import GitHubRepository
 from boost_usage_tracker.boost_searcher import (
     BOOST_INCLUDE_SEARCH_BATCH_SIZE,
@@ -390,6 +391,12 @@ class Command(BaseCommand):
 
         try:
             if not task_filter or task_filter == "monitor_content":
+                prepass_stats = resolve_all_missing_header_tmp_batch(dry_run=dry_run)
+                logger.info(
+                    "missing_header_tmp prepass (dry_run=%s): %s",
+                    dry_run,
+                    prepass_stats,
+                )
                 task_monitor_content(since, until, min_stars, dry_run)
 
             if not task_filter or task_filter == "monitor_stars":

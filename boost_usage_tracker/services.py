@@ -13,12 +13,13 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Literal, Optional
+
+from boost_library_tracker.models import BoostFile
 
 from .models import BoostExternalRepository, BoostMissingHeaderTmp, BoostUsage
 
 if TYPE_CHECKING:
-    from boost_library_tracker.models import BoostFile
     from github_activity_tracker.models import GitHubFile, GitHubRepository
 
 logger = logging.getLogger(__name__)
@@ -124,7 +125,7 @@ def update_boost_external_repo(
 
 def create_or_update_boost_usage(
     repo: BoostExternalRepository,
-    boost_header: "BoostFile",
+    boost_header: BoostFile,
     file_path: "GitHubFile",
     last_commit_date: Optional[datetime] = None,
 ) -> tuple[BoostUsage, bool]:
@@ -171,6 +172,165 @@ def get_active_usages_for_repo(
     )
 
 
+def boost_catalog_filename(header_path: str) -> str:
+    """Normalize a Boost include path to ``GitHubFile.filename`` in the Boost tree.
+
+    Catalog rows use ``include/<header_path>`` (e.g. ``include/boost/asio.hpp``).
+    """
+    if header_path.startswith("include/"):
+        return header_path
+    return f"include/{header_path}"
+
+
+def _disambiguate_boost_file_candidates(
+    candidates: list[BoostFile],
+) -> Optional[BoostFile]:
+    """Pick one :class:`~boost_library_tracker.models.BoostFile` when several match.
+
+    Rules:
+    - Exactly one non-deleted ``GitHubFile`` → return that ``BoostFile``.
+    - More than one non-deleted → ambiguous, return ``None``.
+    - None non-deleted: exactly one candidate total (even if deleted) → return it;
+      otherwise ambiguous or empty → ``None``.
+    """
+    if not candidates:
+        return None
+    active = [c for c in candidates if not c.github_file.is_deleted]
+    all_n = len(candidates)
+    if len(active) == 1:
+        return active[0]
+    if len(active) > 1:
+        return None
+    if all_n == 1:
+        return candidates[0]
+    return None
+
+
+def find_boost_files_exact_by_catalog_names(
+    catalog_names: set[str],
+) -> dict[str, Optional[BoostFile]]:
+    """Map each catalog filename to a disambiguated ``BoostFile`` (or ``None``)."""
+    if not catalog_names:
+        return {}
+    rows = list(
+        BoostFile.objects.filter(
+            github_file__filename__in=catalog_names
+        ).select_related("github_file")
+    )
+    by_filename: dict[str, list[BoostFile]] = {}
+    for row in rows:
+        by_filename.setdefault(row.github_file.filename, []).append(row)
+    return {
+        name: _disambiguate_boost_file_candidates(by_filename.get(name, []))
+        for name in catalog_names
+    }
+
+
+def find_boost_file_for_header_name_detailed(
+    header_path: str,
+) -> tuple[Optional[BoostFile], Literal["found", "not_found", "ambiguous"]]:
+    """Resolve a Boost include path to ``BoostFile`` with a status for metrics."""
+    full_path = boost_catalog_filename(header_path)
+    exact = list(
+        BoostFile.objects.filter(github_file__filename=full_path).select_related(
+            "github_file"
+        )
+    )
+    picked = _disambiguate_boost_file_candidates(exact)
+    if picked is not None:
+        return picked, "found"
+    if len(exact) > 0:
+        return None, "ambiguous"
+
+    # Do not use substring or ``endswith`` on ``full_path``: a longer path such as
+    # ``libs/asio/include/boost/asio.hpp`` is a different file than
+    # ``include/boost/asio.hpp`` and must not be treated as the same header.
+    return None, "not_found"
+
+
+def find_boost_file_for_header_name(header_path: str) -> Optional[BoostFile]:
+    """Resolve a Boost include path to a ``BoostFile`` or ``None``."""
+    bf, _ = find_boost_file_for_header_name_detailed(header_path)
+    return bf
+
+
+def delete_boost_missing_header_tmp(tmp: BoostMissingHeaderTmp) -> None:
+    """Delete a temporary missing-header row (service-layer delete)."""
+    tmp.delete()
+
+
+def maybe_delete_placeholder_boost_usage_after_tmp_removed(usage_pk: int) -> bool:
+    """If *usage* is still a null-header placeholder with no tmp rows, delete it.
+
+    Returns ``True`` if a row was deleted.
+    """
+    usage = BoostUsage.objects.filter(pk=usage_pk).first()
+    if usage is None:
+        return False
+    if usage.boost_header_id is not None:
+        return False
+    if usage.missing_header_tmp.exists():
+        return False
+    usage.delete()
+    return True
+
+
+def resolve_missing_header_tmp_auto(tmp: BoostMissingHeaderTmp) -> str:
+    """Resolve one tmp row when the header exists unambiguously in the catalog.
+
+    Creates/updates real ``BoostUsage``, deletes *tmp*, and drops the placeholder
+    usage when it has no remaining tmp rows.
+
+    Returns one of: ``resolved``, ``skipped_no_match``, ``skipped_ambiguous``,
+    ``error`` (logged on exception).
+    """
+    boost_file, status = find_boost_file_for_header_name_detailed(tmp.header_name)
+    if status == "ambiguous":
+        return "skipped_ambiguous"
+    if boost_file is None:
+        return "skipped_no_match"
+    usage_pk = tmp.usage_id
+    try:
+        usage = tmp.usage
+        create_or_update_boost_usage(
+            usage.repo,
+            boost_file,
+            usage.file_path,
+            last_commit_date=usage.last_commit_date,
+        )
+        delete_boost_missing_header_tmp(tmp)
+        maybe_delete_placeholder_boost_usage_after_tmp_removed(usage_pk)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception("resolve_missing_header_tmp_auto failed for tmp_id=%s", tmp.pk)
+        return "error"
+    return "resolved"
+
+
+def resolve_all_missing_header_tmp_batch(*, dry_run: bool = False) -> dict[str, int]:
+    """Process every ``BoostMissingHeaderTmp`` row (iterator, chunk-friendly).
+
+    When *dry_run* is ``True``, no writes; counts ``would_resolve`` / ``skipped_*``.
+    """
+    from collections import Counter
+
+    counts: Counter[str] = Counter()
+    qs = BoostMissingHeaderTmp.objects.all().select_related(
+        "usage__repo", "usage__file_path"
+    )
+    for tmp in qs.iterator(chunk_size=500):
+        if dry_run:
+            _, status = find_boost_file_for_header_name_detailed(tmp.header_name)
+            if status == "found":
+                counts["would_resolve"] += 1
+            elif status == "ambiguous":
+                counts["skipped_ambiguous"] += 1
+            else:
+                counts["skipped_no_match"] += 1
+        else:
+            counts[resolve_missing_header_tmp_auto(tmp)] += 1
+    return dict(counts)
+
+
 def get_or_create_missing_header_usage(
     repo: BoostExternalRepository,
     file_path: "GitHubFile",
@@ -208,7 +368,7 @@ def get_or_create_missing_header_usage(
 
 def bulk_create_or_update_boost_usage(
     repo: BoostExternalRepository,
-    items: list[tuple["BoostFile", "GitHubFile", Optional[datetime]]],
+    items: list[tuple[BoostFile, "GitHubFile", Optional[datetime]]],
 ) -> tuple[int, int]:
     """Create or update many BoostUsage rows in bulk.
 

@@ -14,14 +14,16 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from boost_library_tracker.models import BoostFile
 from boost_usage_tracker.boost_searcher import (
     detect_boost_version_in_repo,
     extract_boost_includes,
 )
 from boost_usage_tracker.repo_searcher import RepoSearchResult
 from boost_usage_tracker.services import (
+    boost_catalog_filename,
     bulk_create_or_update_boost_usage,
+    find_boost_file_for_header_name_detailed,
+    find_boost_files_exact_by_catalog_names,
     get_active_usages_for_repo,
     get_or_create_boost_external_repo,
     get_or_create_missing_header_usage,
@@ -36,59 +38,33 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _resolve_boost_header(header_path: str):
-    """Resolve a Boost include path to a :class:`BoostFile` or *None*."""
-    parts = header_path.split("/")
-    for i in range(len(parts)):
-        suffix = "/".join(parts[i:])
-        boost_file = (
-            BoostFile.objects.filter(  # pylint: disable=no-member
-                github_file__filename__endswith=suffix
-            )
-            .select_related("github_file")
-            .first()
-        )  # pylint: disable=no-member
-        if boost_file:
-            return boost_file
-    return None
-
-
 def _resolve_boost_headers_bulk(header_paths: set[str]) -> dict[str, object]:
     """Resolve a set of Boost include paths to BoostFile instances in one pass.
 
     Returns a dict ``{header_path: BoostFile | None}``.  Deduplicates the
-    incoming paths and performs one bulk exact-match query first; unresolved
-    paths are then handled by suffix fallback.
+    incoming paths and performs one bulk exact-match query on
+    ``include/<header_path>`` first; unresolved paths are then handled by
+    suffix fallback.
     """
     if not header_paths:
         return {}
 
-    # Fast path: one bulk query for exact filename matches.
-    exact_rows = (
-        BoostFile.objects.filter(
-            github_file__filename__in=header_paths
-        )  # pylint: disable=no-member
-        .select_related("github_file")
-        .order_by("github_file_id")
-    )
-    by_filename: dict[str, object] = {}
-    for row in exact_rows:
-        filename = row.github_file.filename
-        if filename not in by_filename:
-            by_filename[filename] = row
+    catalog_names = {boost_catalog_filename(p) for p in header_paths}
+    exact_map = find_boost_files_exact_by_catalog_names(catalog_names)
 
     resolved: dict[str, object] = {}
     unresolved: list[str] = []
     for path in header_paths:
-        boost_file = by_filename.get(path)
+        cn = boost_catalog_filename(path)
+        boost_file = exact_map.get(cn)
         if boost_file is not None:
             resolved[path] = boost_file
         else:
             unresolved.append(path)
 
-    # Fallback for non-exact cases (still deduplicated by unique header path).
     for path in unresolved:
-        resolved[path] = _resolve_boost_header(path)
+        bf, _ = find_boost_file_for_header_name_detailed(path)
+        resolved[path] = bf
 
     return resolved
 
