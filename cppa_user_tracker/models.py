@@ -166,6 +166,7 @@ class WG21PaperAuthorProfile(BaseProfile):
         super().save(*args, **kwargs)
 
     display_name = models.CharField(max_length=255, db_index=True, blank=True)
+    author_alias = models.CharField(max_length=255, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -69,6 +69,7 @@ erDiagram
 
     WG21PaperAuthorProfile {
         string display_name "IX"
+        string author_alias "IX"
         datetime created_at
         datetime updated_at
     }
@@ -633,21 +634,35 @@ erDiagram
 erDiagram
     Direction LR
     WG21PaperAuthorProfile ||--o{ WG21PaperAuthor : "author"
+    WG21Mailing ||--o{ WG21Paper : "has"
     WG21PaperAuthor }o--|| WG21Paper : "has"
 
     WG21PaperAuthor {
         int id PK
         int paper_id FK
         int profile_id FK
+        int author_order
         datetime created_at
+    }
+
+    WG21Mailing {
+        int id PK
+        string mailing_date UK "IX"
+        string title
+        datetime created_at
+        datetime updated_at
     }
 
     WG21Paper {
         int id PK
-        string paper_id UK "IX"
+        string paper_id "IX"
+        int year "IX"
         string url
         string title "IX"
-        date publication_date "IX"
+        date document_date "IX"
+        int mailing_id FK "IX"
+        string subgroup "IX"
+        boolean is_downloaded "IX"
         datetime created_at
         datetime updated_at
     }
@@ -655,7 +670,11 @@ erDiagram
 
 **Note:** **WG21PaperAuthorProfile** extends `BaseProfile` (section 1). `profile_id` in WG21PaperAuthor references this profile; each paper can have multiple authors.
 
-**Note:** Composite unique constraint should be applied on (`paper_id`, `profile_id`) in WG21PaperAuthor.
+**Note:** **WG21Mailing** stores information about the mailing release, identified by `mailing_date` (e.g. "2025-03"). `mailing_id` in WG21Paper references this mailing.
+
+**Note:** **WG21Paper** is uniquely identified by the composite `(paper_id, year)`; `paper_id` is not globally unique. The same paper identifier may appear in different years (e.g. revisions).
+
+**Note:** Composite unique constraint should be applied on (`paper_id`, `profile_id`) in WG21PaperAuthor. `author_order` is optional and 1-based; it indicates the order of authors on the paper.
 
 ---
 

@@ -26,6 +26,7 @@ from .models import (
     MailingListProfile,
     SlackUser,
     DiscordProfile,
+    WG21PaperAuthorProfile,
     YoutubeSpeaker,
 )
 
@@ -248,7 +249,9 @@ def _get_next_negative_github_account_id() -> int:
 
 
 @transaction.atomic
-def get_or_create_slack_user(user_data: dict[str, Any]) -> tuple[SlackUser, bool]:
+def get_or_create_slack_user(
+    user_data: dict[str, Any],
+) -> tuple[SlackUser, bool]:
     """Get or create a SlackUser from Slack API user data. Returns (SlackUser, created).
 
     If the user exists, updates username, display_name, and avatar_url from user_data.
@@ -351,6 +354,38 @@ def get_or_create_discord_profile(
         profile.is_bot = is_bot
         profile.save()
     return profile, created
+
+
+def get_or_create_wg21_paper_author_profile(
+    display_name: str,
+    email: Optional[str] = None,
+) -> tuple[WG21PaperAuthorProfile, bool]:
+    """Get or create a WG21PaperAuthorProfile by display_name, with optional email disambiguation.
+
+    Finds all profiles with the given display_name. If none exist, creates one and adds
+    email if provided. If one exists, returns it. If multiple exist, and email is
+    provided, returns the one with that email if any; otherwise returns the first.
+    """
+    display_name_val = (display_name or "").strip()
+    email_val = (email or "").strip() or None
+
+    candidates = list(
+        WG21PaperAuthorProfile.objects.filter(display_name=display_name_val).order_by(
+            "id"
+        )
+    )
+
+    # Disambiguate by email if provided.
+    for p in candidates:
+        if email_val and p.emails.filter(email=email_val).exists():
+            return p, False
+        elif not email_val and not p.emails.exists():
+            return p, False
+
+    profile = WG21PaperAuthorProfile.objects.create(display_name=display_name_val)
+    if email_val:
+        add_email(profile, email_val, is_primary=True)
+    return profile, True
 
 
 def get_or_create_youtube_speaker(

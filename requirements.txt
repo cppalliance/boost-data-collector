@@ -24,6 +24,8 @@ slack-bolt>=1.18
 pytz>=2024.1
 selenium>=4.35
 
+# wg21_paper_tracker app
+beautifulsoup4>=4.12.0
 # cppa_youtube_script_tracker app (YouTube Data API v3 + VTT transcript download)
 google-api-python-client>=2.100
 yt-dlp==2026.2.4

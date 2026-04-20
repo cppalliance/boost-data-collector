@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     "clang_github_tracker",
     "cppa_slack_tracker",
     "discord_activity_tracker",
+    "wg21_paper_tracker",
     "cppa_youtube_script_tracker",
     "slack_event_handler",
 ]
@@ -160,6 +161,7 @@ _WORKSPACE_APP_SLUGS = (
     "cppa_slack_tracker",
     "discord_activity_tracker",
     "boost_mailing_list_tracker",
+    "wg21_paper_tracker",
     "cppa_youtube_script_tracker",
     "shared",
 )
@@ -450,6 +452,16 @@ DISCORD_CONTEXT_REPO_PATH = Path(
         default=str(BASE_DIR.parent / "discord-cplusplus-together-context"),
     )
 ).resolve()
+
+# WG21 Paper Tracker Configuration
+WG21_GITHUB_DISPATCH_ENABLED = env.bool("WG21_GITHUB_DISPATCH_ENABLED", default=False)
+WG21_GITHUB_DISPATCH_REPO = (env("WG21_GITHUB_DISPATCH_REPO", default="") or "").strip()
+WG21_GITHUB_DISPATCH_TOKEN = (
+    env("WG21_GITHUB_DISPATCH_TOKEN", default="") or ""
+).strip()
+WG21_GITHUB_DISPATCH_EVENT_TYPE = (
+    env("WG21_GITHUB_DISPATCH_EVENT_TYPE", default="wg21_papers_convert") or ""
+).strip() or "wg21_papers_convert"
 
 # Logging - project-wide configuration for app commands (console + rotating file)
 LOG_DIR = Path(env("LOG_DIR", default=str(BASE_DIR / "logs")))
