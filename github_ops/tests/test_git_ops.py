@@ -1,17 +1,22 @@
 """Tests for github_ops git_ops (clone, push, pull, fetch_file_content, upload_folder_to_github)."""
 
+import subprocess
 from unittest.mock import MagicMock, patch
 
+import pytest
 import requests
 
 from github_ops.git_ops import (
+    GIT_CMD_TIMEOUT_SECONDS,
     _create_blob_with_retry,
     _url_with_token,
     clone_repo,
     fetch_file_content,
     pull,
     get_commit_file_changes,
+    prepare_repo_for_pull,
     push,
+    sanitize_git_output,
     upload_folder_to_github,
 )
 
@@ -26,10 +31,10 @@ def test_url_with_token_empty_token_returns_unchanged():
 
 
 def test_url_with_token_injects_token_before_github_com():
-    """_url_with_token injects token into HTTPS GitHub URL."""
+    """_url_with_token uses x-access-token form for GitHub HTTPS Git auth."""
     url = "https://github.com/owner/repo.git"
     out = _url_with_token(url, "secret")
-    assert out == "https://secret@github.com/owner/repo.git"
+    assert out == "https://x-access-token:secret@github.com/owner/repo.git"
 
 
 def test_url_with_token_none_like_token_returns_unchanged():
@@ -42,7 +47,29 @@ def test_url_with_token_only_replaces_first_occurrence():
     """_url_with_token uses count=1 so only first https://github.com/ is modified."""
     url = "https://github.com/boostorg/boost.git"
     out = _url_with_token(url, "tok")
-    assert out == "https://tok@github.com/boostorg/boost.git"
+    assert out == "https://x-access-token:tok@github.com/boostorg/boost.git"
+
+
+# --- sanitize_git_output ---
+
+
+def test_sanitize_git_output_masks_x_access_token():
+    raw = "fatal: https://x-access-token:ghp_SUPER_SECRET@github.com/o/r.git not found"
+    out = sanitize_git_output(raw)
+    assert "ghp_SUPER_SECRET" not in out
+    assert "x-access-token:ghp_" not in out
+    assert "https://<redacted>@github.com" in out
+
+
+def test_sanitize_git_output_masks_bare_token_userinfo():
+    raw = "error cloning https://github_pat_XXXX@github.com/foo/bar.git"
+    out = sanitize_git_output(raw)
+    assert "github_pat_XXXX" not in out
+    assert "https://<redacted>@" in out
+
+
+def test_sanitize_git_output_empty():
+    assert sanitize_git_output("") == ""
 
 
 # --- clone_repo ---
@@ -69,9 +96,9 @@ def test_clone_repo_slug_converted_to_https_url(tmp_path):
     with patch("github_ops.git_ops.subprocess.run", MagicMock()) as run_mock:
         clone_repo("owner/repo", tmp_path, token="t")
     call_args = run_mock.call_args[0][0]
-    assert (
-        "https://github.com/owner/repo.git" in call_args[2]
-        or "t@github.com" in call_args[2]
+    clone_url = call_args[2]
+    assert "https://github.com/owner/repo.git" in clone_url or (
+        "x-access-token:t@" in clone_url and "github.com/owner/repo.git" in clone_url
     )
 
 
@@ -92,6 +119,27 @@ def test_clone_repo_uses_get_github_token_when_token_not_provided(tmp_path):
         with patch("github_ops.git_ops.subprocess.run", MagicMock()):
             clone_repo("https://github.com/o/r.git", tmp_path)
     get_token.assert_called_once_with(use="scraping")
+
+
+def test_clone_repo_timeout_redacts_token_from_reraised_exception_cmd(tmp_path):
+    """clone timeout re-raises TimeoutExpired whose cmd omits the PAT (matches real clone cmd)."""
+    with patch("github_ops.git_ops.subprocess.run") as run_mock:
+        run_mock.side_effect = subprocess.TimeoutExpired(
+            [
+                "git",
+                "clone",
+                "https://x-access-token:LEAK@github.com/o/r.git",
+                str(tmp_path),
+            ],
+            300,
+            output="",
+            stderr="",
+        )
+        with pytest.raises(subprocess.TimeoutExpired) as excinfo:
+            clone_repo("https://github.com/o/r.git", tmp_path, token="LEAK")
+    assert "LEAK" not in " ".join(excinfo.value.cmd)
+    assert "https://github.com/o/r.git" in excinfo.value.cmd[2]
+    assert excinfo.value.timeout == 300
 
 
 # --- push ---
@@ -254,6 +302,117 @@ def test_push_commit_failure_without_nothing_to_commit_raises(tmp_path):
     assert False, "push should have raised on commit failure"
 
 
+def test_push_failure_redacts_token_from_reraised_exception_cmd(tmp_path):
+    """git push failure re-raises CalledProcessError whose cmd uses the token-free remote URL."""
+    remote = "https://github.com/o/r.git"
+    with patch("github_ops.git_ops.subprocess.run") as run_mock:
+        run_mock.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),
+            MagicMock(returncode=0, stdout="", stderr=""),
+            MagicMock(stdout=f"{remote}\n", stderr=""),
+            subprocess.CalledProcessError(
+                1,
+                [
+                    "git",
+                    "-C",
+                    str(tmp_path),
+                    "push",
+                    "https://x-access-token:SECRET@github.com/o/r.git",
+                    "main",
+                ],
+                "",
+                "rejected",
+            ),
+        ]
+        with pytest.raises(subprocess.CalledProcessError) as excinfo:
+            push(tmp_path, "origin", branch="main", token="SECRET")
+    err = excinfo.value
+    cmd_str = " ".join(err.cmd)
+    assert "SECRET" not in cmd_str
+    assert remote in cmd_str
+    assert err.stderr == "rejected"
+
+
+def test_pull_failure_redacts_token_from_reraised_exception_cmd(tmp_path):
+    """git pull failure re-raises CalledProcessError whose cmd uses the token-free remote URL."""
+    remote = "https://github.com/o/r.git"
+    with patch("github_ops.git_ops.subprocess.run") as run_mock:
+        run_mock.side_effect = [
+            MagicMock(stdout=f"{remote}\n", stderr=""),
+            subprocess.CalledProcessError(
+                1,
+                [
+                    "git",
+                    "-C",
+                    str(tmp_path),
+                    "pull",
+                    "https://x-access-token:XY@github.com/o/r.git",
+                ],
+                "",
+                "error",
+            ),
+        ]
+        with pytest.raises(subprocess.CalledProcessError) as excinfo:
+            pull(tmp_path, token="XY")
+    assert "XY" not in " ".join(excinfo.value.cmd)
+    assert remote in " ".join(excinfo.value.cmd)
+
+
+def test_pull_timeout_redacts_token_from_reraised_exception_cmd(tmp_path):
+    """git pull timeout re-raises TimeoutExpired whose cmd omits the PAT."""
+    remote = "https://github.com/o/r.git"
+    with patch("github_ops.git_ops.subprocess.run") as run_mock:
+        run_mock.side_effect = [
+            MagicMock(stdout=f"{remote}\n", stderr=""),
+            subprocess.TimeoutExpired(
+                [
+                    "git",
+                    "-C",
+                    str(tmp_path),
+                    "pull",
+                    "https://x-access-token:XY@github.com/o/r.git",
+                ],
+                GIT_CMD_TIMEOUT_SECONDS,
+                output="",
+                stderr="",
+            ),
+        ]
+        with pytest.raises(subprocess.TimeoutExpired) as excinfo:
+            pull(tmp_path, token="XY")
+    assert "XY" not in " ".join(excinfo.value.cmd)
+    assert remote in " ".join(excinfo.value.cmd)
+    assert excinfo.value.timeout == GIT_CMD_TIMEOUT_SECONDS
+
+
+def test_prepare_repo_fetch_failure_redacts_token_from_reraised_exception_cmd(
+    tmp_path,
+):
+    """prepare_repo_for_pull fetch failure re-raises with cmd without embedded PAT."""
+    remote = "https://github.com/o/r.git"
+    with patch("github_ops.git_ops.subprocess.run") as run_mock:
+        run_mock.side_effect = [
+            MagicMock(stdout=f"{remote}\n", stderr=""),
+            subprocess.CalledProcessError(
+                1,
+                [
+                    "git",
+                    "-C",
+                    str(tmp_path),
+                    "fetch",
+                    "https://x-access-token:PAT@github.com/o/r.git",
+                    "+refs/heads/*:refs/remotes/origin/*",
+                    "--prune",
+                ],
+                "",
+                "fetch failed",
+            ),
+        ]
+        with pytest.raises(subprocess.CalledProcessError) as excinfo:
+            prepare_repo_for_pull(tmp_path, remote="origin", token="PAT")
+    assert "PAT" not in " ".join(excinfo.value.cmd)
+    assert remote in excinfo.value.cmd[4]
+
+
 # --- pull ---
 
 
@@ -272,6 +431,7 @@ def test_pull_with_branch_runs_checkout_then_pull(tmp_path):
     assert calls[0][-1] == "main"
     assert "pull" in calls[2]
     assert "main" in calls[2]
+    assert run_mock.call_args_list[2][1].get("timeout") == GIT_CMD_TIMEOUT_SECONDS
 
 
 def test_pull_without_branch_does_not_run_checkout(tmp_path):
@@ -285,6 +445,7 @@ def test_pull_without_branch_does_not_run_checkout(tmp_path):
     calls = [c[0][0] for c in run_mock.call_args_list]
     checkout_calls = [c for c in calls if "checkout" in c]
     assert len(checkout_calls) == 0
+    assert run_mock.call_args_list[-1][1].get("timeout") == GIT_CMD_TIMEOUT_SECONDS
 
 
 def test_pull_uses_get_github_token_when_token_not_provided(tmp_path):
@@ -494,6 +655,67 @@ def test_create_blob_with_retry_returns_sha_on_success():
     assert out == ("path/file.txt", "abc123")
     mock_path.read_bytes.assert_called_once()
     mock_session.post.assert_called_once()
+
+
+def test_create_blob_with_retry_403_waits_using_rate_limit_reset():
+    """_create_blob_with_retry sleeps until X-RateLimit-Reset when Remaining is 0."""
+    mock_403 = MagicMock()
+    mock_403.status_code = 403
+    mock_403.headers = {
+        "X-RateLimit-Remaining": "0",
+        "X-RateLimit-Reset": "1007",
+    }
+    mock_ok = MagicMock()
+    mock_ok.status_code = 201
+    mock_ok.json.return_value = {"sha": "sha_after_reset_wait"}
+    mock_ok.raise_for_status = MagicMock()
+
+    mock_session = MagicMock()
+    mock_session.post.side_effect = [mock_403, mock_ok]
+    mock_path = MagicMock()
+    mock_path.read_bytes.return_value = b"x"
+
+    with patch("github_ops.git_ops._get_worker_session", return_value=mock_session):
+        with patch("github_ops.git_ops.time.time", return_value=1000.0):
+            with patch("github_ops.git_ops.random.uniform", return_value=0.0):
+                with patch("github_ops.git_ops.time.sleep") as sleep_mock:
+                    out = _create_blob_with_retry(
+                        "https://api.github.com/repos/o/r",
+                        "token",
+                        "f.txt",
+                        mock_path,
+                    )
+    assert out == ("f.txt", "sha_after_reset_wait")
+    sleep_mock.assert_called_once_with(7.0)
+    assert mock_session.post.call_count == 2
+
+
+def test_create_blob_with_retry_403_exponential_when_no_headers():
+    """_create_blob_with_retry uses exponential backoff on 403 without rate-limit headers."""
+    mock_403 = MagicMock()
+    mock_403.status_code = 403
+    mock_403.headers = {}
+    mock_ok = MagicMock()
+    mock_ok.status_code = 201
+    mock_ok.json.return_value = {"sha": "sha_ok"}
+    mock_ok.raise_for_status = MagicMock()
+
+    mock_session = MagicMock()
+    mock_session.post.side_effect = [mock_403, mock_ok]
+    mock_path = MagicMock()
+    mock_path.read_bytes.return_value = b"x"
+
+    with patch("github_ops.git_ops._get_worker_session", return_value=mock_session):
+        with patch("github_ops.git_ops.random.uniform", return_value=0.0):
+            with patch("github_ops.git_ops.time.sleep") as sleep_mock:
+                out = _create_blob_with_retry(
+                    "https://api.github.com/repos/o/r",
+                    "token",
+                    "f.txt",
+                    mock_path,
+                )
+    assert out == ("f.txt", "sha_ok")
+    sleep_mock.assert_called_once_with(60.0)
 
 
 # --- get_commit_file_changes ---

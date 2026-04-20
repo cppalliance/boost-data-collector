@@ -7,18 +7,22 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
 import time
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Union
+from urllib.parse import urlparse
 
 import requests
 from requests.exceptions import ConnectionError, RequestException, Timeout
 from urllib3.exceptions import ProtocolError
 
+from core.utils.datetime_parsing import parse_iso_datetime
+
 logger = logging.getLogger(__name__)
 
-MAX_RATE_LIMIT_RETRIES = 5
+MAX_RATE_LIMIT_RETRIES = 15
 # Extra seconds added to API reset-based wait so we don't retry before the window opens.
 RATE_LIMIT_WAIT_SAFETY_MARGIN_SEC = 10
 
@@ -119,16 +123,20 @@ class GitHubAPIClient:
         if retry_after is not None:
             retry_after = retry_after.strip()
             try:
-                return max(0, int(retry_after))
+                retry_secs = int(retry_after)
+                if retry_secs > 0:
+                    return retry_secs
             except ValueError:
                 try:
                     dt = parsedate_to_datetime(retry_after)
                     if dt.tzinfo is None:
                         dt = dt.replace(tzinfo=timezone.utc)
                     wait = (dt - datetime.now(timezone.utc)).total_seconds()
-                    return max(0, int(wait))
+                    if wait > 0:
+                        return wait
                 except (ValueError, TypeError):
                     pass
+        # Retry-After missing or did not yield a positive delay; try X-RateLimit-*.
         remaining = response.headers.get("X-RateLimit-Remaining")
         if remaining is None:
             return None
@@ -223,8 +231,8 @@ class GitHubAPIClient:
                             raise RateLimitException(
                                 f"Rate limit retries exhausted for {endpoint_for_log}"
                             )
-                        self._handle_rate_limit(wait)
                         rate_limited = True
+                        self._handle_rate_limit(wait)
                         break
                     if resp.status_code in (500, 502, 503, 504):
                         if allow_retry_on_5xx and attempt_5xx < attempts_5xx - 1:
@@ -276,6 +284,7 @@ class GitHubAPIClient:
                         f"Connection error for {endpoint_for_log}: {e}"
                     ) from e
             if rate_limited:
+                time.sleep(2 * rate_limit_attempt)
                 continue
             raise ConnectionException(
                 f"Connection error for {endpoint_for_log}: max retries exceeded"
@@ -357,6 +366,165 @@ class GitHubAPIClient:
         if response is None:
             return (None, response_etag)
         return (response.json(), response_etag)
+
+    def rest_raw_request(
+        self, url: str, params: Optional[dict] = None
+    ) -> Optional[bytes] | None:
+        """Make raw request to REST API with rate limit and connection error handling."""
+        response = self._do_request(
+            "GET",
+            url,
+            "raw",
+            params=params,
+            timeout=30,
+            allow_retry_on_5xx=True,
+            allow_retry_on_connection_errors=True,
+            headers={"Accept": "application/vnd.github.raw"},
+        )
+        if response is None:
+            return None
+        return response.content
+
+    def rest_request_conditional_with_link(
+        self,
+        endpoint: str,
+        params: Optional[dict] = None,
+        etag: Optional[str] = None,
+    ) -> tuple[Optional[dict], Optional[str], Optional[str]]:
+        """Like rest_request_conditional but also returns next_page_url from Link header.
+        Returns (data, response_etag, next_page_url). On 304: (None, etag, None).
+        """
+        response, response_etag = self._rest_get(endpoint, params=params, etag=etag)
+        if response is None:
+            return (None, response_etag, None)
+        next_url = self._parse_link_next(response.headers.get("Link"))
+        return (response.json(), response_etag, next_url)
+
+    def rest_request_conditional_with_all_links(
+        self,
+        endpoint: str,
+        params: Optional[dict] = None,
+        etag: Optional[str] = None,
+    ) -> tuple[Optional[Union[list, dict]], Optional[str], dict[str, str]]:
+        """Like rest_request_conditional but returns all Link rels as a dict.
+        Returns (data, response_etag, links_dict). On 304: (None, etag, {}).
+        """
+        response, response_etag = self._rest_get(endpoint, params=params, etag=etag)
+        if response is None:
+            return (None, response_etag, {})
+        links = self._parse_link_rels(response.headers.get("Link"))
+        return (response.json(), response_etag, links)
+
+    @staticmethod
+    def _parse_link_next(link_header: Optional[str]) -> Optional[str]:
+        """Parse GitHub Link response header; return URL for rel=\"next\" or None.
+        See: https://docs.github.com/en/rest/guides/using-pagination-in-the-rest-api
+        """
+        if not link_header or 'rel="next"' not in link_header:
+            return None
+        match = re.search(r'<([^>]+)>;\s*rel="next"', link_header)
+        return match.group(1) if match else None
+
+    @staticmethod
+    def _parse_link_rels(link_header: Optional[str]) -> dict[str, str]:
+        """Parse GitHub Link response header; return a dict of all rel→url pairs.
+        Example: {"next": "https://...", "last": "https://...", "prev": "https://..."}
+        """
+        if not link_header:
+            return {}
+        return {
+            rel: url
+            for url, rel in re.findall(r'<([^>]+)>;\s*rel="([^"]+)"', link_header)
+        }
+
+    def rest_request_with_all_links(
+        self, endpoint: str, params: Optional[dict] = None
+    ) -> tuple[Union[list, dict], dict[str, str]]:
+        """GET request that returns (data, links_dict) with all Link rels.
+        links_dict keys include "next", "prev", "last", "first" when present.
+        """
+        response, _ = self._rest_get(endpoint, params=params)
+        if response is None:
+            return ({}, {})
+        data = response.json()
+        links = self._parse_link_rels(response.headers.get("Link"))
+        return (data, links)
+
+    def rest_request_url_with_all_links(
+        self, full_url: str
+    ) -> tuple[Union[list, dict], dict[str, str]]:
+        """GET full_url (e.g. from Link header) and return (data, links_dict) with all rels.
+        Uses same session (auth, rate limit). For paginated backward/forward traversal.
+        """
+        response = self._rest_get_url(full_url)
+        data = response.json()
+        links = self._parse_link_rels(response.headers.get("Link"))
+        return (data, links)
+
+    def rest_request_with_link(
+        self, endpoint: str, params: Optional[dict] = None
+    ) -> tuple[Union[list, dict], Optional[str]]:
+        """GET request that returns (data, next_page_url) using the Link header.
+        next_page_url is None when there is no next page. Use rest_request_url(next_page_url) for the next page.
+        """
+        response, _ = self._rest_get(endpoint, params=params)
+        if response is None:
+            return ({}, None)
+        data = response.json()
+        next_url = self._parse_link_next(response.headers.get("Link"))
+        return (data, next_url)
+
+    def rest_request_url(
+        self, full_url: str
+    ) -> tuple[Union[list, dict], Optional[str]]:
+        """GET full_url (e.g. from Link rel=\"next\"). Returns (data, next_page_url).
+        Uses same session (auth, rate limit). next_page_url is None when no more pages.
+        """
+        response = self._rest_get_url(full_url)
+        data = response.json()
+        next_url = self._parse_link_next(response.headers.get("Link"))
+        return (data, next_url)
+
+    def _validate_rest_pagination_url(self, full_url: str) -> None:
+        """Ensure full_url is same origin as rest_base_url so the auth token is not sent elsewhere."""
+        expected = urlparse(self.rest_base_url)
+        if not expected.scheme or not expected.netloc:
+            raise ValueError(
+                "GitHubAPIClient.rest_base_url must be an absolute URL with host"
+            )
+        target = urlparse(full_url)
+        if not target.netloc:
+            raise ValueError(
+                "Refusing relative or invalid pagination URL (missing host)"
+            )
+        if target.scheme.lower() != "https":
+            raise ValueError(
+                f"Refusing pagination URL with scheme {target.scheme!r}; only https is allowed"
+            )
+        if (target.scheme.lower(), target.netloc.lower()) != (
+            expected.scheme.lower(),
+            expected.netloc.lower(),
+        ):
+            raise ValueError(
+                f"Refusing to follow pagination URL outside {expected.netloc}"
+            )
+
+    def _rest_get_url(self, full_url: str) -> requests.Response:
+        """GET by full URL (e.g. from Link rel=\"next\"). For pagination only."""
+        self._validate_rest_pagination_url(full_url)
+        response = self._do_request(
+            "GET",
+            full_url,
+            "GET (paginated)",
+            params=None,
+            headers=None,
+            timeout=30,
+            allow_retry_on_5xx=True,
+            allow_retry_on_connection_errors=True,
+        )
+        response.raise_for_status()
+        self._update_rate_limit_from_response(response)
+        return response
 
     def rest_post(self, endpoint: str, json_data: Optional[dict] = None) -> dict:
         """POST to REST API with rate limit and connection error handling."""
@@ -683,3 +851,23 @@ class GitHubAPIClient:
         except Exception as e:
             logger.error(f"Error getting submodules for {owner}/{repo}: {e}")
             return []
+
+    def get_tag_sha(self, owner: str, repo: str, tag: str) -> Optional[str]:
+        """Get the SHA of a tag."""
+        response = self.rest_request(f"/repos/{owner}/{repo}/git/ref/tags/{tag}")
+        if not response:
+            return None
+        return response.get("object", {}).get("sha")
+
+    def get_tag_published_at(
+        self, owner: str, repo: str, sha: str
+    ) -> Optional[datetime]:
+        """Get the published at date of a tag."""
+        response = self.rest_request(f"/repos/{owner}/{repo}/git/commits/{sha}")
+        if not response:
+            return None
+        author = response.get("author", {}) or response.get("committer", {})
+        if not author:
+            return None
+        date_str = author.get("date") or ""
+        return parse_iso_datetime(date_str) or datetime.now(timezone.utc)

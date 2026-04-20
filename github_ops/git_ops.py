@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import logging
 import os
+import random
 import re
 import subprocess
 import threading
@@ -26,9 +27,14 @@ from github_ops.tokens import get_github_client, get_github_token
 logger = logging.getLogger(__name__)
 
 # Fewer workers to avoid GitHub secondary rate limit (403 when too many concurrent requests)
-_UPLOAD_FOLDER_MAX_WORKERS = 8
+_UPLOAD_FOLDER_MAX_WORKERS = 4
 _UPLOAD_FOLDER_BLOB_RETRIES = 5
-_UPLOAD_FOLDER_403_WAIT_SEC = 60
+# Cap concurrent blob POSTs across all executor threads (primary + secondary limit relief)
+_UPLOAD_FOLDER_BLOB_MAX_CONCURRENT = 3
+# Max seconds to sleep in one wait after 403 (avoid unbounded sleeps from bad headers)
+_UPLOAD_FOLDER_403_MAX_SLEEP_SEC = 900
+
+_blob_post_semaphore = threading.BoundedSemaphore(_UPLOAD_FOLDER_BLOB_MAX_CONCURRENT)
 _thread_local = threading.local()
 
 
@@ -50,6 +56,38 @@ def _get_worker_session(token: str) -> requests.Session:
     return _thread_local.session
 
 
+def _wait_seconds_for_github_403(r: requests.Response, attempt: int) -> float:
+    """Sleep duration after a 403 from GitHub (primary limit, Retry-After, or fallback)."""
+    max_sleep = float(_UPLOAD_FOLDER_403_MAX_SLEEP_SEC)
+    h = r.headers
+
+    remaining = h.get("X-RateLimit-Remaining")
+    reset_raw = h.get("X-RateLimit-Reset")
+    try:
+        if remaining is not None and int(remaining) == 0 and reset_raw is not None:
+            reset_ts = int(reset_raw)
+            wait = max(1.0, float(reset_ts) - time.time())
+            wait += random.uniform(0, 2)
+            return min(wait, max_sleep)
+    except (TypeError, ValueError):
+        pass
+
+    ra = h.get("Retry-After")
+    if ra is not None:
+        try:
+            wait = float(ra)
+            if wait < 1.0:
+                wait = 1.0
+            wait += random.uniform(0, 1)
+            return min(wait, max_sleep)
+        except (TypeError, ValueError):
+            pass
+
+    base = 60.0 * (2.0**attempt)
+    wait = min(base + random.uniform(0, 2), max_sleep)
+    return wait
+
+
 def _create_blob_with_retry(
     base: str, token: str, repo_path: str, local_path: Path
 ) -> tuple[str, str]:
@@ -64,18 +102,13 @@ def _create_blob_with_retry(
     last_err = None
     for attempt in range(_UPLOAD_FOLDER_BLOB_RETRIES):
         try:
-            r = session.post(url, json=blob_data, timeout=30)
+            with _blob_post_semaphore:
+                r = session.post(url, json=blob_data, timeout=30)
             if r.status_code == 403:
-                # GitHub secondary rate limit; wait and retry (cap at our constant)
-                wait_sec = _UPLOAD_FOLDER_403_WAIT_SEC
-                try:
-                    from_header = int(r.headers.get("Retry-After", wait_sec))
-                    wait_sec = min(from_header, _UPLOAD_FOLDER_403_WAIT_SEC)
-                except (TypeError, ValueError):
-                    pass
+                wait_sec = _wait_seconds_for_github_403(r, attempt)
                 if attempt < _UPLOAD_FOLDER_BLOB_RETRIES - 1:
                     logger.warning(
-                        "Blob upload 403 (rate limit), waiting %ss before retry (%s)",
+                        "Blob upload 403 (rate limit), waiting %.1fs before retry (%s)",
                         wait_sec,
                         repo_path,
                     )
@@ -105,15 +138,41 @@ GIT_CMD_TIMEOUT_SECONDS = 300
 
 
 def _url_with_token(url: str, token: str) -> str:
-    """Inject token into GitHub HTTPS URL for auth."""
+    """Inject credentials into a GitHub HTTPS URL for Git over HTTPS.
+
+    Uses ``x-access-token:<token>`` as the userinfo segment. Required for
+    fine-grained PATs (``github_pat_...``); classic PATs work with this form too.
+    """
     if not token:
         return url
+    auth = f"x-access-token:{token}"
     return re.sub(
         r"^(https://)(github\.com/)",
-        r"\1" + token + r"@\2",
+        r"\1" + auth + r"@\2",
         url,
         count=1,
     )
+
+
+def sanitize_git_output(text: str) -> str:
+    """Redact credentials from git stderr/stdout snippets before logging.
+
+    Masks GitHub HTTPS PAT forms and other userinfo-in-URL patterns so logs do not
+    leak tokens when clone/push echoes the remote URL.
+    """
+    if not text:
+        return text
+    out = re.sub(
+        r"(?i)(x-access-token:)[^@\s]+(@)",
+        r"\1***\2",
+        text,
+    )
+    out = re.sub(
+        r"(?i)(https?://)[^/\s?#]+@",
+        r"\1<redacted>@",
+        out,
+    )
+    return out
 
 
 def clone_repo(
@@ -124,7 +183,11 @@ def clone_repo(
     depth: Optional[int] = None,
 ) -> None:
     """
-    Clone a GitHub repo. Uses scraping token by default (read-only).
+    Clone a GitHub repo.
+
+    If ``token`` is omitted, uses the scraping token (``get_github_token(use="scraping")``).
+    Callers cloning **private** repos must pass ``token=get_github_token(use="write")``
+    (or equivalent) so GitHub authenticates with a PAT that has repository access.
     """
     dest_dir = Path(dest_dir)
     if token is None:
@@ -142,7 +205,8 @@ def clone_repo(
     cmd = ["git", "clone", clone_url, str(dest_dir)]
     if depth is not None:
         cmd.extend(["--depth", str(depth)])
-    logger.info("Cloning %s -> %s", url_or_slug, dest_dir)
+    safe_url_or_slug = sanitize_git_output(url_or_slug)
+    logger.info("Cloning %s -> %s", safe_url_or_slug, dest_dir)
     try:
         subprocess.run(
             cmd,
@@ -153,22 +217,41 @@ def clone_repo(
             errors="replace",
             timeout=GIT_CMD_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e:
+        safe_cmd: list[str] = ["git", "clone", safe_url_or_slug, str(dest_dir)]
+        if depth is not None:
+            safe_cmd.extend(["--depth", str(depth)])
         logger.warning(
             "git clone timed out after %ss (%s -> %s)",
             GIT_CMD_TIMEOUT_SECONDS,
-            url_or_slug,
+            safe_url_or_slug,
             dest_dir,
         )
-        raise
+        raise subprocess.TimeoutExpired(
+            safe_cmd,
+            e.timeout,
+            output=None if e.output is None else sanitize_git_output(e.output),
+            stderr=None if e.stderr is None else sanitize_git_output(e.stderr),
+        ) from None
     except subprocess.CalledProcessError as e:
+        err_tail = ((e.stderr or "") + (e.stdout or ""))[-500:]
+        safe_err_tail = sanitize_git_output(err_tail)
         logger.warning(
-            "git clone failed (%s -> %s), returncode=%s",
-            url_or_slug,
+            "git clone failed (%s -> %s), returncode=%s, stderr/stdout_tail=%r",
+            safe_url_or_slug,
             dest_dir,
             e.returncode,
+            safe_err_tail,
         )
-        raise
+        # Never re-raise with the real cmd or raw output: they may embed the token.
+        safe_cmd: list[str] = ["git", "clone", safe_url_or_slug, str(dest_dir)]
+        if depth is not None:
+            safe_cmd.extend(["--depth", str(depth)])
+        safe_stdout = sanitize_git_output(e.stdout or "")
+        safe_stderr = sanitize_git_output(e.stderr or "")
+        raise subprocess.CalledProcessError(
+            e.returncode, safe_cmd, safe_stdout, safe_stderr
+        ) from None
 
 
 def push(
@@ -179,12 +262,19 @@ def push(
     commit_message: Optional[str] = None,
     add_paths: Optional[list[str | Path]] = None,
     token: Optional[str] = None,
+    git_user_name: Optional[str] = None,
+    git_user_email: Optional[str] = None,
 ) -> None:
     """
     Push to remote. Uses push token by default.
     Always runs git add, git commit, then push. Uses commit_message if provided,
     otherwise "Auto commit in <YYYY-MM-DD HH:MM:SS UTC>". add_paths: paths to add
     (relative to repo_dir); if None, adds all (git add .).
+
+    git_user_name / git_user_email: if set, passed only to the ``git commit`` subprocess
+    via GIT_AUTHOR_* / GIT_COMMITTER_* env vars (does not modify repo ``git config``).
+    Any existing GIT_AUTHOR_* / GIT_COMMITTER_* entries are removed from the commit
+    environment first so ambient or Django-set values are not inherited when unset.
     """
     repo_dir = Path(repo_dir)
     if token is None:
@@ -203,10 +293,27 @@ def push(
         capture_output=True,
         text=True,
     )
+    commit_env = dict(os.environ)
+    for _key in (
+        "GIT_AUTHOR_NAME",
+        "GIT_AUTHOR_EMAIL",
+        "GIT_COMMITTER_NAME",
+        "GIT_COMMITTER_EMAIL",
+    ):
+        commit_env.pop(_key, None)
+    if git_user_name:
+        commit_env["GIT_AUTHOR_NAME"] = git_user_name
+        commit_env["GIT_COMMITTER_NAME"] = git_user_name
+    if git_user_email:
+        commit_env["GIT_AUTHOR_EMAIL"] = git_user_email
+        commit_env["GIT_COMMITTER_EMAIL"] = git_user_email
     commit_result = subprocess.run(
         ["git", "-C", str(repo_dir), "commit", "-m", message],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=commit_env,
     )
     if commit_result.returncode != 0:
         out = (commit_result.stderr or "") + (commit_result.stdout or "")
@@ -231,6 +338,9 @@ def push(
     if branch:
         cmd.append(branch)
     logger.info("Pushing %s %s", repo_dir, branch or "(current)")
+    safe_push_cmd = ["git", "-C", str(repo_dir), "push", remote_url]
+    if branch:
+        safe_push_cmd.append(branch)
     try:
         subprocess.run(
             cmd,
@@ -241,16 +351,32 @@ def push(
             errors="replace",
             timeout=GIT_CMD_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e:
         logger.warning(
             "git push timed out after %ss (%s)",
             GIT_CMD_TIMEOUT_SECONDS,
             repo_dir,
         )
-        raise
+        raise subprocess.TimeoutExpired(
+            safe_push_cmd,
+            e.timeout,
+            output=None if e.output is None else sanitize_git_output(e.output),
+            stderr=None if e.stderr is None else sanitize_git_output(e.stderr),
+        ) from None
     except subprocess.CalledProcessError as e:
-        logger.warning("git push failed (%s), returncode=%s", repo_dir, e.returncode)
-        raise
+        err_tail = ((e.stderr or "") + (e.stdout or ""))[-500:]
+        safe_err_tail = sanitize_git_output(err_tail)
+        logger.warning(
+            "git push failed (%s), returncode=%s, stderr/stdout_tail=%r",
+            repo_dir,
+            e.returncode,
+            safe_err_tail,
+        )
+        safe_stdout = sanitize_git_output(e.stdout or "")
+        safe_stderr = sanitize_git_output(e.stderr or "")
+        raise subprocess.CalledProcessError(
+            e.returncode, safe_push_cmd, safe_stdout, safe_stderr
+        ) from None
 
 
 def pull(
@@ -286,7 +412,144 @@ def pull(
     if branch:
         cmd.append(branch)
     logger.info("Pulling %s %s", repo_dir, branch or "(current)")
-    subprocess.run(cmd, check=True, capture_output=True, text=True)
+    safe_pull_cmd = ["git", "-C", str(repo_dir), "pull", remote_url]
+    if branch:
+        safe_pull_cmd.append(branch)
+    try:
+        subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GIT_CMD_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as e:
+        logger.warning(
+            "git pull timed out after %ss (%s)",
+            GIT_CMD_TIMEOUT_SECONDS,
+            repo_dir,
+        )
+        raise subprocess.TimeoutExpired(
+            safe_pull_cmd,
+            e.timeout,
+            output=None if e.output is None else sanitize_git_output(e.output),
+            stderr=None if e.stderr is None else sanitize_git_output(e.stderr),
+        ) from None
+    except subprocess.CalledProcessError as e:
+        err_tail = ((e.stderr or "") + (e.stdout or ""))[-500:]
+        safe_err_tail = sanitize_git_output(err_tail)
+        logger.warning(
+            "git pull failed (%s), returncode=%s, stderr/stdout_tail=%r",
+            repo_dir,
+            e.returncode,
+            safe_err_tail,
+        )
+        safe_stdout = sanitize_git_output(e.stdout or "")
+        safe_stderr = sanitize_git_output(e.stderr or "")
+        raise subprocess.CalledProcessError(
+            e.returncode, safe_pull_cmd, safe_stdout, safe_stderr
+        ) from None
+
+
+def prepare_repo_for_pull(
+    repo_dir: str | Path,
+    *,
+    remote: str = "origin",
+    token: Optional[str] = None,
+) -> None:
+    """
+    Fetch remote branch refs (prune), remove untracked files, and reset the working tree.
+
+    Use before checkout/pull on a reused clone that may have local changes or lack
+    remote-tracking refs for branches that exist only on the remote.
+    """
+    repo_dir = Path(repo_dir)
+    if token is None:
+        token = get_github_token(use="push")
+    result = subprocess.run(
+        ["git", "-C", str(repo_dir), "remote", "get-url", remote],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    remote_url = result.stdout.strip()
+    auth_url = _url_with_token(remote_url, token or "")
+
+    logger.info("Fetching %s refs (prune) in %s", remote, repo_dir)
+    fetch_cmd = [
+        "git",
+        "-C",
+        str(repo_dir),
+        "fetch",
+        auth_url,
+        f"+refs/heads/*:refs/remotes/{remote}/*",
+        "--prune",
+    ]
+    safe_fetch_cmd = [
+        "git",
+        "-C",
+        str(repo_dir),
+        "fetch",
+        remote_url,
+        f"+refs/heads/*:refs/remotes/{remote}/*",
+        "--prune",
+    ]
+    try:
+        subprocess.run(
+            fetch_cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GIT_CMD_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as e:
+        logger.warning(
+            "git fetch timed out after %ss (%s)",
+            GIT_CMD_TIMEOUT_SECONDS,
+            repo_dir,
+        )
+        raise subprocess.TimeoutExpired(
+            safe_fetch_cmd,
+            e.timeout,
+            output=None if e.output is None else sanitize_git_output(e.output),
+            stderr=None if e.stderr is None else sanitize_git_output(e.stderr),
+        ) from None
+    except subprocess.CalledProcessError as e:
+        err_tail = ((e.stderr or "") + (e.stdout or ""))[-500:]
+        safe_err_tail = sanitize_git_output(err_tail)
+        logger.warning(
+            "git fetch failed (%s), returncode=%s, stderr/stdout_tail=%r",
+            repo_dir,
+            e.returncode,
+            safe_err_tail,
+        )
+        safe_stdout = sanitize_git_output(e.stdout or "")
+        safe_stderr = sanitize_git_output(e.stderr or "")
+        raise subprocess.CalledProcessError(
+            e.returncode, safe_fetch_cmd, safe_stdout, safe_stderr
+        ) from None
+    logger.info("Running git clean -fd in %s", repo_dir)
+    subprocess.run(
+        ["git", "-C", str(repo_dir), "clean", "-fd"],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    logger.info("Running git reset --hard in %s", repo_dir)
+    subprocess.run(
+        ["git", "-C", str(repo_dir), "reset", "--hard"],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
 
 
 def fetch_file_content(
@@ -353,6 +616,167 @@ def upload_file(
         return None
 
 
+def get_remote_tree(
+    owner: str,
+    repo: str,
+    branch: str = "master",
+    *,
+    token: Optional[str] = None,
+) -> list[dict]:
+    """Fetch the full recursive Git tree for a branch via the GitHub API.
+
+    Returns a list of tree item dicts (path, sha, type, mode, size).
+    Returns an empty list if the repo/branch is empty or on any error.
+
+    GitHub limits recursive trees to 100,000 entries and 7 MB. If the tree is
+    larger, the API sets "truncated": true and returns a partial list. This
+    function logs a warning when truncated; callers (e.g. detect_renames) may
+    then miss some paths.
+
+    Args:
+        owner: Repository owner.
+        repo: Repository name.
+        branch: Branch name (default: "master").
+        token: GitHub token (default: write token from settings).
+    """
+    if token is None:
+        token = get_github_token(use="write")
+    base = f"https://api.github.com/repos/{owner}/{repo}"
+    session = requests.Session()
+    session.headers.update(
+        {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json",
+        }
+    )
+    try:
+        r = session.get(f"{base}/git/ref/heads/{branch}", timeout=30)
+        if r.status_code == 404:
+            return []
+        r.raise_for_status()
+        commit_sha = r.json()["object"]["sha"]
+
+        r = session.get(f"{base}/git/commits/{commit_sha}", timeout=30)
+        r.raise_for_status()
+        tree_sha = r.json()["tree"]["sha"]
+
+        r = session.get(f"{base}/git/trees/{tree_sha}?recursive=1", timeout=60)
+        r.raise_for_status()
+        data = r.json()
+        tree = data.get("tree") or []
+        if data.get("truncated"):
+            logger.warning(
+                "get_remote_tree: tree for %s/%s (branch %s) was truncated by GitHub "
+                "(limit 100,000 entries / 7 MB); returned %s entries. Rename detection may be incomplete.",
+                owner,
+                repo,
+                branch,
+                len(tree),
+            )
+        return tree
+    except Exception as e:
+        logger.warning("get_remote_tree failed for %s/%s: %s", owner, repo, e)
+        return []
+
+
+# macOS resource-fork / metadata files to exclude from uploads (e.g. ._filename)
+_UPLOAD_IGNORE_PREFIX = "._"
+
+
+def list_remote_directory(
+    owner: str,
+    repo: str,
+    branch: str,
+    dir_path: str,
+    *,
+    token: Optional[str] = None,
+) -> list[str]:
+    """List file paths in a single directory via GitHub GraphQL API (non-recursive).
+
+    Uses one GraphQL request per directory instead of multiple REST Git Tree calls.
+    Use this for large repos (100k+ files) where get_remote_tree() would be truncated.
+
+    Args:
+        owner: Repository owner.
+        repo: Repository name.
+        branch: Branch name.
+        dir_path: Repository-relative directory path (e.g. "boost/issues/2024/2024-03").
+            Use "" for the repository root.
+        token: GitHub token (default: write token from settings).
+
+    Returns:
+        List of full repo-relative paths for each file (blob) in that directory.
+        Empty list if the path does not exist or on error.
+    """
+    if token is None:
+        token = get_github_token(use="write")
+    try:
+        return _list_remote_directory_graphql(owner, repo, branch, dir_path, token)
+    except Exception as e:
+        logger.debug(
+            "list_remote_directory failed for %s/%s path=%r: %s",
+            owner,
+            repo,
+            dir_path,
+            e,
+        )
+        return []
+
+
+def _list_remote_directory_graphql(
+    owner: str,
+    repo: str,
+    branch: str,
+    dir_path: str,
+    token: str,
+) -> list[str]:
+    """List blobs in one directory via a single GraphQL query."""
+    if dir_path and dir_path.strip():
+        expression = f"{branch}:{dir_path.rstrip('/')}"
+    else:
+        expression = f"{branch}:"
+    query = """
+    query($owner: String!, $repo: String!, $expression: String!) {
+      repository(owner: $owner, name: $repo) {
+        object(expression: $expression) {
+          ... on Tree {
+            entries {
+              name
+              type
+            }
+          }
+        }
+      }
+    }
+    """
+    payload = {
+        "query": query,
+        "variables": {"owner": owner, "repo": repo, "expression": expression},
+    }
+    session = requests.Session()
+    session.headers.update(
+        {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+    )
+    r = session.post("https://api.github.com/graphql", json=payload, timeout=30)
+    r.raise_for_status()
+    data = r.json()
+    if "errors" in data and data["errors"]:
+        raise RuntimeError(data["errors"][0].get("message", str(data["errors"])))
+    obj = (data.get("data") or {}).get("repository", {}).get("object")
+    if not obj:
+        return []
+    entries = obj.get("entries") or []
+    prefix = dir_path.rstrip("/") if dir_path and dir_path.strip() else ""
+    return [
+        f"{prefix}/{e['name']}" if prefix else e["name"]
+        for e in entries
+        if e.get("type") == "blob"
+    ]
+
+
 def upload_folder_to_github(
     local_folder: str | Path,
     owner: str,
@@ -360,6 +784,7 @@ def upload_folder_to_github(
     commit_message: str = "Upload files",
     branch: str = "main",
     *,
+    delete_paths: Optional[list[str]] = None,
     client: Optional[GitHubAPIClient] = None,
     token: Optional[str] = None,
 ) -> dict:
@@ -372,6 +797,18 @@ def upload_folder_to_github(
     Token resolution: When client is provided, an explicit token argument takes
     precedence over client.token (token = token or client.token). When client
     is None, token defaults to get_github_token(use="write") if not passed.
+
+    Args:
+        local_folder: Local directory to upload.
+        owner: Repository owner.
+        repo: Repository name.
+        commit_message: Commit message.
+        branch: Target branch (default: "main").
+        delete_paths: Optional list of repo-relative file paths to delete in the
+            same commit (e.g. old-titled MD files when a title changes). Each path
+            is added to the Git tree with sha=null to remove it.
+        client: Optional pre-built GitHubAPIClient.
+        token: Optional GitHub token override.
 
     Returns:
         {"success": True, "message": "..."} on success,
@@ -421,10 +858,13 @@ def upload_folder_to_github(
         r.raise_for_status()
         base_tree = r.json()["tree"]["sha"]
 
-        # Collect (repo_path, local_path) for all files (paths only; content read in worker)
+        # Collect (repo_path, local_path) for all files (paths only; content read in worker).
+        # Skip macOS metadata files (._*).
         file_items = []
         for root, _, files in os.walk(local_folder):
             for file in files:
+                if file.startswith(_UPLOAD_IGNORE_PREFIX):
+                    continue
                 local_path = Path(root) / file
                 repo_path = local_path.relative_to(local_folder).as_posix()
                 file_items.append((repo_path, local_path))
@@ -458,6 +898,12 @@ def upload_folder_to_github(
                 f"Blob creation failed for {len(blob_failures)} file(s): {failed_paths}. "
                 f"Created blobs (now orphaned): {created_shas[:5]}{'...' if len(created_shas) > 5 else ''}."
             ) from blob_failures[0][1]
+
+        # Add deletion entries for renamed/removed files (sha=null removes from tree)
+        for path in delete_paths or []:
+            tree_items.append(
+                {"path": path, "mode": "100644", "type": "blob", "sha": None}
+            )
 
         tree_data = {"base_tree": base_tree, "tree": tree_items}
         r = session.post(f"{base}/git/trees", json=tree_data, timeout=30)

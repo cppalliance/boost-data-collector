@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from .models import (
@@ -196,7 +196,6 @@ def create_or_update_commit(
     commit_at: Optional[datetime] = None,
 ) -> tuple[GitCommit, bool]:
     """Create or update a GitCommit by repo + commit_hash. Returns (commit, created)."""
-    from datetime import datetime, timezone
 
     if not commit_at:
         commit_at = datetime.now(timezone.utc)
