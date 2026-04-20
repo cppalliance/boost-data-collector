@@ -125,6 +125,19 @@ class GitHubRepository(models.Model):
         blank=True,
     )
 
+    @property
+    def full_name(self) -> str:
+        """``owner_login/repo_name``, same shape as GitHub API ``full_name``."""
+        if not self.owner_account_id:
+            return self.repo_name
+        login = (self.owner_account.username or "").strip()
+        if not login:
+            return self.repo_name
+        return f"{login}/{self.repo_name}"
+
+    def __str__(self):
+        return self.full_name
+
     class Meta:
         db_table = "github_activity_tracker_githubrepository"
         ordering = ["owner_account", "repo_name"]

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.contrib.admin import ModelAdmin
+from django.contrib.admin import ModelAdmin, TabularInline
 
 from .models import (
     GitCommit,
@@ -31,16 +31,47 @@ class LicenseAdmin(ModelAdmin):
     search_fields = ("name", "spdx_id")
 
 
+class RepoLanguageInline(TabularInline):
+    """Languages use ``through=RepoLanguage``; edit links here, not as a raw M2M widget."""
+
+    model = RepoLanguage
+    extra = 0
+    raw_id_fields = ("language",)
+
+
 @admin.register(GitHubRepository)
 class GitHubRepositoryAdmin(ModelAdmin):
     list_display = (
         "id",
+        "full_name",
         "owner_account",
         "repo_name",
         "stars",
         "forks",
         "repo_pushed_at",
     )
+    list_select_related = ("owner_account",)
+    readonly_fields = ("full_name",)
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "full_name",
+                    "owner_account",
+                    "repo_name",
+                    "stars",
+                    "forks",
+                    "description",
+                    "repo_pushed_at",
+                    "repo_created_at",
+                    "repo_updated_at",
+                ),
+            },
+        ),
+        ("Relations", {"fields": ("licenses",)}),
+    )
+    inlines = (RepoLanguageInline,)
     list_filter = ("repo_created_at",)
     search_fields = ("repo_name", "description")
     raw_id_fields = ("owner_account",)
@@ -62,10 +93,45 @@ class GitCommitAdmin(ModelAdmin):
 
 @admin.register(GitHubFile)
 class GitHubFileAdmin(ModelAdmin):
-    list_display = ("id", "repo", "filename", "is_deleted", "created_at")
+    list_display = (
+        "id",
+        "filename",
+        "repo_full_name",
+        "previous_path",
+        "is_deleted",
+        "boost_library_name",
+        "created_at",
+    )
     list_filter = ("is_deleted",)
-    search_fields = ("filename",)
-    raw_id_fields = ("repo",)
+    search_fields = (
+        "filename",
+        "repo__repo_name",
+        "repo__owner_account__username",
+        "previous_filename__filename",
+    )
+    raw_id_fields = ("repo", "previous_filename")
+    list_select_related = (
+        "repo__owner_account",
+        "previous_filename",
+        "boost_file__library",
+    )
+
+    @admin.display(description="Repository", ordering="repo__repo_name")
+    def repo_full_name(self, obj):
+        return obj.repo.full_name if obj.repo_id else "—"
+
+    @admin.display(description="Previous path")
+    def previous_path(self, obj):
+        if obj.previous_filename_id and obj.previous_filename:
+            return obj.previous_filename.filename
+        return "—"
+
+    @admin.display(description="Boost library", ordering="boost_file__library__name")
+    def boost_library_name(self, obj):
+        bf = getattr(obj, "boost_file", None)
+        if bf is not None and bf.library_id:
+            return bf.library.name
+        return "—"
 
 
 @admin.register(GitCommitFileChange)

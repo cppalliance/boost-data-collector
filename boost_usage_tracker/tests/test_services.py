@@ -694,3 +694,180 @@ def test_mark_usages_excepted_bulk_sets_excepted_at(
     assert n == 1
     usage.refresh_from_db()
     assert usage.excepted_at is not None
+
+
+# --- Boost header catalog lookup + missing-header resolution ---
+
+
+@pytest.mark.django_db
+def test_find_boost_file_for_header_name_single_match(boost_file, github_file):
+    """find_boost_file_for_header_name returns BoostFile when catalog has one match."""
+    assert github_file.filename == "include/boost/algorithm.hpp"
+    got = services.find_boost_file_for_header_name("boost/algorithm.hpp")
+    assert got is not None
+    assert got.pk == boost_file.pk
+
+
+@pytest.mark.django_db
+def test_find_boost_file_for_header_name_not_found():
+    """find_boost_file_for_header_name returns None when nothing matches."""
+    assert services.find_boost_file_for_header_name("boost/does/not/exist.hpp") is None
+
+
+@pytest.mark.django_db
+def test_find_boost_file_for_header_name_does_not_match_longer_path(
+    boost_library_repository,
+    boost_library,
+):
+    """Only ``include/<header>`` is the catalog key; longer paths are not aliases."""
+    from boost_library_tracker import services as bl_services
+    from model_bakery import baker
+
+    gf = baker.make(
+        "github_activity_tracker.GitHubFile",
+        repo=boost_library_repository,
+        filename="libs/asio/include/boost/asio/stuff.hpp",
+    )
+    bl_services.get_or_create_boost_file(gf, boost_library)
+    assert services.find_boost_file_for_header_name("boost/asio/stuff.hpp") is None
+
+
+@pytest.mark.django_db
+def test_find_boost_file_for_header_name_two_active_same_filename_ambiguous():
+    """Two non-deleted files with the same path in different repos → ambiguous."""
+    import uuid
+
+    from boost_library_tracker import services as bl_services
+    from model_bakery import baker
+
+    def _one_boost_file():
+        owner = baker.make("cppa_user_tracker.GitHubAccount")
+        gh_repo = baker.make(
+            "github_activity_tracker.GitHubRepository",
+            owner_account=owner,
+            repo_name="boostdup-" + uuid.uuid4().hex[:6],
+        )
+        bl_repo, _ = bl_services.get_or_create_boost_library_repo(gh_repo)
+        lib, _ = bl_services.get_or_create_boost_library(bl_repo, "dup-lib")
+        gf = baker.make(
+            "github_activity_tracker.GitHubFile",
+            repo=gh_repo,
+            filename="include/boost/dup_header.hpp",
+            is_deleted=False,
+        )
+        return bl_services.get_or_create_boost_file(gf, lib)[0]
+
+    _one_boost_file()
+    _one_boost_file()
+    bf, status = services.find_boost_file_for_header_name_detailed(
+        "boost/dup_header.hpp"
+    )
+    assert bf is None
+    assert status == "ambiguous"
+
+
+@pytest.mark.django_db
+def test_find_boost_file_for_header_name_single_deleted_still_picked():
+    """Only matching row is deleted → still linked (disambiguation rule)."""
+    import uuid
+
+    from boost_library_tracker import services as bl_services
+    from model_bakery import baker
+
+    owner = baker.make("cppa_user_tracker.GitHubAccount")
+    gh_repo = baker.make(
+        "github_activity_tracker.GitHubRepository",
+        owner_account=owner,
+        repo_name="boostdel-" + uuid.uuid4().hex[:6],
+    )
+    bl_repo, _ = bl_services.get_or_create_boost_library_repo(gh_repo)
+    lib, _ = bl_services.get_or_create_boost_library(bl_repo, "del-lib")
+    gf = baker.make(
+        "github_activity_tracker.GitHubFile",
+        repo=gh_repo,
+        filename="include/boost/deleted_only.hpp",
+        is_deleted=True,
+    )
+    bf, _ = bl_services.get_or_create_boost_file(gf, lib)
+    got = services.find_boost_file_for_header_name("boost/deleted_only.hpp")
+    assert got is not None
+    assert got.pk == bf.pk
+
+
+@pytest.mark.django_db
+def test_resolve_missing_header_tmp_auto_resolves(
+    ext_repo, external_github_file, boost_file
+):
+    """resolve_missing_header_tmp_auto creates real usage and removes tmp."""
+    _, tmp, _ = services.get_or_create_missing_header_usage(
+        ext_repo,
+        external_github_file,
+        "boost/algorithm.hpp",
+    )
+    placeholder_pk = tmp.usage_id
+    assert services.resolve_missing_header_tmp_auto(tmp) == "resolved"
+    assert BoostMissingHeaderTmp.objects.count() == 0
+    assert BoostUsage.objects.filter(
+        repo=ext_repo,
+        boost_header=boost_file,
+        file_path=external_github_file,
+    ).exists()
+    assert not BoostUsage.objects.filter(pk=placeholder_pk).exists()
+
+
+@pytest.mark.django_db
+def test_resolve_missing_header_tmp_auto_two_tmps_keeps_placeholder_until_last(
+    ext_repo,
+    external_github_file,
+    boost_library_repository,
+    boost_library,
+):
+    """Two tmp rows on same placeholder: first resolve keeps usage; second deletes it."""
+    from boost_library_tracker import services as bl_services
+    from model_bakery import baker
+
+    gf_a = baker.make(
+        "github_activity_tracker.GitHubFile",
+        repo=boost_library_repository,
+        filename="include/boost/resolve_a.hpp",
+    )
+    gf_b = baker.make(
+        "github_activity_tracker.GitHubFile",
+        repo=boost_library_repository,
+        filename="include/boost/resolve_b.hpp",
+    )
+    bl_services.get_or_create_boost_file(gf_a, boost_library)
+    bl_services.get_or_create_boost_file(gf_b, boost_library)
+
+    usage, tmp_a, _ = services.get_or_create_missing_header_usage(
+        ext_repo, external_github_file, "boost/resolve_a.hpp"
+    )
+    _, tmp_b, _ = services.get_or_create_missing_header_usage(
+        ext_repo, external_github_file, "boost/resolve_b.hpp"
+    )
+    assert tmp_b.usage_id == usage.pk
+
+    assert services.resolve_missing_header_tmp_auto(tmp_a) == "resolved"
+    assert BoostUsage.objects.filter(pk=usage.pk).exists()
+    assert BoostMissingHeaderTmp.objects.count() == 1
+
+    assert services.resolve_missing_header_tmp_auto(tmp_b) == "resolved"
+    assert BoostMissingHeaderTmp.objects.count() == 0
+    assert not BoostUsage.objects.filter(pk=usage.pk).exists()
+
+
+@pytest.mark.django_db
+def test_resolve_all_missing_header_tmp_batch_dry_run_no_writes(
+    ext_repo,
+    external_github_file,
+    boost_file,
+):
+    """Dry-run batch does not delete tmp rows."""
+    services.get_or_create_missing_header_usage(
+        ext_repo,
+        external_github_file,
+        "boost/algorithm.hpp",
+    )
+    stats = services.resolve_all_missing_header_tmp_batch(dry_run=True)
+    assert stats.get("would_resolve", 0) >= 1
+    assert BoostMissingHeaderTmp.objects.count() == 1

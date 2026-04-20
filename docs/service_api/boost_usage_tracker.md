@@ -29,6 +29,38 @@
 
 ---
 
+## Boost header catalog lookup (read + disambiguation)
+
+Catalog paths use `include/<header_path>` (see `boost_catalog_filename`). Lookup uses **only** an exact `GitHubFile.filename` match to that full path (e.g. `include/boost/asio.hpp`). Longer paths such as `libs/asio/include/boost/asio.hpp` are different files and are **not** matched via substring or `endswith`. When several `BoostFile` rows share the same `GitHubFile.filename` (e.g. across repos), resolution uses `GitHubFile.is_deleted`:
+
+- Exactly one non-deleted match → that `BoostFile`.
+- More than one non-deleted match → ambiguous (`None`).
+- No non-deleted matches: exactly one candidate total (even if deleted) → that `BoostFile`; otherwise ambiguous or no match.
+
+| Function                               | Parameter types                                      | Return type                                           | Raises |
+| -------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------- | ------ |
+| `boost_catalog_filename`               | `header_path: str`                                   | `str`                                                 | —      |
+| `find_boost_file_for_header_name`      | `header_path: str`                                   | `BoostFile \| None`                                   | —      |
+| `find_boost_file_for_header_name_detailed` | `header_path: str`                               | `tuple[BoostFile \| None, "found"\|"not_found"\|"ambiguous"]` | —      |
+| `find_boost_files_exact_by_catalog_names` | `catalog_names: set[str]`                        | `dict[str, BoostFile \| None]`                        | —      |
+
+---
+
+## BoostMissingHeaderTmp resolution
+
+| Function                              | Parameter types                    | Return type        | Raises |
+| ------------------------------------- | ---------------------------------- | ------------------ | ------ |
+| `delete_boost_missing_header_tmp`     | `tmp: BoostMissingHeaderTmp`       | `None`             | —      |
+| `maybe_delete_placeholder_boost_usage_after_tmp_removed` | `usage_pk: int`         | `bool`             | —      |
+| `resolve_missing_header_tmp_auto`     | `tmp: BoostMissingHeaderTmp`       | `str` (outcome tag)| —      |
+| `resolve_all_missing_header_tmp_batch`| `dry_run: bool = False`            | `dict[str, int]`   | —      |
+
+**Outcome tags for `resolve_missing_header_tmp_auto`:** `resolved`, `skipped_no_match`, `skipped_ambiguous`, `error`.
+
+**Note:** `resolve_all_missing_header_tmp_batch` iterates all tmp rows. With `dry_run=True`, no DB writes; keys include `would_resolve`, `skipped_no_match`, `skipped_ambiguous`. Used before `monitor_content` in `run_boost_usage_tracker` and from Django admin actions.
+
+---
+
 ## Related docs
 
 - [Schema.md](../Schema.md) – Section 4: Boost Usage Tracker.
