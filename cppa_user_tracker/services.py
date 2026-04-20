@@ -386,6 +386,8 @@ def get_or_create_wg21_paper_author_profile(
     if email_val:
         add_email(profile, email_val, is_primary=True)
     return profile, True
+
+
 def get_or_create_youtube_speaker(
     external_id: str,
     display_name: str = "",
