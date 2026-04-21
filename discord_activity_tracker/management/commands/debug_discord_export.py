@@ -7,19 +7,23 @@ from discord_activity_tracker.sync.export import generate_markdown_content
 
 
 class Command(BaseCommand):
-    help = "Inspect reply links and exported markdown"
+    help = (
+        "Inspect reply links and raw markdown preview for Discord messages stored in the database."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--message-id",
             type=int,
-            help="Inspect a specific message by message_id (Discord message ID)",
+            metavar="ID",
+            help="Inspect a specific message by Discord snowflake message_id.",
         )
         parser.add_argument(
             "--limit",
             type=int,
             default=5,
-            help="Number of reply messages to show (default: 5)",
+            metavar="N",
+            help="When listing replies, show at most N rows (default: 5).",
         )
 
     def handle(self, *args, **options):

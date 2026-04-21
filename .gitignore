@@ -41,8 +41,9 @@ celerybeat.pid
 *.swo
 .cursor/
 
-# DiscordChatExporter CLI (download to workspace/discord_activity_tracker/tools/)
+# DiscordChatExporter CLI / source build (workspace/discord_activity_tracker/)
 discord_activity_tracker/tools/
+discord_activity_tracker/vendor/
 # macOS
 .DS_Store
 ._*

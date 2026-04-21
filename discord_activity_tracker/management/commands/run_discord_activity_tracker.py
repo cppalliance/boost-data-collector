@@ -1,65 +1,114 @@
-"""Django management command - sync messages and export to markdown."""
+"""Django management command - sync messages and export to markdown (Discord bot token)."""
 
 import logging
 from pathlib import Path
 
-from django.core.management.base import BaseCommand
 from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 
-from discord_activity_tracker.models import DiscordServer, DiscordChannel
-from discord_activity_tracker.sync.messages import sync_all_channels
+from core.utils.datetime_parsing import parse_iso_datetime
+from discord_activity_tracker.models import DiscordChannel, DiscordServer
 from discord_activity_tracker.sync.export import export_and_push
+from discord_activity_tracker.sync.messages import sync_all_channels
 
 logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Run Discord Activity Tracker: sync messages and export to markdown"
+    help = (
+        "Run Discord Activity Tracker: sync messages (Discord API / bot token) and export to markdown. "
+        "Use --since/--until to bound the API sync window when supported. "
+        "Markdown export still uses active channel filters (months / active-days)."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--dry-run",
             action="store_true",
-            help="Preview actions without executing them",
+            help="Preview actions without executing them (no database writes).",
         )
         parser.add_argument(
             "--task",
             type=str,
-            default=None,
-            help="Task to run: sync, export, or all (default: all)",
+            default="all",
+            choices=["sync", "export", "all"],
+            help="Run sync, export markdown, or both (default: all).",
+        )
+        parser.add_argument(
+            "--skip-sync",
+            action="store_true",
+            help="Skip Discord API message sync (with --task all or sync).",
+        )
+        parser.add_argument(
+            "--skip-markdown-export",
+            action="store_true",
+            help="Skip markdown export (with --task all or export).",
         )
         parser.add_argument(
             "--full-sync",
             action="store_true",
-            help="Sync all messages (ignore last_synced_at)",
+            help="Sync all messages (ignore last_synced_at).",
         )
         parser.add_argument(
             "--months",
             type=int,
             default=12,
-            help="Number of months to export (default: 12)",
+            help="Number of months to export (default: 12).",
         )
         parser.add_argument(
             "--active-days",
             type=int,
             default=30,
-            help="Number of days to consider a channel active (default: 30)",
+            help="Number of days to consider a channel active (default: 30).",
+        )
+        parser.add_argument(
+            "--since",
+            "--from-date",
+            "--start-time",
+            type=str,
+            default=None,
+            dest="since",
+            help="Lower bound for message sync (YYYY-MM-DD or ISO-8601). Passed to sync_all_channels. "
+            "--from-date and --start-time are deprecated aliases for --since.",
+        )
+        parser.add_argument(
+            "--until",
+            "--to-date",
+            "--end-time",
+            type=str,
+            default=None,
+            dest="until",
+            help="Upper bound for message sync (same formats as --since). "
+            "Note: the Discord client currently fetches forward from the sync cursor; "
+            "this value is passed for API consistency where supported. "
+            "--to-date and --end-time are deprecated aliases for --until.",
         )
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
-        task_filter = (options["task"] or "").strip().lower()
+        task = options["task"]
+        skip_sync = options["skip_sync"]
+        skip_markdown_export = options["skip_markdown_export"]
         full_sync = options["full_sync"]
         months = options["months"]
         active_days = options["active_days"]
 
         try:
-            # Get settings
+            since_dt = parse_iso_datetime(options.get("since"))
+            until_dt = parse_iso_datetime(options.get("until"))
+        except ValueError as e:
+            raise CommandError(str(e)) from e
+        if since_dt and until_dt and since_dt > until_dt:
+            logger.warning(
+                "Invalid date range: since after until; ignoring both for sync window"
+            )
+            since_dt = until_dt = None
+
+        try:
             token = getattr(settings, "DISCORD_TOKEN", None)
             guild_id = getattr(settings, "DISCORD_SERVER_ID", None)
             context_repo_path = getattr(settings, "DISCORD_CONTEXT_REPO_PATH", None)
 
-            # Validate settings
             if not token:
                 self.stdout.write(self.style.ERROR("DISCORD_TOKEN not configured"))
                 return
@@ -68,32 +117,47 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR("DISCORD_SERVER_ID not configured"))
                 return
 
-            if not context_repo_path:
+            markdown_wanted = (task in ("export", "all")) and not skip_markdown_export
+            if markdown_wanted and not context_repo_path:
                 self.stdout.write(
                     self.style.ERROR("DISCORD_CONTEXT_REPO_PATH not configured")
                 )
                 return
 
-            context_repo_path = Path(context_repo_path)
+            context_repo_path = (
+                Path(context_repo_path).resolve() if context_repo_path else None
+            )
+            guild_id = int(guild_id)
 
-            # Task 1: Sync Discord messages
-            if not task_filter or task_filter == "sync" or task_filter == "all":
+            run_sync = task in ("sync", "all") and not skip_sync
+            if skip_sync and task in ("sync", "all"):
+                self.stdout.write(
+                    self.style.WARNING("--skip-sync: skipping Discord API message sync")
+                )
+
+            if run_sync:
                 self._task_sync_messages(
                     dry_run=dry_run,
                     token=token,
                     guild_id=guild_id,
                     full_sync=full_sync,
                     active_days=active_days,
+                    since_date=since_dt,
                 )
 
-            # Task 2: Export to markdown
-            if not task_filter or task_filter == "export" or task_filter == "all":
+            if markdown_wanted:
                 self._task_export_markdown(
                     dry_run=dry_run,
                     guild_id=guild_id,
                     context_repo_path=context_repo_path,
                     months=months,
                     active_days=active_days,
+                )
+            elif task in ("export", "all") and skip_markdown_export:
+                self.stdout.write(
+                    self.style.WARNING(
+                        "--skip-markdown-export: skipping markdown export step"
+                    )
                 )
 
             self.stdout.write(
@@ -111,24 +175,27 @@ class Command(BaseCommand):
         guild_id: int,
         full_sync: bool,
         active_days: int,
+        since_date,
     ):
         """Sync messages from Discord API to database."""
         self.stdout.write("Task 1: Syncing Discord messages...")
 
         if dry_run:
-            # Preview what would be synced
             try:
                 server = DiscordServer.objects.get(server_id=guild_id)
                 channels = DiscordChannel.objects.filter(server=server)
 
                 if not full_sync:
                     from datetime import timedelta
+
                     from django.utils import timezone
 
                     cutoff = timezone.now() - timedelta(days=active_days)
                     channels = channels.filter(last_activity_at__gte=cutoff)
 
                 self.stdout.write(f"  Would sync {channels.count()} channels")
+                if since_date:
+                    self.stdout.write(f"  Would use sync lower bound: {since_date}")
                 for channel in channels:
                     last_sync = channel.last_synced_at or "never"
                     self.stdout.write(
@@ -140,19 +207,17 @@ class Command(BaseCommand):
 
             return
 
-        # Actual sync
-        logger.info(f"Syncing messages from Discord guild {guild_id}")
+        logger.info("Syncing messages from Discord guild %s", guild_id)
 
         sync_all_channels(
             token=token,
             guild_id=guild_id,
-            since_date=None,
+            since_date=since_date,
             full_sync=full_sync,
-            active_only=not full_sync,  # If full sync, include all channels
+            active_only=not full_sync,
             active_days=active_days,
         )
 
-        # Report results
         server = DiscordServer.objects.get(server_id=guild_id)
         total_channels = DiscordChannel.objects.filter(server=server).count()
         total_messages = sum(
@@ -189,6 +254,7 @@ class Command(BaseCommand):
 
         if dry_run:
             from datetime import timedelta
+
             from django.utils import timezone
 
             cutoff = timezone.now() - timedelta(days=active_days)
@@ -207,7 +273,7 @@ class Command(BaseCommand):
 
             return
 
-        logger.info(f"Exporting to markdown: {context_repo_path}")
+        logger.info("Exporting to markdown: %s", context_repo_path)
 
         success = export_and_push(
             context_repo_path=context_repo_path,
