@@ -8,14 +8,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from ..workspace import get_workspace_root
+from .dce_cli import ensure_discord_chat_exporter_cli
 
 logger = logging.getLogger(__name__)
 
 
-def _get_cli_path() -> Path:
-    """Resolve CLI path at call time (workspace may not exist at import time)."""
-    return get_workspace_root() / "tools" / "DiscordChatExporter.Cli.exe"
+def _directory_output_arg(output_dir: Path) -> str:
+    """DiscordChatExporter expects a trailing path separator for directory output."""
+    out = str(output_dir.resolve())
+    if not out.endswith(("/", "\\")):
+        out += os.sep
+    return out
 
 
 class DiscordChatExporterError(Exception):
@@ -31,12 +34,12 @@ def export_guild_to_json(
     include_threads: str = "None",
 ) -> List[Path]:
     """Export all channels from a guild. Returns list of JSON file paths."""
-    cli_path = _get_cli_path()
-    if not cli_path.exists():
+    try:
+        cli_path = ensure_discord_chat_exporter_cli()
+    except Exception as e:
         raise DiscordChatExporterError(
-            f"DiscordChatExporter CLI not found at {cli_path}. "
-            "Download it from GitHub and place in workspace/discord_activity_tracker/tools/."
-        )
+            f"DiscordChatExporter CLI not available: {e}"
+        ) from e
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -48,7 +51,7 @@ def export_guild_to_json(
         "--guild",
         str(guild_id),
         "--output",
-        str(output_dir) + "\\",  # trailing slash = directory output
+        _directory_output_arg(output_dir),
         "--format",
         "Json",
         "--include-threads",
@@ -133,7 +136,7 @@ def parse_exported_json(json_path: Path) -> Dict[str, Any]:
     logger.debug(f"Parsing {json_path.name}")
 
     try:
-        with open(json_path, "r", encoding="utf-8") as f:
+        with open(json_path, "r", encoding="utf-8", errors="replace") as f:
             data = json.load(f)
 
         return data

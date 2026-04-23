@@ -1,0 +1,6 @@
+# Built / downloaded DiscordChatExporter CLI (also listed in repo root .gitignore)
+tools/
+vendor/
+# Local overrides (tokens, paths) — never commit secrets
+*.local
+.env.local

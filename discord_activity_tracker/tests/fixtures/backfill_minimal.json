@@ -1,0 +1,27 @@
+{
+  "guild": {
+    "id": 331718482485837825,
+    "name": "Together C & C++"
+  },
+  "channel": {
+    "id": 851121440425639956,
+    "name": "c-cpp-discussion",
+    "type": 0,
+    "topic": ""
+  },
+  "messages": [
+    {
+      "id": 1900000000000000001,
+      "timestamp": "2024-06-01T15:30:00+00:00",
+      "author": {
+        "id": 90001,
+        "name": "backfill_test_user",
+        "nickname": null,
+        "isBot": false
+      },
+      "content": "minimal backfill fixture message",
+      "attachments": [],
+      "reactions": []
+    }
+  ]
+}

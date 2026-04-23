@@ -453,6 +453,40 @@ DISCORD_CONTEXT_REPO_PATH = Path(
     )
 ).resolve()
 
+# Markdown upload (GitHub API) — optional; same pattern as BOOST_LIBRARY_TRACKER_REPO_*
+DISCORD_MARKDOWN_REPO_OWNER = (
+    env("DISCORD_MARKDOWN_REPO_OWNER", default="") or ""
+).strip()
+DISCORD_MARKDOWN_REPO_NAME = (
+    env("DISCORD_MARKDOWN_REPO_NAME", default="") or ""
+).strip()
+DISCORD_MARKDOWN_REPO_BRANCH = (
+    env("DISCORD_MARKDOWN_REPO_BRANCH", default="main") or "main"
+).strip()
+
+# Per-day export script (export_guild_by_day.py) — defaults match workspace/script
+DISCORD_EXPORT_SCRIPT_DIR = (
+    env("DISCORD_EXPORT_SCRIPT_DIR", default="") or ""
+).strip()  # empty = package offline_scripts/
+DISCORD_CHANNEL_EXPORT_NAMES = (
+    env("DISCORD_CHANNEL_EXPORT_NAMES", default="Discussion - c-cpp-discussion") or ""
+).strip()
+DISCORD_EXPORT_TIMEZONE = (
+    env("DISCORD_EXPORT_TIMEZONE", default="America/New_York") or "America/New_York"
+).strip()
+DISCORD_EXPORT_CHUNK_DAYS = int(env("DISCORD_EXPORT_CHUNK_DAYS", default="1") or "1")
+
+# Pinned DiscordChatExporter release (Tyrrrz/DiscordChatExporter); zip + git clone use this tag
+DISCORD_CHAT_EXPORTER_VERSION = (
+    env("DISCORD_CHAT_EXPORTER_VERSION", default="2.47") or "2.47"
+).strip()
+
+# Pinecone (cppa_pinecone_sync) for Discord messages
+DISCORD_PINECONE_APP_TYPE = (env("DISCORD_PINECONE_APP_TYPE", default="") or "").strip()
+DISCORD_PINECONE_NAMESPACE = (
+    env("DISCORD_PINECONE_NAMESPACE", default="") or ""
+).strip()
+
 # WG21 Paper Tracker Configuration
 WG21_GITHUB_DISPATCH_ENABLED = env.bool("WG21_GITHUB_DISPATCH_ENABLED", default=False)
 WG21_GITHUB_DISPATCH_REPO = (env("WG21_GITHUB_DISPATCH_REPO", default="") or "").strip()

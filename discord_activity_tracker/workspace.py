@@ -11,6 +11,25 @@ def get_workspace_root() -> Path:
     return get_workspace_path(_APP_SLUG)
 
 
+def get_tools_dir() -> Path:
+    """Return workspace/discord_activity_tracker/tools/ for DiscordChatExporter CLI binaries."""
+    path = get_workspace_root() / "tools"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_script_dir() -> Path:
+    """Return workspace/discord_activity_tracker/script/ (legacy export scripts, optional)."""
+    path = get_workspace_root() / "script"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_discussion_export_dir() -> Path:
+    """Default tree for per-day exports: Discussion - c-cpp-discussion/ (mkdir only when writing)."""
+    return get_workspace_root() / "Discussion - c-cpp-discussion"
+
+
 def get_raw_dir() -> Path:
     """Return workspace/discord_activity_tracker/raw/ for DiscordChatExporter JSON output."""
     path = get_workspace_root() / "raw"
