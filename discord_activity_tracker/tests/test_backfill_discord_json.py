@@ -10,9 +10,7 @@ from django.core.management import call_command
 from discord_activity_tracker.models import DiscordMessage
 
 
-FIXTURE = (
-    Path(__file__).resolve().parent / "fixtures" / "backfill_minimal.json"
-)
+FIXTURE = Path(__file__).resolve().parent / "fixtures" / "backfill_minimal.json"
 
 
 @pytest.mark.django_db
@@ -37,9 +35,7 @@ class TestBackfillDiscordJson:
                 expected_guild_id=331718482485837825,
             )
         )
-        assert DiscordMessage.objects.filter(
-            message_id=1900000000000000001
-        ).exists()
+        assert DiscordMessage.objects.filter(message_id=1900000000000000001).exists()
 
     def test_backfill_command_imports_file(self, settings, tmp_path):
         settings.DISCORD_SERVER_ID = "331718482485837825"
@@ -53,6 +49,4 @@ class TestBackfillDiscordJson:
             path=str(tmp_path),
             guild_id=331718482485837825,
         )
-        assert DiscordMessage.objects.filter(
-            message_id=1900000000000000001
-        ).exists()
+        assert DiscordMessage.objects.filter(message_id=1900000000000000001).exists()

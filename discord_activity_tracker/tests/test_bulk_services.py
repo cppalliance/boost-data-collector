@@ -91,9 +91,7 @@ def test_update_existing_users():
         is_bot=False,
     )
 
-    result = bulk_upsert_discord_users(
-        [_user(1001, "alice_new", display="New Alice")]
-    )
+    result = bulk_upsert_discord_users([_user(1001, "alice_new", display="New Alice")])
 
     assert len(result) == 1
     refreshed = DiscordProfile.objects.get(discord_user_id=1001)
@@ -111,9 +109,7 @@ def test_deduplicates_by_user_id():
 
     assert len(result) == 1
     # Last-seen wins
-    assert (
-        DiscordProfile.objects.get(discord_user_id=1001).username == "second"
-    )
+    assert DiscordProfile.objects.get(discord_user_id=1001).username == "second"
 
 
 @pytest.mark.django_db
@@ -129,9 +125,7 @@ def test_bulk_upsert_users_empty_input():
 
 @pytest.mark.django_db
 def test_insert_new_messages(channel):
-    user_map = bulk_upsert_discord_users(
-        [_user(1001, "alice", display="Alice")]
-    )
+    user_map = bulk_upsert_discord_users([_user(1001, "alice", display="Alice")])
 
     now = datetime(2026, 2, 17, 12, 0, 0, tzinfo=timezone.utc)
     msg_data = [
