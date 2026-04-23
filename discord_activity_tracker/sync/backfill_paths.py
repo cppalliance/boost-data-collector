@@ -8,9 +8,7 @@ from typing import Iterator, Optional
 
 
 def is_resource_fork_json(path: Path) -> bool:
-    return path.name.startswith("._") or any(
-        p.startswith("._") for p in path.parts
-    )
+    return path.name.startswith("._") or any(p.startswith("._") for p in path.parts)
 
 
 def discussion_json_sort_key(path: Path) -> tuple:

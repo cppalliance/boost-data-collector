@@ -241,9 +241,7 @@ def _try_download_release_zip(tools_dir: Path) -> Path | None:
     try:
         data = _http_get_json(api_url)
     except (urllib.error.URLError, json.JSONDecodeError, TimeoutError) as e:
-        logger.warning(
-            "Could not fetch GitHub release %s (%s): %s", tag, api_url, e
-        )
+        logger.warning("Could not fetch GitHub release %s (%s): %s", tag, api_url, e)
         return None
     assets = data.get("assets") or []
     name_to_url = {
@@ -312,7 +310,9 @@ def ensure_discord_chat_exporter_cli() -> Path:
         try:
             exe = _try_download_release_zip(tools_dir)
             if exe and exe.is_file():
-                logger.info("Installed DiscordChatExporter CLI from release zip: %s", exe)
+                logger.info(
+                    "Installed DiscordChatExporter CLI from release zip: %s", exe
+                )
                 return exe
         except Exception as e:
             logger.warning("Release zip install failed: %s", e)

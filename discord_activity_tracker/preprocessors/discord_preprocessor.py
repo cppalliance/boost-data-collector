@@ -50,7 +50,9 @@ def _message_text(msg: DiscordMessage) -> str:
         parts.append(f"@{who}")
     parts.append(_clean_discord_text(msg.content or ""))
     if msg.attachment_urls:
-        parts.append("Attachments: " + ", ".join(str(u) for u in msg.attachment_urls[:5]))
+        parts.append(
+            "Attachments: " + ", ".join(str(u) for u in msg.attachment_urls[:5])
+        )
     return "\n".join(p for p in parts if p)
 
 

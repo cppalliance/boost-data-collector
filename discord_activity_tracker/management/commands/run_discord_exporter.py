@@ -258,11 +258,7 @@ class Command(BaseCommand):
                     )
                 )
 
-            if (
-                markdown_wanted
-                and context_repo_path
-                and not skip_github_push
-            ):
+            if markdown_wanted and context_repo_path and not skip_github_push:
                 self.stdout.write("\n=== Uploading markdown to GitHub ===")
                 if dry_run:
                     self.stdout.write(
@@ -452,7 +448,9 @@ class Command(BaseCommand):
 
                         times = []
                         for m in msgs:
-                            t = parse_datetime(m.get("timestamp") or m.get("created_at"))
+                            t = parse_datetime(
+                                m.get("timestamp") or m.get("created_at")
+                            )
                             if t:
                                 times.append(t)
                         if times:

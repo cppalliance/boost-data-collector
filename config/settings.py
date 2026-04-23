@@ -454,8 +454,12 @@ DISCORD_CONTEXT_REPO_PATH = Path(
 ).resolve()
 
 # Markdown upload (GitHub API) — optional; same pattern as BOOST_LIBRARY_TRACKER_REPO_*
-DISCORD_MARKDOWN_REPO_OWNER = (env("DISCORD_MARKDOWN_REPO_OWNER", default="") or "").strip()
-DISCORD_MARKDOWN_REPO_NAME = (env("DISCORD_MARKDOWN_REPO_NAME", default="") or "").strip()
+DISCORD_MARKDOWN_REPO_OWNER = (
+    env("DISCORD_MARKDOWN_REPO_OWNER", default="") or ""
+).strip()
+DISCORD_MARKDOWN_REPO_NAME = (
+    env("DISCORD_MARKDOWN_REPO_NAME", default="") or ""
+).strip()
 DISCORD_MARKDOWN_REPO_BRANCH = (
     env("DISCORD_MARKDOWN_REPO_BRANCH", default="main") or "main"
 ).strip()
@@ -479,7 +483,9 @@ DISCORD_CHAT_EXPORTER_VERSION = (
 
 # Pinecone (cppa_pinecone_sync) for Discord messages
 DISCORD_PINECONE_APP_TYPE = (env("DISCORD_PINECONE_APP_TYPE", default="") or "").strip()
-DISCORD_PINECONE_NAMESPACE = (env("DISCORD_PINECONE_NAMESPACE", default="") or "").strip()
+DISCORD_PINECONE_NAMESPACE = (
+    env("DISCORD_PINECONE_NAMESPACE", default="") or ""
+).strip()
 
 # WG21 Paper Tracker Configuration
 WG21_GITHUB_DISPATCH_ENABLED = env.bool("WG21_GITHUB_DISPATCH_ENABLED", default=False)

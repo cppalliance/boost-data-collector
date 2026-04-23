@@ -21,7 +21,6 @@ class TestBackfillDiscordJson:
         settings.DISCORD_SERVER_ID = "331718482485837825"
         import asyncio
 
-        from discord_activity_tracker.sync.chat_exporter import parse_exported_json
         from discord_activity_tracker.sync.importer import (
             persist_exporter_channel_payloads,
         )

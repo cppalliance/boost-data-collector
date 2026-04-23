@@ -44,15 +44,9 @@ else:
     if single:
         TOKENS = [single]
     elif isinstance(_TOKEN_DEFAULT, list):
-        TOKENS = [
-            t for t in _TOKEN_DEFAULT if isinstance(t, str) and t.strip()
-        ]
+        TOKENS = [t for t in _TOKEN_DEFAULT if isinstance(t, str) and t.strip()]
     else:
-        TOKENS = (
-            [str(_TOKEN_DEFAULT).strip()]
-            if str(_TOKEN_DEFAULT).strip()
-            else []
-        )
+        TOKENS = [str(_TOKEN_DEFAULT).strip()] if str(_TOKEN_DEFAULT).strip() else []
 GUILD_ID = os.environ.get("GUILD_ID", "331718482485837825")
 START_DATE = os.environ.get("START_DATE", "2017-06-01")
 END_DATE = os.environ.get("END_DATE", "").strip()  # default: today
@@ -60,9 +54,7 @@ PARALLEL = int(os.environ.get("PARALLEL", "1"))
 CLI = os.environ.get("CLI", "DiscordChatExporter.Cli.exe")
 TIMEZONE = os.environ.get("TIMEZONE", "America/New_York")
 # If True (or env FAIL_ON_CHANNEL_ERROR=1), exit with code 1 when any channel fails (e.g. forbidden). Default: False.
-FAIL_ON_CHANNEL_ERROR = (
-    os.environ.get("FAIL_ON_CHANNEL_ERROR", "0").strip() == "1"
-)
+FAIL_ON_CHANNEL_ERROR = os.environ.get("FAIL_ON_CHANNEL_ERROR", "0").strip() == "1"
 # If True (env REFRESH_LAST_DATE=1), re-export only the last date per channel (overwrite that day's file).
 REFRESH_LAST_DATE = os.environ.get("REFRESH_LAST_DATE", "0").strip() == "1"
 # If True (env FETCH_FROM_LAST=1), for each channel: find last date in INPUT_BASE, then fetch from that date (incl.) to today. Default: 0.
@@ -77,9 +69,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 _export_root_env = os.environ.get("EXPORT_ROOT", "").strip()
 if _export_root_env:
     _er = Path(_export_root_env).expanduser()
-    EXPORT_ROOT = (
-        _er.resolve() if _er.is_absolute() else (PROJECT_ROOT / _er).resolve()
-    )
+    EXPORT_ROOT = _er.resolve() if _er.is_absolute() else (PROJECT_ROOT / _er).resolve()
 else:
     EXPORT_ROOT = (PROJECT_ROOT / "cpp_discord_output").resolve()
 # Subfolders inside EXPORT_ROOT (defaults: read = resume source, output = new JSON)
@@ -93,9 +83,7 @@ _CHANNEL_DEFAULT = [
 ]
 if os.environ.get("CHANNEL_TO_EXPORT", "").strip():
     CHANNEL_TO_EXPORT = [
-        x.strip()
-        for x in os.environ["CHANNEL_TO_EXPORT"].split(",")
-        if x.strip()
+        x.strip() for x in os.environ["CHANNEL_TO_EXPORT"].split(",") if x.strip()
     ]
 else:
     CHANNEL_TO_EXPORT = _CHANNEL_DEFAULT
@@ -144,9 +132,7 @@ def get_timezone():
         return ZoneInfo(TIMEZONE), ZoneInfo("UTC")
     if pytz is not None:
         return pytz.timezone(TIMEZONE), pytz.UTC
-    raise RuntimeError(
-        "Need zoneinfo (Python 3.9+) or pytz for timezone support"
-    )
+    raise RuntimeError("Need zoneinfo (Python 3.9+) or pytz for timezone support")
 
 
 def date_to_utc_range(date_str: str):
@@ -245,16 +231,10 @@ def chunk_file_path(
     """Path for a 10-day chunk file: base/CHANNEL/YYYY-MM-DD_to_YYYY-MM-DD.json. Default base=OUTPUT_BASE."""
     if base is None:
         base = OUTPUT_BASE
-    return (
-        _export_data_dir(base)
-        / sanitized_name
-        / f"{start_date}_to_{end_date}.json"
-    )
+    return _export_data_dir(base) / sanitized_name / f"{start_date}_to_{end_date}.json"
 
 
-def chunk_file_exists(
-    sanitized_name: str, start_date: str, end_date: str
-) -> bool:
+def chunk_file_exists(sanitized_name: str, start_date: str, end_date: str) -> bool:
     """True if the chunk file exists under any scanned export root."""
     name = f"{start_date}_to_{end_date}.json"
     rel = Path(sanitized_name) / name
@@ -273,11 +253,7 @@ def get_missing_chunks(
     sanitized_name: str, chunks: list[Tuple[str, str]]
 ) -> list[Tuple[str, str]]:
     """Return only chunks that are not yet exported (resume for chunk mode)."""
-    return [
-        (s, e)
-        for s, e in chunks
-        if not chunk_file_exists(sanitized_name, s, e)
-    ]
+    return [(s, e) for s, e in chunks if not chunk_file_exists(sanitized_name, s, e)]
 
 
 def get_last_export_date(sanitized_name: str) -> Optional[str]:
@@ -395,9 +371,7 @@ def export_one_chunk(
         return True
 
     out_file.parent.mkdir(parents=True, exist_ok=True)
-    after_utc, before_utc = date_range_to_utc_range(
-        start_date_str, end_date_str
-    )
+    after_utc, before_utc = date_range_to_utc_range(start_date_str, end_date_str)
 
     exe = resolve_cli()
     cmd = [
@@ -473,12 +447,7 @@ def export_one_day(
     """
     year = date_str[:4]
     month = date_str[5:7]
-    out_dir = (
-        _export_data_dir(OUTPUT_BASE)
-        / sanitized_name
-        / year
-        / f"{year}-{month}"
-    )
+    out_dir = _export_data_dir(OUTPUT_BASE) / sanitized_name / year / f"{year}-{month}"
     out_file = out_dir / f"{date_str}.json"
 
     if out_file.exists() and not overwrite:
@@ -587,9 +556,7 @@ def export_channel_days(args):
 
 def main():
     if not TOKENS:
-        print(
-            "ERROR: Set TOKEN or TOKENS (env or edit script).", file=sys.stderr
-        )
+        print("ERROR: Set TOKEN or TOKENS (env or edit script).", file=sys.stderr)
         sys.exit(1)
 
     print(
@@ -665,9 +632,7 @@ def main():
                 continue
             token = TOKENS[i % len(TOKENS)]
             if chunk_mode:
-                chunks = get_chunks_from_dates(
-                    dates_from_last, EXPORT_CHUNK_DAYS
-                )
+                chunks = get_chunks_from_dates(dates_from_last, EXPORT_CHUNK_DAYS)
                 work.append((cid, cname, chunks, token, True))
             else:
                 work.append((cid, cname, dates_from_last, token, True))
@@ -723,9 +688,7 @@ def main():
                 failed_channels.append(cid)
     else:
         with ThreadPoolExecutor(max_workers=PARALLEL) as executor:
-            futures = {
-                executor.submit(export_channel_days, a): a for a in work
-            }
+            futures = {executor.submit(export_channel_days, a): a for a in work}
             for future in as_completed(futures):
                 cid, cname, failed = future.result()
                 if failed:

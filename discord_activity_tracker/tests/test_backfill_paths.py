@@ -1,9 +1,8 @@
 """Tests for backfill path ordering and date windows."""
 
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 
-import pytest
 
 from discord_activity_tracker.sync.backfill_paths import (
     discussion_json_sort_key,

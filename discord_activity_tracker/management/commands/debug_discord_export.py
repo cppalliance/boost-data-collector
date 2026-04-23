@@ -7,9 +7,7 @@ from discord_activity_tracker.sync.export import generate_markdown_content
 
 
 class Command(BaseCommand):
-    help = (
-        "Inspect reply links and raw markdown preview for Discord messages stored in the database."
-    )
+    help = "Inspect reply links and raw markdown preview for Discord messages stored in the database."
 
     def add_arguments(self, parser):
         parser.add_argument(

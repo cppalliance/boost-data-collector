@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Optional
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
@@ -133,7 +132,9 @@ class Command(BaseCommand):
                 }
                 ch = channel_data["channel"].get("name", "?")
                 n = len(channel_data["messages"])
-                self.stdout.write(f"  [{i}/{len(paths)}] {json_path.name} #{ch}: {n} msgs")
+                self.stdout.write(
+                    f"  [{i}/{len(paths)}] {json_path.name} #{ch}: {n} msgs"
+                )
                 asyncio.run(
                     persist_exporter_channel_payloads(
                         [channel_data],
@@ -145,4 +146,6 @@ class Command(BaseCommand):
                 logger.exception("Backfill failed for %s: %s", json_path, e)
                 self.stdout.write(self.style.WARNING(f"  Skip {json_path.name}: {e}"))
 
-        self.stdout.write(self.style.SUCCESS(f"✓ Backfill finished ({processed} file(s))"))
+        self.stdout.write(
+            self.style.SUCCESS(f"✓ Backfill finished ({processed} file(s))")
+        )
