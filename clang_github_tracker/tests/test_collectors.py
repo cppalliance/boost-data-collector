@@ -67,14 +67,13 @@ def _collector(**overrides):
 
 @patch("clang_github_tracker.collectors.sync_clang_github_activity")
 @patch("clang_github_tracker.collectors.clang_state.resolve_start_end_dates")
-def test_collector_sync_failure_logs_and_raises(_resolve, mock_sync, caplog):
-    caplog.set_level(logging.ERROR)
+def test_collector_sync_failure_raises(_resolve, mock_sync):
+    """Uncaught errors propagate; structured logging is done in CollectorBase.handle_error when the management command wraps run()."""
     _resolve.return_value = ("sc", "si", None)
     mock_sync.side_effect = RuntimeError("sync boom")
     c = _collector(skip_github_sync=False)
     with pytest.raises(RuntimeError, match="sync boom"):
         c.run()
-    assert "sync failed" in caplog.text
 
 
 @patch("clang_github_tracker.collectors.clang_state.resolve_start_end_dates")

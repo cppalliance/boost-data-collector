@@ -1,4 +1,4 @@
-"""Tests for github_ops.tokens (get_github_token, get_github_client)."""
+"""Tests for core.operations.github_ops.tokens (get_github_token, get_github_client)."""
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 

@@ -116,21 +116,17 @@ class ClangGithubTrackerCollector(CollectorBase):
         pr_numbers: list[int] = []
 
         if not self.skip_github_sync:
-            try:
-                commits_saved, issue_numbers, pr_numbers = sync_clang_github_activity(
-                    start_commit=start_commit,
-                    start_item=start_item,
-                    end_date=end_date,
-                )
-                logger.info(
-                    "run_clang_github_tracker: sync done; commits=%s issues=%s prs=%s",
-                    commits_saved,
-                    len(issue_numbers),
-                    len(pr_numbers),
-                )
-            except Exception as e:
-                logger.exception("run_clang_github_tracker sync failed: %s", e)
-                raise
+            commits_saved, issue_numbers, pr_numbers = sync_clang_github_activity(
+                start_commit=start_commit,
+                start_item=start_item,
+                end_date=end_date,
+            )
+            logger.info(
+                "run_clang_github_tracker: sync done; commits=%s issues=%s prs=%s",
+                commits_saved,
+                len(issue_numbers),
+                len(pr_numbers),
+            )
         else:
             logger.info("skipping GitHub sync (--skip-github-sync)")
 

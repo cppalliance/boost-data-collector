@@ -1,4 +1,4 @@
-"""Tests for operations.slack_ops.channels."""
+"""Tests for core.operations.slack_ops.channels."""
 
 from unittest.mock import MagicMock, patch
 

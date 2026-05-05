@@ -1,6 +1,7 @@
 """Tests for core.errors failure classification."""
 
 import builtins
+import errno
 import importlib
 import types
 
@@ -71,10 +72,38 @@ def test_classify_timeout_error():
     assert classify_failure(TimeoutError()) is CollectorFailureCategory.TIMEOUT
 
 
-def test_classify_os_error_network_bucket():
+def test_classify_os_error_network_errno():
     assert (
-        classify_failure(OSError(5, "Input/output error"))
+        classify_failure(OSError(errno.EPIPE, "Broken pipe"))
         is CollectorFailureCategory.NETWORK
+    )
+
+
+def test_classify_os_error_connection_error_subclass():
+    assert (
+        classify_failure(ConnectionResetError())
+        is CollectorFailureCategory.NETWORK
+    )
+
+
+def test_classify_os_error_io_ambiguous_is_unknown():
+    assert (
+        classify_failure(OSError(errno.EIO, "Input/output error"))
+        is CollectorFailureCategory.UNKNOWN
+    )
+
+
+def test_classify_os_error_filesystem_errno_unknown():
+    assert (
+        classify_failure(OSError(errno.ENOENT, "No such file"))
+        is CollectorFailureCategory.UNKNOWN
+    )
+
+
+def test_classify_file_not_found_unknown():
+    assert (
+        classify_failure(FileNotFoundError("/no/such/path"))
+        is CollectorFailureCategory.UNKNOWN
     )
 
 

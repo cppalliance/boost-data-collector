@@ -1,4 +1,4 @@
-"""Tests for github_ops client and tokens (smoke / no-network where possible)."""
+"""Tests for core.operations.github_ops.client and core.operations.github_ops.tokens (smoke / no-network where possible)."""
 
 import pytest
 from unittest.mock import MagicMock, patch
@@ -16,7 +16,7 @@ from core.operations.github_ops.tokens import get_github_client, get_github_toke
 
 
 def test_import_get_github_token():
-    """core.operations.github_ops.get_github_token is importable."""
+    """core.operations.github_ops.tokens.get_github_token is importable."""
     assert callable(get_github_token)
 
 
@@ -70,7 +70,7 @@ def test_get_github_token_scraping_missing_raises():
 
 
 def test_import_get_github_client():
-    """core.operations.github_ops.get_github_client is importable."""
+    """core.operations.github_ops.tokens.get_github_client is importable."""
     assert callable(get_github_client)
 
 

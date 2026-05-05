@@ -1,4 +1,4 @@
-"""Tests for operations.md_ops converters: issue_json_to_md and pr_json_to_md."""
+"""Tests for core.operations.md_ops (_write, issue_to_md, pr_to_md)."""
 
 from pathlib import Path
 

@@ -31,6 +31,19 @@ def test_run_slack_event_handler_workspace_root_failure_still_runs(settings):
 
 
 @pytest.mark.django_db
+def test_run_slack_event_handler_workspace_root_type_error_still_runs(settings):
+    settings.SLACK_BOT_TOKEN = {}
+    with patch(
+        "slack_event_handler.runner.get_workspace_root",
+        side_effect=TypeError("bad WORKSPACE_DIR type"),
+    ):
+        with patch("slack_event_handler.runner.logger") as log:
+            run_slack_event_handler()
+    log.exception.assert_called()
+    log.error.assert_called()
+
+
+@pytest.mark.django_db
 def test_run_slack_event_handler_starts_listener_threads(
     settings, tmp_path, fake_slack_bolt
 ):

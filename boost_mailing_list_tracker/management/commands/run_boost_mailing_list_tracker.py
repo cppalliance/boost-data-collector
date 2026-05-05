@@ -215,103 +215,98 @@ class BoostMailingListTrackerCollector(CollectorBase):
 
         list_names = [u.split("/")[-3] for u in BOOST_LIST_URLS]
 
-        try:
-            if not dry_run:
-                total_existing = 0
-                total_skipped = 0
-                for list_name in list_names:
-                    processed, skipped = _process_existing_workspace_json(list_name)
-                    total_existing += processed
-                    total_skipped += skipped
-
-                self.stdout.write(
-                    f"Processed {total_existing} existing message JSON(s) from workspace. {total_skipped} skipped."
-                )
-                logger.info(
-                    "run_boost_mailing_list_tracker: processed %s existing JSON(s)",
-                    total_existing,
-                )
-
-            if not (start_date and start_date.strip()):
-                start_date = _get_start_date_from_db()
-                if start_date:
-                    logger.info(
-                        "run_boost_mailing_list_tracker: using start_date from DB (latest sent_at): %s",
-                        start_date,
-                    )
-
-            self.stdout.write("Fetching emails from Boost mailing list archives...")
-            emails = fetch_all_emails(start_date=start_date, end_date=end_date)
-
-            if not emails:
-                self.stdout.write(self.style.WARNING("No emails fetched from API."))
-                logger.info("run_boost_mailing_list_tracker: no emails fetched")
-                emails = []
-
-            self.stdout.write(f"Fetched {len(emails)} emails from API.")
-
-            if dry_run:
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Dry run: would process {len(emails)} emails. No DB or workspace writes."
-                    )
-                )
-                return
-
-            created_count = 0
-            skipped_count = 0
-
-            for email_data in emails:
-                msg_id = email_data.get("msg_id", "")
-                list_name = email_data.get("list_name", "")
-                if not msg_id:
-                    skipped_count += 1
-                    continue
-
-                json_path = get_message_json_path(list_name, msg_id)
-                try:
-                    raw_path = get_raw_json_path(list_name, msg_id)
-                    raw_path.parent.mkdir(parents=True, exist_ok=True)
-                    raw_path.write_text(
-                        json.dumps(email_data, indent=2, default=str),
-                        encoding="utf-8",
-                    )
-
-                    json_path.parent.mkdir(parents=True, exist_ok=True)
-                    json_path.write_text(
-                        json.dumps(email_data, indent=2, default=str),
-                        encoding="utf-8",
-                    )
-
-                    was_created, skipped = _persist_email(email_data)
-                    if was_created:
-                        created_count += 1
-                    elif skipped:
-                        skipped_count += 1
-                    json_path.unlink(missing_ok=True)
-                except Exception as e:
-                    skipped_count += 1
-                    logger.warning(
-                        "Skipping malformed email list_name=%s msg_id=%s: %s",
-                        list_name,
-                        msg_id,
-                        e,
-                    )
+        if not dry_run:
+            total_existing = 0
+            total_skipped = 0
+            for list_name in list_names:
+                processed, skipped = _process_existing_workspace_json(list_name)
+                total_existing += processed
+                total_skipped += skipped
 
             self.stdout.write(
-                self.style.SUCCESS(
-                    f"Done: {created_count} created, {skipped_count} skipped (already existed or empty)."
-                )
+                f"Processed {total_existing} existing message JSON(s) from workspace. {total_skipped} skipped."
             )
             logger.info(
-                "run_boost_mailing_list_tracker: finished; created=%d, skipped=%d",
-                created_count,
-                skipped_count,
+                "run_boost_mailing_list_tracker: processed %s existing JSON(s)",
+                total_existing,
             )
 
-        except Exception as e:
-            logger.exception("run_boost_mailing_list_tracker failed: %s", e)
-            raise
+        if not (start_date and start_date.strip()):
+            start_date = _get_start_date_from_db()
+            if start_date:
+                logger.info(
+                    "run_boost_mailing_list_tracker: using start_date from DB (latest sent_at): %s",
+                    start_date,
+                )
+
+        self.stdout.write("Fetching emails from Boost mailing list archives...")
+        emails = fetch_all_emails(start_date=start_date, end_date=end_date)
+
+        if not emails:
+            self.stdout.write(self.style.WARNING("No emails fetched from API."))
+            logger.info("run_boost_mailing_list_tracker: no emails fetched")
+            emails = []
+
+        self.stdout.write(f"Fetched {len(emails)} emails from API.")
+
+        if dry_run:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Dry run: would process {len(emails)} emails. No DB or workspace writes."
+                )
+            )
+            return
+
+        created_count = 0
+        skipped_count = 0
+
+        for email_data in emails:
+            msg_id = email_data.get("msg_id", "")
+            list_name = email_data.get("list_name", "")
+            if not msg_id:
+                skipped_count += 1
+                continue
+
+            json_path = get_message_json_path(list_name, msg_id)
+            try:
+                raw_path = get_raw_json_path(list_name, msg_id)
+                raw_path.parent.mkdir(parents=True, exist_ok=True)
+                raw_path.write_text(
+                    json.dumps(email_data, indent=2, default=str),
+                    encoding="utf-8",
+                )
+
+                json_path.parent.mkdir(parents=True, exist_ok=True)
+                json_path.write_text(
+                    json.dumps(email_data, indent=2, default=str),
+                    encoding="utf-8",
+                )
+
+                was_created, skipped = _persist_email(email_data)
+                if was_created:
+                    created_count += 1
+                elif skipped:
+                    skipped_count += 1
+                json_path.unlink(missing_ok=True)
+            except Exception as e:
+                skipped_count += 1
+                logger.warning(
+                    "Skipping malformed email list_name=%s msg_id=%s: %s",
+                    list_name,
+                    msg_id,
+                    e,
+                )
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Done: {created_count} created, {skipped_count} skipped (already existed or empty)."
+            )
+        )
+        logger.info(
+            "run_boost_mailing_list_tracker: finished; created=%d, skipped=%d",
+            created_count,
+            skipped_count,
+        )
 
     def sync_pinecone(self) -> None:
         if self.dry_run:

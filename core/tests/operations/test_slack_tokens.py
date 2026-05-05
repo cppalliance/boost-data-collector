@@ -1,4 +1,4 @@
-"""Tests for operations.slack_ops.tokens."""
+"""Tests for core.operations.slack_ops.tokens."""
 
 import os
 import pytest

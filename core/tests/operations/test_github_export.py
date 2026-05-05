@@ -1,4 +1,4 @@
-"""Tests for operations.md_ops.github_export rename and stale-path helpers."""
+"""Tests for core.operations.md_ops.github_export rename and stale-path helpers."""
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch

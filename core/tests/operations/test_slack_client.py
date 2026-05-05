@@ -1,4 +1,4 @@
-"""Tests for operations.slack_ops.client (SlackAPIClient)."""
+"""Tests for core.operations.slack_ops.client (SlackAPIClient)."""
 
 from unittest.mock import MagicMock, patch
 

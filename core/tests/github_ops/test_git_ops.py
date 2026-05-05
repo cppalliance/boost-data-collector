@@ -1,4 +1,4 @@
-"""Tests for github_ops git_ops (clone, push, pull, fetch_file_content, upload_folder_to_github)."""
+"""Tests for core.operations.github_ops.git_ops (clone, push, pull, fetch_file_content, upload_folder_to_github)."""
 
 import subprocess
 from unittest.mock import MagicMock, patch

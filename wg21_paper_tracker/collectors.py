@@ -106,20 +106,13 @@ class Wg21PaperTrackerCollector(CollectorBase):
                     "WG21_GITHUB_DISPATCH_TOKEN."
                 )
                 return
-            try:
-                trigger_github_repository_dispatch(
-                    repo,
-                    event_type,
-                    token,
-                    list(result.new_paper_urls),
-                )
-                logger.info("repository_dispatch sent successfully.")
-            except Exception:
-                logger.exception("Failed to send repository_dispatch.")
-                raise
+            trigger_github_repository_dispatch(
+                repo,
+                event_type,
+                token,
+                list(result.new_paper_urls),
+            )
+            logger.info("repository_dispatch sent successfully.")
 
         except ValueError as e:
             raise CommandError(str(e)) from e
-        except Exception as e:
-            logger.exception("WG21 Paper Tracker failed: %s", e)
-            raise
