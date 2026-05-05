@@ -66,27 +66,23 @@ class CppaPineconeSyncCollector(CollectorBase):
             self.preprocessor_path,
         )
 
-        try:
-            preprocess_fn = _resolve_preprocessor(self.preprocessor_path)
-            result = sync_to_pinecone(
-                self.app_type,
-                self.namespace,
-                preprocess_fn,
-                instance=self.instance,
-            )
-            logger.info(
-                "CPPA Pinecone Sync completed: upserted=%s, total=%s, failed_count=%s",
-                result["upserted"],
-                result["total"],
-                result["failed_count"],
-            )
-            if result.get("errors"):
-                for err in result["errors"]:
-                    logger.warning("Sync error: %s", err)
-            logger.info("run_cppa_pinecone_sync: finished successfully")
-        except Exception as e:
-            logger.exception("run_cppa_pinecone_sync failed")
-            raise CommandError(f"Sync failed: {e}") from e
+        preprocess_fn = _resolve_preprocessor(self.preprocessor_path)
+        result = sync_to_pinecone(
+            self.app_type,
+            self.namespace,
+            preprocess_fn,
+            instance=self.instance,
+        )
+        logger.info(
+            "CPPA Pinecone Sync completed: upserted=%s, total=%s, failed_count=%s",
+            result["upserted"],
+            result["total"],
+            result["failed_count"],
+        )
+        if result.get("errors"):
+            for err in result["errors"]:
+                logger.warning("Sync error: %s", err)
+        logger.info("run_cppa_pinecone_sync: finished successfully")
 
 
 class Command(BaseCollectorCommand):

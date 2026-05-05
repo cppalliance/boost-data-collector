@@ -15,6 +15,8 @@ from core.operations.slack_ops.channels import (
 )
 from core.operations.slack_ops.client import SlackAPIClient
 
+# Placeholder string only — not a real Slack token (avoid xoxb-* literals; bandit S106).
+FAKE_BOT_TOKEN_FOR_TESTS = "not-a-real-token"
 
 # --- _parse_list_env ---
 
@@ -232,7 +234,7 @@ def test_start_channel_join_background_loop_invokes_join_check(monkeypatch):
                         self._target()
 
     with patch.object(ch.threading, "Thread", SyncThread):
-        start_channel_join_background("xoxb-test")
+        start_channel_join_background(FAKE_BOT_TOKEN_FOR_TESTS)
     assert ran["done"]
 
 
@@ -243,7 +245,7 @@ def test_start_channel_join_background_starts_named_thread():
     with patch.object(ch.threading, "Thread") as MT:
         inst = MagicMock()
         MT.return_value = inst
-        t = start_channel_join_background(bot_token="xoxb-test")
+        t = start_channel_join_background(bot_token=FAKE_BOT_TOKEN_FOR_TESTS)
         assert t is inst
         MT.assert_called_once()
         kw = MT.call_args[1]

@@ -1,3 +1,4 @@
+# ruff: noqa: S106 -- synthetic Slack tokens in tests (not real secrets).
 """Unit tests for slack_event_handler.utils.slack_listener (Bolt mocked)."""
 
 from pathlib import Path

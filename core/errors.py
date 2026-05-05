@@ -157,11 +157,13 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
     if exc_mod.startswith("requests.exceptions"):
         if exc_name in ("HTTPError", "SSLError"):
             return CollectorFailureCategory.NETWORK
-        if exc_name == "Timeout":
+        if exc_name.endswith("Timeout"):
             return CollectorFailureCategory.TIMEOUT
         if exc_name in ("ConnectionError", "ChunkedEncodingError"):
             return CollectorFailureCategory.NETWORK
     if exc_mod.startswith("urllib3.exceptions"):
+        if exc_name.endswith("TimeoutError"):
+            return CollectorFailureCategory.TIMEOUT
         return CollectorFailureCategory.NETWORK
     if exc_mod.startswith("httpx"):
         if "Timeout" in exc_name:

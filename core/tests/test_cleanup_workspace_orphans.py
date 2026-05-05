@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 from django.core.management import call_command
+from django.core.management.base import CommandError
 
 
 @pytest.mark.django_db
@@ -39,6 +40,17 @@ def test_cleanup_workspace_orphans_execute_removes_file(tmp_path):
             stdout=out,
         )
     assert not stale.exists()
+
+
+@pytest.mark.django_db
+def test_cleanup_workspace_orphans_rejects_negative_max_age_hours(tmp_path):
+    with patch("django.conf.settings.WORKSPACE_DIR", tmp_path):
+        with pytest.raises(CommandError, match="max-age-hours"):
+            call_command(
+                "cleanup_workspace_orphans",
+                "--max-age-hours",
+                "-0.5",
+            )
 
 
 @pytest.mark.django_db

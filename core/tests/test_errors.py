@@ -43,7 +43,7 @@ def _make_urllib3_exc(name: str):
 
 
 def _make_httpx_exc(name: str):
-    import httpx
+    httpx = pytest.importorskip("httpx")
 
     exc_cls = getattr(httpx, name)
     mod_name = getattr(exc_cls, "__module__", "httpx")
@@ -114,6 +114,8 @@ def test_classify_unknown():
         ("HTTPError", CollectorFailureCategory.NETWORK),
         ("SSLError", CollectorFailureCategory.NETWORK),
         ("Timeout", CollectorFailureCategory.TIMEOUT),
+        ("ReadTimeout", CollectorFailureCategory.TIMEOUT),
+        ("ConnectTimeout", CollectorFailureCategory.TIMEOUT),
         ("ConnectionError", CollectorFailureCategory.NETWORK),
         ("ChunkedEncodingError", CollectorFailureCategory.NETWORK),
     ],
@@ -123,9 +125,18 @@ def test_classify_requests_exceptions(name, category):
     assert classify_failure(cls("x")) is category
 
 
-def test_classify_urllib3_any():
-    cls = _make_urllib3_exc("ProtocolError")
-    assert classify_failure(cls("x")) is CollectorFailureCategory.NETWORK
+@pytest.mark.parametrize(
+    ("name", "category"),
+    [
+        ("ReadTimeoutError", CollectorFailureCategory.TIMEOUT),
+        ("ConnectTimeoutError", CollectorFailureCategory.TIMEOUT),
+        ("TimeoutError", CollectorFailureCategory.TIMEOUT),
+        ("ProtocolError", CollectorFailureCategory.NETWORK),
+    ],
+)
+def test_classify_urllib3_exceptions(name, category):
+    cls = _make_urllib3_exc(name)
+    assert classify_failure(cls("x")) is category
 
 
 @pytest.mark.parametrize(

@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from django.conf import settings
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         max_age = float(options["max_age_hours"])
+        if max_age < 0:
+            raise CommandError(
+                f"--max-age-hours must be zero or positive (got {max_age})."
+            )
         execute = options["execute"]
         root = Path(getattr(settings, "WORKSPACE_DIR", ""))
         if not root.is_dir():

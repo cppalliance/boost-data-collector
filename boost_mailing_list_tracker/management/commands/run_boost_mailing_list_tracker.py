@@ -288,7 +288,13 @@ class BoostMailingListTrackerCollector(CollectorBase):
                 elif skipped:
                     skipped_count += 1
                 json_path.unlink(missing_ok=True)
-            except Exception as e:
+            except (
+                json.JSONDecodeError,
+                TypeError,
+                ValueError,
+                KeyError,
+                AttributeError,
+            ) as e:
                 skipped_count += 1
                 logger.warning(
                     "Skipping malformed email list_name=%s msg_id=%s: %s",

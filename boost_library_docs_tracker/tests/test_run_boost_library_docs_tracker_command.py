@@ -298,10 +298,10 @@ def test_sync_pinecone_import_skips():
 
     orig = builtins.__import__
 
-    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+    def fake_import(name, globals_dict=None, locals_dict=None, fromlist=(), level=0):
         if name == "cppa_pinecone_sync.sync":
             raise ImportError("no pinecone")
-        return orig(name, globals, locals, fromlist, level)
+        return orig(name, globals_dict, locals_dict, fromlist, level)
 
     with patch.object(builtins, "__import__", side_effect=fake_import):
         cmd._sync_pinecone()
