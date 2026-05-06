@@ -258,13 +258,11 @@ def test_sync_pinecone_skipped_when_app_type_empty(monkeypatch):
 
 @pytest.mark.django_db
 def test_server_id_is_already_int_in_settings(monkeypatch):
+    """Large snowflake as int for DISCORD_SERVER_ID must not break _handle_core."""
     monkeypatch.setattr(settings, "DISCORD_USER_TOKEN", "tok")
     monkeypatch.setattr(settings, "DISCORD_SERVER_ID", 331718482485837825)
     cmd, collector = _cmd_and_collector(dry_run=True)
-    try:
-        cmd._handle_core(collector.options, collector=collector)
-    except CommandError:
-        pass
+    cmd._handle_core(collector.options, collector=collector)
 
 
 # ---------------------------------------------------------------------------

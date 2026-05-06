@@ -350,13 +350,18 @@ class DiscordActivityCollector(CollectorBase):
         converted = [convert_exporter_message_to_dict(m) for m in messages]
         count = await _process_messages_in_batches(channel, converted)
 
-        if messages:
-            last_converted = convert_exporter_message_to_dict(messages[-1])
-            last_time = parse_datetime(last_converted.get("created_at"))
-            if last_time:
-                await sync_to_async(update_channel_last_activity)(channel, last_time)
+        def finalize_exporter_channel_sync() -> None:
+            if converted:
+                parsed_times = [
+                    t
+                    for m in converted
+                    if (t := parse_datetime(m.get("created_at"))) is not None
+                ]
+                if parsed_times:
+                    update_channel_last_activity(channel, max(parsed_times))
+            update_channel_last_synced(channel)
 
-        await sync_to_async(update_channel_last_synced)(channel)
+        await sync_to_async(finalize_exporter_channel_sync)()
         return count
 
 

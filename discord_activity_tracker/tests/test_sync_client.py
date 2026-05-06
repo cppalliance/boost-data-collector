@@ -302,7 +302,8 @@ def test_context_manager_calls_close(mock_discord_pkg):
     inner.login = AsyncMock()
     inner.close = AsyncMock()
 
-    # __exit__ now calls run_async(self.close()) — patch run_async
+    # __exit__ calls shutdown_sync(); without .run() there is no dedicated loop,
+    # so shutdown_sync falls back to run_async(close()) — patch run_async.
     with patch("discord_activity_tracker.sync.client.run_async") as ra:
         with DiscordSyncClient("tok") as c:
             c._ready = True
@@ -342,6 +343,22 @@ def test_run_async_closes_loop_on_exception():
 
     with pytest.raises(ValueError, match="boom"):
         run_async(failing())
+
+
+def test_discord_sync_client_run_reuses_event_loop(mock_discord_pkg):
+    """All work on one client instance must share one loop (discord.py / aiohttp)."""
+    loops: list = []
+
+    async def record_loop():
+        loops.append(asyncio.get_running_loop())
+        return 1
+
+    c = DiscordSyncClient("tok")
+    c.run(record_loop())
+    c.run(record_loop())
+    assert len(loops) == 2
+    assert loops[0] is loops[1]
+    c.shutdown_sync()
 
 
 def test_message_to_dict_with_attachment_and_reaction(mock_discord_pkg):

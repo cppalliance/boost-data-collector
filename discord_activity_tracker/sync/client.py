@@ -23,6 +23,33 @@ class DiscordSyncClient:
         self.client = discord.Client(intents=intents)
         self.token = token
         self._ready = False
+        self._asyncio_loop: Optional[asyncio.AbstractEventLoop] = None
+
+    def run(self, coro):
+        """Run *coro* on this client's dedicated event loop.
+
+        discord.py binds aiohttp to the loop used at login; reuse this loop for
+        all operations on this client until :meth:`shutdown_sync`.
+        """
+        if self._asyncio_loop is None or self._asyncio_loop.is_closed():
+            self._asyncio_loop = asyncio.new_event_loop()
+        return self._asyncio_loop.run_until_complete(coro)
+
+    def shutdown_sync(self) -> None:
+        """Close the Discord client and tear down the loop (sync ``finally`` helper)."""
+        loop = self._asyncio_loop
+        if loop is not None and not loop.is_closed():
+            try:
+                if self._ready:
+                    loop.run_until_complete(self.close())
+            except Exception:
+                logger.exception("Error while closing Discord client")
+            finally:
+                loop.close()
+                self._asyncio_loop = None
+            return
+        if self._ready:
+            run_async(self.close())
 
     async def _ensure_ready(self):
         """Ensure client is logged in and ready."""
@@ -172,12 +199,15 @@ class DiscordSyncClient:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
-        if self._ready:
-            run_async(self.close())
+        self.shutdown_sync()
 
 
 def run_async(coro):
-    """Run coroutine in a fresh event loop (avoids deprecated get_event_loop())."""
+    """Run *coro* in a fresh event loop and close it.
+
+    Use only for coroutines not tied to a :class:`DiscordSyncClient`. For
+    client work, use :meth:`DiscordSyncClient.run` and :meth:`DiscordSyncClient.shutdown_sync`.
+    """
     loop = asyncio.new_event_loop()
     try:
         return loop.run_until_complete(coro)
