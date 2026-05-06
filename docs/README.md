@@ -27,7 +27,7 @@ Documentation is organized **by topic**, not by app. Each doc covers one cross-c
 **Operations** = external integrations used by many apps (not the same as **Service API**, which is for DB writes). See **[operations/README.md](operations/README.md)** for the full list and when to add one.
 
 - **GitHub:** [operations/github.md](operations/github.md) — `core.operations.github_ops` (clone, push, PR, issue, comment).
-- **Discord:** *(add operations/discord.md when you add Discord notifications.)*
+- **Discord (ingestion):** [operations/discord_chat_exporter.md](operations/discord_chat_exporter.md) — DiscordChatExporter CLI; [service_api/discord_activity_tracker.md](service_api/discord_activity_tracker.md) — commands, sync layout, Pinecone. *(Notifications / webhooks: add an operations doc when implemented.)*
 
 ## Finding app-specific info
 

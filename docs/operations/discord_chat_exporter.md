@@ -111,7 +111,7 @@ Optional **.NET GC** env vars (`DOTNET_GCConserveMemory`, etc.) are documented i
 
 - **`manage.py run_discord_activity_tracker`** — Runs DiscordChatExporter → parses JSON → DB → archives under `{WORKSPACE_DIR}/raw/discord_activity_tracker/<server_id>/<channel_id>/`, then optional Markdown export and Pinecone sync.
 - **`manage.py backfill_discord_activity_tracker`** — Does **not** call the CLI by default in the current design: it imports JSON already placed under
-  `workspace/discord_activity_tracker/Discussion - c-cpp-discussion/` (recursive), then deletes each file after a successful DB import. Use the CLI manually or elsewhere to produce those JSON files if needed.
+  `{WORKSPACE_DIR}/discord_activity_tracker/Discussion - c-cpp-discussion/` (recursive), then deletes each file after a successful DB import. Use the CLI manually or elsewhere to produce those JSON files if needed.
 
 For command-line flags on the Django side, see [service_api/discord_activity_tracker.md](../service_api/discord_activity_tracker.md).
 

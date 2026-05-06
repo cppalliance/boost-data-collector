@@ -48,14 +48,16 @@ New fields (migration `0005`): `message_type: CharField` (default `"Default"`), 
 
 ## Bulk operations
 
-All bulk functions use `bulk_create(update_conflicts=True)` for efficient upserts and accept a list of pre-normalised message dicts (as produced by `sync.messages._prepare_message_data` or `sync.chat_exporter.convert_exporter_message_to_dict`).
+Message and reaction upserts use `bulk_create(update_conflicts=True)` on `DiscordMessage` and `DiscordReaction`. **`bulk_upsert_discord_users`** does not: `DiscordProfile` uses multi-table inheritance, so users are deduplicated and updated with targeted queries / `get_or_create_discord_profile` per missing row (see `services.py`).
 
-| Function                      | Parameter types                                               | Return type | Description                                                                                     |
-| ----------------------------- | ------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
-| `bulk_upsert_discord_users`   | `user_data_list: list[dict]`                                  | `dict`      | Upsert `DiscordProfile` rows; returns `{user_id: profile}` map.                               |
-| `bulk_upsert_discord_messages` | `message_data_list: list[dict]`, `channel: DiscordChannel`   | `dict`      | Upsert `DiscordMessage` rows incl. `message_type` and `is_pinned`; returns `{message_id: msg}`. |
-| `bulk_upsert_discord_reactions` | `reaction_data_list: list[dict]`, `message_map: dict`       | `None`      | Upsert `DiscordReaction` rows.                                                                  |
-| `bulk_process_message_batch`  | `channel: DiscordChannel`, `messages: list[dict]`            | `int`       | Orchestrates user upsert → message upsert → reaction upsert; returns number of messages upserted. |
+Inputs are lists of pre-normalised message dicts (from `sync.messages._prepare_message_data` or `sync.chat_exporter.convert_exporter_message_to_dict`).
+
+| Function                      | Parameter types                                                                                         | Return type | Description                                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| `bulk_upsert_discord_users`   | `user_data_list: list[dict]`                                                                            | `dict[int, DiscordProfile]` | Upsert `DiscordProfile` rows; returns `{discord_user_id: profile}`.                             |
+| `bulk_upsert_discord_messages` | `message_data_list: list[dict]`, `channel: DiscordChannel`, `user_map: dict[int, DiscordProfile]`     | `dict[int, DiscordMessage]` | Upsert `DiscordMessage` rows incl. `message_type` and `is_pinned`; returns `{message_id: msg}`. |
+| `bulk_upsert_discord_reactions` | `reaction_data_list: list[dict]`, `message_map: dict[int, DiscordMessage]`                            | `None`      | Upsert `DiscordReaction` rows.                                                                  |
+| `bulk_process_message_batch`  | `message_data_list: list[dict]`, `channel: DiscordChannel`                                             | `int`       | Orchestrates user upsert → message upsert → reaction upsert; returns number of messages upserted. |
 
 ---
 
@@ -64,6 +66,19 @@ All bulk functions use `bulk_create(update_conflicts=True)` for efficient upsert
 | Function              | Parameter types                                                    | Return type | Description                                         |
 | --------------------- | ------------------------------------------------------------------ | ----------- | --------------------------------------------------- |
 | `get_active_channels` | `server: DiscordServer`, `days: int = 30`, `channel_ids: list[int] \| None = None` | `QuerySet`  | Channels with activity in last N days, optionally filtered by `channel_ids` allowlist. |
+
+---
+
+## Sync package (`discord_activity_tracker.sync`)
+
+| Module / symbol | Role |
+| --------------- | ---- |
+| `sync/chat_exporter.py` | Runs **DiscordChatExporter** (`exportguild`, etc.), date bounds in UTC, filters JSON paths. Used by **`run_discord_activity_tracker`**. |
+| `sync/messages.py` | `_prepare_message_data`, `_process_messages_in_batches` (calls `bulk_process_message_batch`). Also exposes **discord.py** helpers (`DiscordSyncClient`, `sync_all_channels`, …) for Bot API–style sync; those entry points are **not** wired to `run_discord_activity_tracker` today (that command uses the exporter + user token only). |
+| `sync/client.py` | `DiscordSyncClient` — discord.py wrapper (intents, fetch guild/channel/messages). |
+| `sync/exporter_window.py` | `latest_message_created_at_for_guild` — lower bound for incremental exporter runs when `--since` is omitted. |
+| `sync/utils.py` | Parsing helpers shared by exporter and message pipelines. |
+| `sync/export.py` | Markdown export from DB (used downstream of sync; see command help for `DISCORD_CONTEXT_*` settings). |
 
 ---
 
@@ -79,17 +94,18 @@ Fetches into a staging directory, persists to the database, then archives JSON u
 
 `{WORKSPACE_DIR}/raw/discord_activity_tracker/<server_id>/<channel_id>/`
 
-Date bounds passed to the exporter use **UTC** (see `sync/chat_exporter.py`). When `--since` is omitted, the lower bound is the latest stored message time for this guild (and channel allowlist). If the database has no matching rows, no `--after` filter is applied (full history). When `--until` is omitted, there is no upper bound (export through the present).
+Date bounds passed to the exporter use **UTC** (see `sync/chat_exporter.py`). When `--since` is omitted, the lower bound is the latest stored message time for this guild (and channel allowlist). If the database has no matching rows, no `--after` filter is applied (full history). When `--until` is omitted, there is no upper bound (export through the present). If `--since` and `--until` are both set but **since is after until**, the command logs a warning and treats both as unset, then recomputes bounds from the rules above.
 
 ```
 python manage.py run_discord_activity_tracker [options]
 
 Options:
-  --dry-run                 No fetch, export, push, or Pinecone writes; log plan
+  --dry-run                 No fetch, export, push, or Pinecone writes; planned steps logged at INFO
   --skip-discord-sync       Skip DiscordChatExporter, DB upserts, and raw JSON
   --skip-markdown-export    Skip writing Markdown from DB to DISCORD_CONTEXT_REPO_PATH
   --skip-remote-push        Skip git commit/push after export (see DISCORD_CONTEXT_AUTO_COMMIT)
-  --skip-pinecone           Skip run_cppa_pinecone_sync (alias: --ignore-pinecone)
+  --skip-pinecone           Skip run_cppa_pinecone_sync
+  --ignore-pinecone         Deprecated alias for --skip-pinecone
   --since, --until          ISO or YYYY-MM-DD window (UTC; aliases: --from-date, --to-date, --start-time, --end-time). Omit `--since` to continue from latest DB message; omit `--until` for no upper bound.
   --channels IDS            Comma-separated channel ID override
   --task {sync,export,all}  Deprecated: maps to the skip flags (prefer --skip-*)
@@ -107,7 +123,8 @@ Imports **existing** DiscordChatExporter JSON files from:
 python manage.py backfill_discord_activity_tracker [options]
 
 Options:
-  --skip-pinecone          Skip Pinecone sync after import (alias: --ignore-pinecone)
+  --skip-pinecone          Skip Pinecone sync after import
+  --ignore-pinecone        Deprecated alias for --skip-pinecone
   --dry-run                List files that would be imported; no DB writes or deletes
 ```
 
@@ -123,10 +140,10 @@ Options:
 
 `discord_activity_tracker/preprocessor.py` exposes `preprocess_discord_for_pinecone(failed_ids, final_sync_at)` which:
 
-1. Queries `DiscordMessage` rows (new since `final_sync_at`, plus any `failed_ids` retry).
+1. Queries `DiscordMessage` rows (incremental: `updated_at` after `final_sync_at`, plus any `failed_ids` retry; first run with no watermark indexes all non-deleted messages).
 2. Groups messages into reply chains (`reply_to_message_id` linking).
 3. Filters documents with fewer than `PINECONE_MIN_TEXT_LENGTH` (default 20) characters.
-4. Emits `{"content": str, "metadata": {...}}` dicts with metadata keys: `doc_id`, `type`, `channel_id`, `channel_name`, `server_id`, `author`, `timestamp`, `is_reply_chain`, `source_ids`.
+4. Emits `{"content": str, "metadata": {...}}` dicts with metadata keys: `doc_id`, `type`, `channel_id`, `channel_name`, `server_id`, `server_name`, `author`, `timestamp`, `is_reply_chain`, `source_ids`.
 
 Settings:
 
@@ -143,4 +160,4 @@ Settings:
 - [Service API index](README.md)
 - [Contributing](../Contributing.md)
 - [Schema](../Schema.md)
-- [Workspace](../Workspace.md) – raw export JSON in `{WORKSPACE_DIR}/raw/discord_activity_tracker/<server_id>/<channel_id>/`
+- [Workspace](../Workspace.md) – raw archives under `{WORKSPACE_DIR}/raw/discord_activity_tracker/<server_id>/<channel_id>/`; app folder `{WORKSPACE_DIR}/discord_activity_tracker/` (CLI `script/`, backfill drop `Discussion - c-cpp-discussion/`)
