@@ -12,6 +12,7 @@ Documentation is organized **by topic**, not by app. Each doc covers one cross-c
 | **Core API** | [Core_public_API.md](Core_public_API.md) | Stable `core` imports: collectors, error classification. |
 | **Operations** | [operations/](operations/README.md) | **Group:** shared I/O (GitHub, Discord, etc.) used by multiple apps. Index in [operations/README.md](operations/README.md). |
 | → GitHub | [operations/github.md](operations/github.md) | Clone, push, fetch file, create PR/issue/comment; token use. |
+| → DiscordChatExporter | [operations/discord_chat_exporter.md](operations/discord_chat_exporter.md) | Install CLI, workspace path, `.env` for Tyrrrz exporter used by Discord ingestion. |
 | **Workspace** | [Workspace.md](Workspace.md) | Workspace layout and usage for file processing (`workspace/<app>/...`). |
 | **Schema** | [Schema.md](Schema.md) | Database schema and table relationships. |
 | **Development** | [Development_guideline.md](Development_guideline.md) | Development setup, app requirements, and step-by-step workflow. |

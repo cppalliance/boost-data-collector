@@ -73,7 +73,9 @@ Two management commands handle message ingestion. Both follow the `CollectorBase
 
 ### `run_discord_activity_tracker` — incremental / scheduled
 
-Uses `DiscordChatExporter` CLI with the user token. Fetches into a staging directory, persists to the database, then archives JSON under:
+Uses **DiscordChatExporter** CLI with the user token. Setup (download, install path, env vars): [DiscordChatExporter operations doc](../operations/discord_chat_exporter.md).
+
+Fetches into a staging directory, persists to the database, then archives JSON under:
 
 `{WORKSPACE_DIR}/raw/discord_activity_tracker/<server_id>/<channel_id>/`
 
@@ -93,24 +95,27 @@ Options:
   --task {sync,export,all}  Deprecated: maps to the skip flags (prefer --skip-*)
 ```
 
-### `backfill_discord_activity_tracker` — full history
+### `backfill_discord_activity_tracker` — import JSON from workspace
 
-Exports an explicit date range for one-off or recovery imports.
+Imports **existing** DiscordChatExporter JSON files from:
+
+`{WORKSPACE_DIR}/discord_activity_tracker/Discussion - c-cpp-discussion/`  
+
+(recursively; skips macOS `._*.json` sidecars). Each file is parsed, upserted into the database, then **deleted** after a successful import so it is not processed again. Does **not** invoke DiscordChatExporter itself — export JSON elsewhere or manually, then drop it into that folder.
 
 ```
-python manage.py backfill_discord_activity_tracker [--start-date YYYY-MM-DD] [options]
+python manage.py backfill_discord_activity_tracker [options]
 
 Options:
-  --start-date YYYY-MM-DD  Backfill start date (UTC); omit to use latest stored message time
-  --end-date YYYY-MM-DD    Backfill end date (default: open-ended / today per exporter)
-  --channels IDS           Comma-separated channel ID override
-  --skip-pinecone          Skip Pinecone sync (alias: --ignore-pinecone)
-  --dry-run                Preview only
+  --skip-pinecone          Skip Pinecone sync after import (alias: --ignore-pinecone)
+  --dry-run                List files that would be imported; no DB writes or deletes
 ```
 
 ### Channel allowlist
 
-Both commands respect `DISCORD_CHANNEL_IDS` in `settings.py` (populated from the `DISCORD_CHANNEL_IDS` env var, comma-separated snowflake IDs). The `--channels` CLI argument overrides the setting for a single run.
+`run_discord_activity_tracker` respects `DISCORD_CHANNEL_IDS` in `settings.py` (from the `DISCORD_CHANNEL_IDS` env var, comma-separated snowflake IDs). The `--channels` CLI argument overrides the setting for a single run.
+
+`backfill_discord_activity_tracker` imports every JSON file under the drop folder; it does not filter by `DISCORD_CHANNEL_IDS`.
 
 ---
 
@@ -134,6 +139,7 @@ Settings:
 
 ## Related
 
+- [DiscordChatExporter setup](../operations/discord_chat_exporter.md) — download, install, `.env`
 - [Service API index](README.md)
 - [Contributing](../Contributing.md)
 - [Schema](../Schema.md)
