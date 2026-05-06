@@ -158,6 +158,7 @@ Each Django app can expose management commands in `management/commands/`. All ap
 ## How it works
 
 - Django project: One Django project with multiple Django apps; all apps share the same settings and database.
+- **Architecture / data flow:** See **[docs/Architecture_data_flow.md](docs/Architecture_data_flow.md)** for Mermaid diagrams (sources → collectors → PostgreSQL / workspace → Pinecone) and a per-app component map. Scheduling diagram: [docs/Development_guideline.md](docs/Development_guideline.md#architecture-high-level).
 - Workflow: **`boost_collector_runner`** runs app commands from **`config/boost_collector_schedule.yaml`** (via **`run_scheduled_collectors`** and Celery). You can also run individual `manage.py` commands by hand.
 - Database: One PostgreSQL database (e.g. `boost_dashboard`); Django ORM and migrations for all apps.
 - Configuration: Django settings (`settings.py`) and environment variables (e.g. via `django-environ` or `python-decouple`).
