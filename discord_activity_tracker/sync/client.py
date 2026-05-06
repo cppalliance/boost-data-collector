@@ -10,6 +10,18 @@ import discord
 logger = logging.getLogger(__name__)
 
 
+def _message_type_label(message_type: Any) -> str:
+    """Map discord.MessageType (or duck-typed ``.name``) to exporter-style labels."""
+    mt_cls = getattr(discord, "MessageType", None)
+    if isinstance(mt_cls, type) and isinstance(message_type, mt_cls):
+        name = message_type.name
+    else:
+        name = getattr(message_type, "name", None)
+    if not isinstance(name, str) or not name:
+        return "Default"
+    return "".join(part.capitalize() for part in name.split("_"))
+
+
 class DiscordSyncClient:
     """Discord client wrapper for syncing messages."""
 
@@ -165,6 +177,8 @@ class DiscordSyncClient:
             },
             "created_at": message.created_at.isoformat(),
             "edited_at": message.edited_at.isoformat() if message.edited_at else None,
+            "message_type": _message_type_label(message.type),
+            "is_pinned": bool(message.pinned),
             "reference": {
                 "message_id": (
                     message.reference.message_id if message.reference else None

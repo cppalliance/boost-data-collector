@@ -385,7 +385,34 @@ def test_message_to_dict_with_attachment_and_reaction(mock_discord_pkg):
     react.count = 2
     msg.reactions = [react]
 
+    msg.type = SimpleNamespace(name="default")
+    msg.pinned = False
+
     d = c._message_to_dict(msg)
     assert d["author"]["display_name"] == "n"
+    assert d["message_type"] == "Default"
+    assert d["is_pinned"] is False
     assert d["attachments"][0]["filename"] == "f.txt"
     assert d["reactions"][0]["count"] == 2
+
+
+def test_message_to_dict_reply_and_pinned(mock_discord_pkg):
+    _, _inner = mock_discord_pkg
+    c = DiscordSyncClient("tok")
+    msg = MagicMock()
+    msg.id = 1
+    msg.content = ""
+    msg.author = SimpleNamespace(
+        id=1, name="u", display_name="u", bot=False, avatar=None
+    )
+    msg.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    msg.edited_at = None
+    msg.reference = None
+    msg.attachments = []
+    msg.reactions = []
+    msg.type = SimpleNamespace(name="reply")
+    msg.pinned = True
+
+    d = c._message_to_dict(msg)
+    assert d["message_type"] == "Reply"
+    assert d["is_pinned"] is True
