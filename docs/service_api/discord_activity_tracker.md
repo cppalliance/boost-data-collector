@@ -99,7 +99,7 @@ Options:
 
 Imports **existing** DiscordChatExporter JSON files from:
 
-`{WORKSPACE_DIR}/discord_activity_tracker/Discussion - c-cpp-discussion/`  
+`{WORKSPACE_DIR}/discord_activity_tracker/Discussion - c-cpp-discussion/`
 
 (recursively; skips macOS `._*.json` sidecars). Each file is parsed, upserted into the database, then **deleted** after a successful import so it is not processed again. Does **not** invoke DiscordChatExporter itself — export JSON elsewhere or manually, then drop it into that folder.
 
