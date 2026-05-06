@@ -173,15 +173,13 @@ class DiscordSyncClient:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
         if self._ready:
-            asyncio.run(self.close())
+            run_async(self.close())
 
 
 def run_async(coro):
-    """Run coroutine in sync context."""
+    """Run coroutine in a fresh event loop (avoids deprecated get_event_loop())."""
+    loop = asyncio.new_event_loop()
     try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    return loop.run_until_complete(coro)
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()

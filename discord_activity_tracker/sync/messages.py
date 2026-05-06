@@ -159,6 +159,8 @@ def _prepare_message_data(
         "message_id": message_data["id"],
         "author": author_info,
         "content": message_data.get("content", ""),
+        "message_type": message_data.get("message_type") or "Default",
+        "is_pinned": bool(message_data.get("is_pinned", False)),
         "message_created_at": created_at,
         "message_edited_at": edited_at,
         "reply_to_message_id": reply_to_message_id,

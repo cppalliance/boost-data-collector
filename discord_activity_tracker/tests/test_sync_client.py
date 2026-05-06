@@ -302,26 +302,46 @@ def test_context_manager_calls_close(mock_discord_pkg):
     inner.login = AsyncMock()
     inner.close = AsyncMock()
 
-    with patch("discord_activity_tracker.sync.client.asyncio.run") as ar:
+    # __exit__ now calls run_async(self.close()) — patch run_async
+    with patch("discord_activity_tracker.sync.client.run_async") as ra:
         with DiscordSyncClient("tok") as c:
             c._ready = True
-    assert ar.called
+    assert ra.called
 
 
-def test_run_async_uses_existing_loop():
+def test_run_async_returns_coroutine_result():
+    """run_async must use a fresh event loop (not the deprecated get_event_loop)."""
+
     async def coro():
         return 42
 
     assert run_async(coro()) == 42
 
 
-def test_run_async_creates_loop_when_missing():
-    async def coro():
-        return 7
+def test_run_async_does_not_use_get_event_loop():
+    """Ensure run_async never calls the deprecated asyncio.get_event_loop."""
 
-    with patch("discord_activity_tracker.sync.client.asyncio.get_event_loop") as g:
-        g.side_effect = RuntimeError("no loop")
-        assert run_async(coro()) == 7
+    async def coro():
+        return 99
+
+    with patch(
+        "discord_activity_tracker.sync.client.asyncio.get_event_loop"
+    ) as mock_gel:
+        result = run_async(coro())
+
+    # get_event_loop should never be touched
+    mock_gel.assert_not_called()
+    assert result == 99
+
+
+def test_run_async_closes_loop_on_exception():
+    """Loop must be closed even if the coroutine raises."""
+
+    async def failing():
+        raise ValueError("boom")
+
+    with pytest.raises(ValueError, match="boom"):
+        run_async(failing())
 
 
 def test_message_to_dict_with_attachment_and_reaction(mock_discord_pkg):
