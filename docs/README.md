@@ -7,7 +7,7 @@ Documentation is organized **by topic**, not by app. Each doc covers one cross-c
 | Topic | Doc | Purpose |
 |-------|-----|---------|
 | **Workflow** | [Workflow.md](Workflow.md) | Main application workflow, execution order, and project details. |
-| **Architecture** | [Architecture_data_flow.md](Architecture_data_flow.md) | Data flow diagram: sources → collectors → DB / workspace → Pinecone. |
+| **Architecture** | [Architecture_data_flow.md](Architecture_data_flow.md) | Data flow (sources → collectors → DB / workspace → Pinecone), orchestration diagram, per-app component map. |
 | **Add a collector** | [How_to_add_a_collector.md](How_to_add_a_collector.md) | Checklist: new command, registration, tests, docs. |
 | **Core API** | [Core_public_API.md](Core_public_API.md) | Stable `core` imports: collectors, error classification. |
 | **Operations** | [operations/](operations/README.md) | **Group:** shared I/O (GitHub, Discord, etc.) used by multiple apps. Index in [operations/README.md](operations/README.md). |
