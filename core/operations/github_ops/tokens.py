@@ -1,5 +1,9 @@
 """
 GitHub token resolution: get token or API client by use case (scraping, push, write).
+
+Scraping tokens use a shared ``itertools.cycle`` for round-robin. Lazy init and each
+``next()`` run under ``_scraping_token_lock`` so concurrent callers (e.g. multiple
+threads or Celery workers) cannot corrupt iterator state.
 """
 
 from __future__ import annotations
@@ -41,6 +45,8 @@ def get_github_token(
         tokens = [t.strip() for t in raw_tokens if isinstance(t, str) and t.strip()]
         global _scraping_token_cycle
         if tokens:
+            # Hold the lock for both cycle creation and next(): itertools.cycle is not
+            # safe to advance from multiple threads without serialization.
             with _scraping_token_lock:
                 if _scraping_token_cycle is None:
                     _scraping_token_cycle = itertools.cycle(tokens)

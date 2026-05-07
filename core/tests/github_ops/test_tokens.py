@@ -66,7 +66,8 @@ def test_get_github_token_scraping_round_robin_thread_safe():
                 results = [f.result() for f in as_completed(futures)]
 
     assert all(r in ("token_a", "token_b") for r in results)
-    assert "token_a" in results and "token_b" in results
+    assert results.count("token_a") == n // 2
+    assert results.count("token_b") == n // 2
 
 
 @pytest.mark.django_db

@@ -10,7 +10,7 @@ model-bakery>=0.17
 # Lint / format (pre-commit runs these via .pre-commit-config.yaml)
 pre-commit>=3.6
 
-# Optional: coverage, HTTP mocking, fake data, static typing (CI typecheck job)
+# Optional: coverage, HTTP mocking, fake data; pyright for optional local type checks
 pytest-cov>=4.1
 responses>=0.24
 Faker>=20.0

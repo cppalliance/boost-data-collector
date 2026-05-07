@@ -157,7 +157,7 @@ def save_issue_raw_source(owner: str, repo: str, issue_data: dict) -> None:
                     path,
                 )
                 existing = {}
-        except Exception:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             snippet = raw_text[:200] if raw_text else "(read failed or empty)"
             logger.exception(
                 "Failed to read/parse existing issue JSON at %s; snippet: %r",
@@ -199,7 +199,7 @@ def save_pr_raw_source(owner: str, repo: str, pr_data: dict) -> None:
                     path,
                 )
                 existing = {}
-        except Exception:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             snippet = raw_text[:200] if raw_text else "(read failed or empty)"
             logger.exception(
                 "Failed to read/parse existing PR JSON at %s; snippet: %r",

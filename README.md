@@ -97,7 +97,7 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-3. Optional: run with coverage (uses repo-root `.coveragerc`) and enforce the same gate as CI:
+3. Optional: run with coverage and enforce a minimum percentage locally:
 
 ```bash
 python -m pytest --tb=short --cov=. --cov-report=term-missing --cov-fail-under=90
@@ -105,10 +105,17 @@ python -m pytest --tb=short --cov=. --cov-report=term-missing --cov-fail-under=9
 
 Coverage writes a local **`.coverage`** file (binary SQLite data used by `coverage.py`; safe to delete). It is listed in `.gitignore`.
 
-**PostgreSQL parity (recommended before merging DB-sensitive changes):** CI sets `DATABASE_URL` to Postgres. Locally, `pytest.ini` defaults to SQLite in-memory when `DATABASE_URL` is unset (`config.test_settings`). Run the full suite against Postgres when you touch JSONB, enums, or locks, for example:
+**PostgreSQL parity (recommended before merging DB-sensitive changes):** GitHub Actions runs the full suite against Postgres (`DATABASE_URL` in `.github/workflows/actions.yml`; tests use `127.0.0.1` for a stable loopback connection). Locally, `pytest.ini` defaults to SQLite in-memory when `DATABASE_URL` is unset (`config.test_settings`). Run the full suite against Postgres when you touch JSONB, enums, or locks, for example:
 
 ```bash
-set DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
+# Linux / macOS
+export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres
+python -m pytest
+```
+
+```bash
+# Windows (Command Prompt)
+set DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres
 python -m pytest
 ```
 
@@ -119,7 +126,7 @@ python -m pytest cppa_user_tracker/tests/ -v
 python -m pytest github_activity_tracker/tests/test_sync_utils.py -v
 ```
 
-CI runs pytest with **`--cov-fail-under=90`**. If the job fails on coverage, add tests (tracker B3) or run `python -m pytest --cov=. --cov-report=term` locally to find gaps. If your DB test schema is stale (e.g. after model changes), run once with `python -m pytest --create-db`.
+CI runs pytest with coverage (`--cov`, HTML/XML reports). To match a **local** coverage gate, use **`--cov-fail-under=90`** (see step 3 above). If coverage fails locally or you need a fresh test DB schema after model changes, run once with `python -m pytest --create-db`.
 
 See [docs/Development_guideline.md](docs/Development_guideline.md#testing-workflow) for when to run tests during development.
 
