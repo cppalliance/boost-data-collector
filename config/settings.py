@@ -506,10 +506,12 @@ DISCORD_CHAT_EXPORTER_SEQUENTIAL_EXPORT = env.bool(
     default=(sys.platform == "darwin"),
 )
 PINECONE_DISCORD_APP_TYPE: str = (
-    env("PINECONE_DISCORD_APP_TYPE", default="discord") or "discord"
+    env("PINECONE_DISCORD_APP_TYPE", default="discord-together-c-cpp")
+    or "discord-together-c-cpp"
 ).strip()
 PINECONE_DISCORD_NAMESPACE: str = (
-    env("PINECONE_DISCORD_NAMESPACE", default="discord-messages") or "discord-messages"
+    env("PINECONE_DISCORD_NAMESPACE", default="discord-together-c-cpp")
+    or "discord-together-c-cpp"
 ).strip()
 
 # WG21 Paper Tracker Configuration

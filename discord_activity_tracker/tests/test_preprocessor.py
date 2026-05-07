@@ -38,15 +38,17 @@ _L_META = "This message has enough characters to pass the minimum text length ch
 
 
 def test_clean_discord_text_removes_user_mentions():
-    assert clean_discord_text("hello <@123456>") == "hello"
+    assert clean_discord_text("discussion <@123456>") == "discussion"
 
 
 def test_clean_discord_text_removes_role_mentions():
-    assert "<@&" not in clean_discord_text("hey <@&9876>")
+    assert "<@&" not in clean_discord_text("readership <@&9876>")
+    assert clean_discord_text("readership <@&9876>") == "readership"
 
 
 def test_clean_discord_text_removes_channel_refs():
     assert "<#" not in clean_discord_text("see <#5555>")
+    assert clean_discord_text("see <#5555>") == "see"
 
 
 def test_clean_discord_text_converts_custom_emoji():
@@ -54,7 +56,15 @@ def test_clean_discord_text_converts_custom_emoji():
 
 
 def test_clean_discord_text_preserves_plain_text():
-    assert clean_discord_text("hello world") == "hello world"
+    assert clean_discord_text("alpha beta gamma") == "alpha beta gamma"
+
+
+def test_clean_discord_text_removes_greeting_after_mention():
+    assert clean_discord_text("hi <@1>") == ""
+
+
+def test_clean_discord_text_removes_thanks_keeps_substance():
+    assert clean_discord_text("thanks <@9> everyone here") == "everyone here"
 
 
 def test_is_content_too_short_below_threshold():
@@ -214,7 +224,7 @@ def test_chain_to_document_single_message(channel, author):
     msg = _make_msg(channel, author, 4001, _L)
     doc = _chain_to_document([msg])
     assert doc is not None
-    assert _L in doc["content"]
+    assert _L.lower() in doc["content"]
     assert doc["content"].startswith('alice: "')
     assert doc["content"].endswith('"')
     meta = doc["metadata"]
@@ -246,7 +256,7 @@ def test_chain_to_document_reply_chain(channel, author):
     assert str(root.message_id) in doc["metadata"]["source_ids"]
     assert str(reply.message_id) in doc["metadata"]["source_ids"]
     assert "\n" in doc["content"]
-    assert _L in doc["content"] and _L_REPLY in doc["content"]
+    assert _L.lower() in doc["content"] and _L_REPLY.lower() in doc["content"]
     assert doc["content"].startswith("alice:")
 
 
