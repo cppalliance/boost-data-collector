@@ -47,6 +47,7 @@ def test_cleanup_removes_invalid_json_execute(tmp_path):
         execute=True,
         use_quarantine=False,
         stale_max_age_seconds=None,
+        invalid_grace_seconds=0.0,
     )
     assert stats.scanned == 1
     assert stats.removed_invalid == 1
@@ -65,6 +66,7 @@ def test_cleanup_dry_run_keeps_invalid(tmp_path):
         execute=False,
         use_quarantine=False,
         stale_max_age_seconds=None,
+        invalid_grace_seconds=0.0,
     )
     assert stats.removed_invalid == 1
     assert p.exists()
@@ -85,11 +87,12 @@ def test_should_skip_when_runserver_parent():
     saved_rm = os.environ.pop("RUN_MAIN", None)
     saved_pt = os.environ.pop("PYTEST_CURRENT_TEST", None)
     try:
-        with patch.object(sys, "argv", ["manage.py", "runserver"]):
-            assert wo.should_skip_startup_cleanup() is True
-        os.environ["RUN_MAIN"] = "true"
-        with patch.object(sys, "argv", ["manage.py", "runserver"]):
-            assert wo.should_skip_startup_cleanup() is False
+        with patch.dict(os.environ, {"DJANGO_SETTINGS_MODULE": "config.settings"}):
+            with patch.object(sys, "argv", ["manage.py", "runserver"]):
+                assert wo.should_skip_startup_cleanup() is True
+            os.environ["RUN_MAIN"] = "true"
+            with patch.object(sys, "argv", ["manage.py", "runserver"]):
+                assert wo.should_skip_startup_cleanup() is False
     finally:
         os.environ.pop("RUN_MAIN", None)
         if saved_rm is not None:
@@ -112,18 +115,61 @@ def test_should_skip_migrate_argv():
 
 
 @pytest.mark.django_db
+def test_cleanup_skips_invalid_json_within_grace_period(tmp_path):
+    from core.workspace_orphans import cleanup_github_activity_tracker_json_cache
+
+    p = _gat_commit_json(tmp_path) / "mid.json"
+    p.write_text("{", encoding="utf-8")
+
+    stats = cleanup_github_activity_tracker_json_cache(
+        workspace_dir=tmp_path,
+        execute=True,
+        use_quarantine=False,
+        stale_max_age_seconds=None,
+        invalid_grace_seconds=3600.0,
+    )
+    assert p.exists()
+    assert stats.skipped_grace_invalid == 1
+    assert stats.removed_invalid == 0
+
+
+@pytest.mark.django_db
+def test_cleanup_removes_invalid_after_grace(tmp_path):
+    from core.workspace_orphans import cleanup_github_activity_tracker_json_cache
+
+    p = _gat_commit_json(tmp_path) / "old.json"
+    p.write_text("{", encoding="utf-8")
+    old = time.time() - 60.0
+    os.utime(p, (old, old))
+
+    stats = cleanup_github_activity_tracker_json_cache(
+        workspace_dir=tmp_path,
+        execute=True,
+        use_quarantine=False,
+        stale_max_age_seconds=None,
+        invalid_grace_seconds=5.0,
+    )
+    assert not p.exists()
+    assert stats.removed_invalid == 1
+    assert stats.skipped_grace_invalid == 0
+
+
+@pytest.mark.django_db
 def test_management_command_github_json_cache_removes_invalid(tmp_path):
     bad = _gat_commit_json(tmp_path) / "x.json"
     bad.write_text("", encoding="utf-8")
 
     with patch("django.conf.settings.WORKSPACE_DIR", tmp_path):
-        out = StringIO()
-        call_command(
-            "cleanup_workspace_orphans",
-            "--github-json-cache",
-            "--execute",
-            stdout=out,
-        )
+        with patch(
+            "django.conf.settings.WORKSPACE_ORPHAN_INVALID_JSON_GRACE_SECONDS", 0.0
+        ):
+            out = StringIO()
+            call_command(
+                "cleanup_workspace_orphans",
+                "--github-json-cache",
+                "--execute",
+                stdout=out,
+            )
     assert not bad.exists()
     body = out.getvalue().replace(" ", "")
     assert "removed_invalid=1" in body
@@ -146,6 +192,7 @@ def test_stale_valid_json_logs_warning_only(tmp_path, caplog):
             execute=True,
             use_quarantine=False,
             stale_max_age_seconds=3600.0,
+            invalid_grace_seconds=0.0,
         )
     assert p.exists()
     assert any("Stale valid JSON" in r.message for r in caplog.records)

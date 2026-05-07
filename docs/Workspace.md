@@ -193,7 +193,7 @@ Under `workspace/github_activity_tracker/<owner>/<repo>/{commits,issues,prs}/`, 
 python manage.py cleanup_workspace_orphans --github-json-cache
 ```
 
-Add `--execute` to delete invalid/empty JSON (or move them to `workspace/_quarantine/...` when `WORKSPACE_ORPHAN_USE_QUARANTINE_FOR_INVALID_JSON=true`). Valid JSON older than `WORKSPACE_ORPHAN_JSON_STALE_MAX_AGE_SECONDS` only logs a **warning** (may be normal backlog).
+Add `--execute` to delete invalid/empty JSON (or move them to `workspace/_quarantine/...` when `WORKSPACE_ORPHAN_USE_QUARANTINE_FOR_INVALID_JSON=true`). Files that are invalid but whose **mtime age** is below `WORKSPACE_ORPHAN_INVALID_JSON_GRACE_SECONDS` (default 5s) are **skipped** so cleanup does not race an in-flight writer; set to `0` to disable that grace window. Valid JSON older than `WORKSPACE_ORPHAN_JSON_STALE_MAX_AGE_SECONDS` only logs a **warning** (may be normal backlog).
 
 ### Automatic cleanup on process startup
 
@@ -206,6 +206,7 @@ Related settings (see `config/settings.py`):
 | `WORKSPACE_ORPHAN_CLEANUP_ENABLED` | Enable startup cleanup (default `false`). |
 | `WORKSPACE_ORPHAN_USE_QUARANTINE_FOR_INVALID_JSON` | Move invalid JSON under `workspace/_quarantine/` instead of deleting. |
 | `WORKSPACE_ORPHAN_JSON_STALE_MAX_AGE_SECONDS` | Warn if valid JSON is older than this many seconds; `-1` disables (default). |
+| `WORKSPACE_ORPHAN_INVALID_JSON_GRACE_SECONDS` | Do not remove invalid/empty JSON younger than this many seconds (mtime age); default `5`. Use `0` to disable. |
 
 ## Conventions
 

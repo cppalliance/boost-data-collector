@@ -31,6 +31,7 @@ class GithubJsonCleanupStats:
     scanned: int = 0
     removed_invalid: int = 0
     quarantined_invalid: int = 0
+    skipped_grace_invalid: int = 0
     stale_valid_warnings: int = 0
     errors: int = 0
 
@@ -96,19 +97,49 @@ def cleanup_github_activity_tracker_json_cache(
     execute: bool,
     use_quarantine: bool,
     stale_max_age_seconds: float | None,
+    invalid_grace_seconds: float | None = None,
 ) -> GithubJsonCleanupStats:
     """
     Remove or quarantine empty/invalid JSON; log warnings for valid JSON older than threshold.
 
     If execute is False, only log what would happen (dry-run for removals).
+
+    invalid_grace_seconds: skip invalid/empty files newer than this (mtime age); avoids
+    racing an in-flight writer. None uses django.conf.settings.WORKSPACE_ORPHAN_INVALID_JSON_GRACE_SECONDS.
+    Use 0.0 to disable the grace window.
     """
     stats = GithubJsonCleanupStats()
     now = time.time()
+    grace = invalid_grace_seconds
+    if grace is None:
+        grace = float(
+            getattr(settings, "WORKSPACE_ORPHAN_INVALID_JSON_GRACE_SECONDS", 5.0)
+        )
 
     for path in iter_github_activity_tracker_cache_json_files(workspace_dir):
         stats.scanned += 1
         kind = classify_json_file(path)
         if kind in ("empty", "invalid"):
+            if grace > 0:
+                try:
+                    age = now - path.stat().st_mtime
+                except OSError as e:
+                    stats.errors += 1
+                    logger.warning(
+                        "Could not stat github_activity_tracker cache for grace check %s: %s",
+                        path,
+                        e,
+                    )
+                    continue
+                if age < grace:
+                    stats.skipped_grace_invalid += 1
+                    logger.debug(
+                        "Skipping invalid/empty JSON cache (within grace %.1fs, age %.3fs): %s",
+                        grace,
+                        age,
+                        path,
+                    )
+                    continue
             if not execute:
                 logger.info(
                     "Would remove invalid github_activity_tracker cache JSON: %s",
@@ -174,13 +205,15 @@ def run_startup_workspace_cleanup() -> None:
         execute=True,
         use_quarantine=use_quarantine,
         stale_max_age_seconds=stale_seconds,
+        invalid_grace_seconds=None,
     )
     logger.info(
         "Workspace orphan cleanup (github_activity_tracker JSON): scanned=%s "
-        "removed_invalid=%s quarantined=%s stale_warnings=%s errors=%s",
+        "removed_invalid=%s quarantined=%s skipped_grace=%s stale_warnings=%s errors=%s",
         stats.scanned,
         stats.removed_invalid,
         stats.quarantined_invalid,
+        stats.skipped_grace_invalid,
         stats.stale_valid_warnings,
         stats.errors,
     )
@@ -190,7 +223,11 @@ def should_skip_startup_cleanup() -> bool:
     """Guards: pytest, test settings, and common management commands."""
     if os.environ.get("PYTEST_CURRENT_TEST"):
         return True
-    mod = getattr(settings, "DJANGO_SETTINGS_MODULE", "") or ""
+    mod = (
+        os.environ.get("DJANGO_SETTINGS_MODULE")
+        or getattr(settings, "SETTINGS_MODULE", "")
+        or ""
+    )
     if mod.endswith("test_settings"):
         return True
     argv = sys.argv

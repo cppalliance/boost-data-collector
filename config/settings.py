@@ -179,6 +179,11 @@ _workspace_stale = env.int("WORKSPACE_ORPHAN_JSON_STALE_MAX_AGE_SECONDS", defaul
 WORKSPACE_ORPHAN_JSON_STALE_MAX_AGE_SECONDS = (
     None if _workspace_stale < 0 else float(_workspace_stale)
 )
+# Do not delete/quarantine invalid JSON whose mtime is younger than this (writer race).
+# Set to 0 to disable the grace window.
+WORKSPACE_ORPHAN_INVALID_JSON_GRACE_SECONDS = float(
+    env("WORKSPACE_ORPHAN_INVALID_JSON_GRACE_SECONDS", default="5.0")
+)
 
 # =============================================================================
 # Clang GitHub Tracker

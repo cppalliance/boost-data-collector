@@ -24,7 +24,7 @@ class Command(BaseCommand):
     help = (
         "List or remove stale workspace files: (1) suffixes matching partial-write patterns "
         f"{_ORPHAN_SUFFIXES}, optionally (2) invalid/empty JSON under "
-        "github_activity_tracker/.../{{commits,issues,prs}}/"
+        "github_activity_tracker/.../{commits,issues,prs}/"
     )
 
     def add_arguments(self, parser):
@@ -75,6 +75,7 @@ class Command(BaseCommand):
                 stale_max_age_seconds=getattr(
                     settings, "WORKSPACE_ORPHAN_JSON_STALE_MAX_AGE_SECONDS", None
                 ),
+                invalid_grace_seconds=None,
             )
             rel = "Removed" if execute else "Would remove / logged"
             self.stdout.write(
@@ -82,6 +83,7 @@ class Command(BaseCommand):
                     f"{rel} github_activity_tracker invalid JSON: scanned={gh_stats.scanned} "
                     f"removed_invalid={gh_stats.removed_invalid} "
                     f"quarantined={gh_stats.quarantined_invalid} "
+                    f"skipped_grace={gh_stats.skipped_grace_invalid} "
                     f"stale_warnings={gh_stats.stale_valid_warnings} errors={gh_stats.errors}"
                 )
             )
