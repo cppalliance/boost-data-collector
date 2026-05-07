@@ -102,9 +102,6 @@ jobs:
           DJANGO_SETTINGS_MODULE: config.test_settings
         run: |
           uv run python <<'PY'
-          import os
-
-          os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.test_settings")
           import django
 
           django.setup()
