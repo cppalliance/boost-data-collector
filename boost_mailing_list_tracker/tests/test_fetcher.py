@@ -4,10 +4,14 @@ Covers edge cases and boundaries: empty inputs, date filtering,
 format_email with missing/None/invalid data, _get_start_date_from_db format.
 """
 
+import json
+import logging
 from datetime import datetime, timezone
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
+from requests.exceptions import HTTPError
 
 from boost_mailing_list_tracker import fetcher
 
@@ -341,3 +345,335 @@ def test_fetch_email_list_returns_filtered_results():
     assert result is not None
     assert len(result) == 1
     assert result[0]["date"] == "2024-06-15T12:00:00Z"
+
+
+# --- _parse_datetime / _parse_end_bound ---
+
+
+def test_parse_datetime_empty_and_invalid():
+    assert fetcher._parse_datetime("") is None
+    assert fetcher._parse_datetime("   ") is None
+    assert fetcher._parse_datetime("not-a-date") is None
+
+
+def test_parse_datetime_z_suffix_and_naive_gets_utc():
+    dt = fetcher._parse_datetime("2024-06-15T12:00:00Z")
+    assert dt is not None
+    assert dt.tzinfo == timezone.utc
+    naive = fetcher._parse_datetime("2024-06-15T12:00:00")
+    assert naive is not None
+    assert naive.tzinfo == timezone.utc
+
+
+def test_parse_end_bound_date_only_extends_to_end_of_day():
+    end_dt = fetcher._parse_end_bound("2024-06-15")
+    assert end_dt is not None
+    assert end_dt.hour == 23 and end_dt.minute == 59 and end_dt.second == 59
+
+
+def test_parse_end_bound_datetime_unchanged():
+    end_dt = fetcher._parse_end_bound("2024-06-15T12:00:00Z")
+    assert end_dt is not None
+    assert end_dt.hour == 12
+
+
+# --- _filter_by_date invalid date ---
+
+
+def test_filter_by_date_skips_invalid_date_string():
+    results = [
+        {"date": "not-parseable", "message_id_hash": "x"},
+        {"date": "2024-06-15T12:00:00Z"},
+    ]
+    filtered, stop = fetcher._filter_by_date(results, "", "")
+    assert len(filtered) == 1
+    assert filtered[0]["date"] == "2024-06-15T12:00:00Z"
+    assert stop is False
+
+
+# --- _path_tail ---
+
+
+def test_path_tail_empty_and_url():
+    assert fetcher._path_tail("") == ""
+    assert fetcher._path_tail(None) == ""
+    assert fetcher._path_tail("https://ex/a/b/") == "b"
+    assert fetcher._path_tail("plain-id") == "plain-id"
+
+
+# --- _fetch_page ---
+
+
+def test_fetch_page_appends_limit_offset_when_no_query():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"results": []}
+    mock_resp.raise_for_status = MagicMock()
+    with patch.object(fetcher.requests, "get", return_value=mock_resp) as get:
+        fetcher._fetch_page("https://lists.boost.org/api/list/x/emails/", page=2)
+    url = get.call_args[0][0]
+    assert "limit=" in url and "offset=100" in url
+
+
+def test_fetch_page_preserves_url_when_query_present():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {}
+    mock_resp.raise_for_status = MagicMock()
+    with patch.object(fetcher.requests, "get", return_value=mock_resp) as get:
+        fetcher._fetch_page("https://next?page=cursor", page=3)
+    get.assert_called_once_with(
+        "https://next?page=cursor", timeout=fetcher.REQUEST_TIMEOUT
+    )
+
+
+def test_fetch_page_429_retry_after_header_then_success():
+    rate_limited = MagicMock(status_code=429)
+    rate_limited.headers = {"Retry-After": "0"}
+    ok = MagicMock(status_code=200)
+    ok.json.return_value = {"ok": True}
+    ok.raise_for_status = MagicMock()
+    with patch.object(fetcher.requests, "get", side_effect=[rate_limited, ok]):
+        with patch.object(fetcher.time, "sleep"):
+            out = fetcher._fetch_page("https://example.com/a/", page=1)
+    assert out == {"ok": True}
+
+
+def test_fetch_page_429_retry_after_json_body():
+    rate_limited = MagicMock(status_code=429)
+    rate_limited.headers = {}
+    rate_limited.json.return_value = {"retry_after": 0}
+    ok = MagicMock(status_code=200)
+    ok.json.return_value = {"x": 1}
+    ok.raise_for_status = MagicMock()
+    with patch.object(fetcher.requests, "get", side_effect=[rate_limited, ok]):
+        with patch.object(fetcher.time, "sleep"):
+            out = fetcher._fetch_page("https://example.com/a/", page=1)
+    assert out == {"x": 1}
+
+
+def test_fetch_page_429_exhausted_returns_none():
+    rate_limited = MagicMock(status_code=429)
+    rate_limited.headers = {}
+    rate_limited.json.return_value = {}
+    with patch.object(fetcher.requests, "get", return_value=rate_limited):
+        with patch.object(fetcher.time, "sleep"):
+            out = fetcher._fetch_page("https://example.com/a/", page=1)
+    assert out is None
+
+
+def test_fetch_page_http_error_non_429_returns_none():
+    resp404 = MagicMock()
+    resp404.status_code = 404
+    err = HTTPError(response=resp404)
+    resp404.raise_for_status.side_effect = err
+    with patch.object(fetcher.requests, "get", return_value=resp404):
+        assert fetcher._fetch_page("https://example.com/", page=1) is None
+
+
+def test_fetch_page_request_exception_returns_none():
+    with patch.object(
+        fetcher.requests,
+        "get",
+        side_effect=requests.exceptions.ConnectionError("refused"),
+    ):
+        assert fetcher._fetch_page("https://example.com/", page=1) is None
+
+
+def test_fetch_page_json_decode_error_returns_none():
+    mock_resp = MagicMock(status_code=200)
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json.side_effect = json.JSONDecodeError("msg", "doc", 0)
+    with patch.object(fetcher.requests, "get", return_value=mock_resp):
+        assert fetcher._fetch_page("https://example.com/", page=1) is None
+
+
+# --- fetch_email_list pagination / empty ---
+
+
+def test_fetch_email_list_two_pages_merges_results():
+    page1 = {
+        "results": [{"date": "2024-06-15T12:00:00Z", "id": 1}],
+        "next": "https://api/next?cursor=2",
+    }
+    page2 = {
+        "results": [{"date": "2024-06-14T12:00:00Z", "id": 2}],
+        "next": None,
+    }
+    with patch.object(fetcher, "_fetch_page", side_effect=[page1, page2]):
+        result = fetcher.fetch_email_list(
+            "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/",
+            "",
+            "",
+        )
+    assert result is not None
+    assert len(result) == 2
+
+
+def test_fetch_email_list_returns_none_when_all_filtered_out():
+    """Empty aggregate list yields None (not only when _fetch_page fails)."""
+    with patch.object(
+        fetcher,
+        "_fetch_page",
+        return_value={
+            "results": [{"date": "2020-01-01T00:00:00Z"}],
+            "next": None,
+        },
+    ):
+        result = fetcher.fetch_email_list(
+            "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/",
+            start_date="2024-01-01T00:00:00Z",
+            end_date="",
+        )
+    assert result is None
+
+
+def test_fetch_email_list_page_increment_on_next():
+    with patch.object(fetcher, "_fetch_page") as fp:
+        fp.side_effect = [
+            {"results": [], "next": "http://x?y=1"},
+            {"results": [{"date": "2024-06-01T00:00:00Z"}], "next": None},
+        ]
+        fetcher.fetch_email_list(
+            "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/",
+            "",
+            "",
+        )
+    assert fp.call_args_list[1][0][1] == 2
+
+
+# --- fetch_all_emails ---
+
+
+def test_fetch_all_emails_formats_and_saves_raw(tmp_path):
+    api_url = "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    content = {
+        "message_id_hash": "<raw-test@lists.boost.org>",
+        "subject": "Subj",
+        "content": "Body",
+        "date": "2024-06-01T00:00:00Z",
+        "sender": {"address": "u (a) example.com"},
+    }
+
+    with patch(
+        "boost_mailing_list_tracker.workspace.get_workspace_path",
+        side_effect=lambda slug: tmp_path / slug,
+    ):
+        with patch.object(
+            fetcher,
+            "fetch_email_list",
+            return_value=[
+                {
+                    "url": "https://lists.boost.org/archives/api/email/foo/",
+                    "date": "2024-06-01T00:00:00Z",
+                }
+            ],
+        ):
+            with patch.object(fetcher, "_fetch_page", return_value=content):
+                out = fetcher.fetch_all_emails(
+                    start_date="2024-01-01",
+                    end_date="",
+                    list_urls=[api_url],
+                )
+    assert len(out) == 1
+    assert out[0]["msg_id"] == "<raw-test@lists.boost.org>"
+    raw_dir = tmp_path / "raw" / "boost_mailing_list_tracker" / "boost@lists.boost.org"
+    assert raw_dir.is_dir()
+    json_files = list(raw_dir.glob("*.json"))
+    assert len(json_files) == 1
+
+
+def test_fetch_all_emails_skips_row_without_url():
+    api_url = "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    with patch.object(
+        fetcher,
+        "fetch_email_list",
+        return_value=[{"date": "2024-06-01T00:00:00Z"}],
+    ):
+        out = fetcher.fetch_all_emails(
+            start_date="2024-01-01",
+            list_urls=[api_url],
+        )
+    assert out == []
+
+
+def test_fetch_all_emails_skips_when_content_fetch_returns_none():
+    api_url = "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    with patch.object(
+        fetcher,
+        "fetch_email_list",
+        return_value=[
+            {
+                "url": "https://lists.boost.org/archives/api/email/x/",
+                "date": "2024-06-01",
+            }
+        ],
+    ):
+        with patch.object(fetcher, "_fetch_page", return_value=None):
+            out = fetcher.fetch_all_emails(
+                start_date="2024-01-01",
+                list_urls=[api_url],
+            )
+    assert out == []
+
+
+def test_fetch_all_emails_skips_when_msg_id_empty_after_format():
+    api_url = "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    with patch.object(
+        fetcher,
+        "fetch_email_list",
+        return_value=[
+            {
+                "url": "https://lists.boost.org/archives/api/email/x/",
+                "date": "2024-06-01",
+            }
+        ],
+    ):
+        with patch.object(
+            fetcher,
+            "_fetch_page",
+            return_value={
+                "message_id_hash": "",
+                "subject": "",
+                "content": "",
+                "date": None,
+            },
+        ):
+            out = fetcher.fetch_all_emails(
+                start_date="2024-01-01",
+                list_urls=[api_url],
+            )
+    assert out == []
+
+
+@pytest.mark.django_db
+def test_fetch_all_emails_inserts_start_date_from_database_when_blank(
+    mailing_list_profile,
+    default_list_name,
+    caplog,
+):
+    """When start_date is omitted, fetch_email_list receives latest sent_at from DB."""
+    from boost_mailing_list_tracker import services
+
+    dt = datetime(2024, 3, 1, 12, 0, 0, tzinfo=timezone.utc)
+    services.get_or_create_mailing_list_message(
+        mailing_list_profile,
+        msg_id="<db-start@example.com>",
+        sent_at=dt,
+        list_name=default_list_name,
+    )
+    api_url = "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    with patch.object(fetcher, "fetch_email_list", return_value=[]) as fel:
+        with caplog.at_level(logging.INFO):
+            fetcher.fetch_all_emails(start_date="", end_date="", list_urls=[api_url])
+    fel.assert_called_once()
+    assert fel.call_args[0][1] == "2024-03-01T12:00:00Z"
+    assert "Using start_date from DB" in caplog.text
+
+
+def test_fetch_all_emails_logs_warning_when_no_index_rows(caplog):
+    api_url = "https://lists.boost.org/archives/api/list/boost@lists.boost.org/emails/"
+    with patch.object(fetcher, "fetch_email_list", return_value=[]):
+        with caplog.at_level(logging.WARNING):
+            fetcher.fetch_all_emails(start_date="2024-01-01", list_urls=[api_url])
+    assert "No email index data" in caplog.text

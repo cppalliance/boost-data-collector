@@ -221,3 +221,65 @@ def test_preprocessor_handles_empty_body_with_metadata_fallback_content(
     )
     assert "List: " in target["content"]
     assert "Sent At: " in target["content"]
+
+
+@pytest.mark.django_db
+def test_preprocessor_author_falls_back_to_identity_display_name(
+    mailing_list_profile,
+    default_list_name,
+    sample_sent_at,
+):
+    """When MailingListProfile.display_name is blank, use Identity.display_name."""
+    from boost_mailing_list_tracker import services
+
+    identity = mailing_list_profile.identity
+    identity.display_name = "Identity Display"
+    identity.save()
+    mailing_list_profile.display_name = ""
+    mailing_list_profile.save()
+
+    services.get_or_create_mailing_list_message(
+        mailing_list_profile,
+        msg_id="<identity-author@example.com>",
+        sent_at=sample_sent_at,
+        subject="Sub",
+        content="Body",
+        list_name=default_list_name,
+    )
+
+    docs, _ = preprocess_mailing_list_for_pinecone([], None)
+    target = next(
+        d for d in docs if d["metadata"]["doc_id"] == "<identity-author@example.com>"
+    )
+    assert target["metadata"]["author"] == "Identity Display"
+
+
+@pytest.mark.django_db
+def test_preprocess_failed_ids_normalizes_whitespace_and_duplicates(
+    mailing_list_profile,
+    default_list_name,
+    sample_sent_at,
+):
+    """failed_ids strips blanks, de-duplicates; same doc appears once."""
+    from boost_mailing_list_tracker import services
+    from boost_mailing_list_tracker.models import MailingListMessage
+
+    msg, _ = services.get_or_create_mailing_list_message(
+        mailing_list_profile,
+        msg_id="<norm-fail@example.com>",
+        sent_at=sample_sent_at,
+        subject="S",
+        content="C",
+        list_name=default_list_name,
+    )
+    now = timezone.now()
+    MailingListMessage.objects.filter(pk=msg.pk).update(
+        created_at=now - timedelta(days=30)
+    )
+
+    docs, _ = preprocess_mailing_list_for_pinecone(
+        ["", "  ", "<norm-fail@example.com>", " <norm-fail@example.com> "],
+        final_sync_at=now - timedelta(days=1),
+    )
+    matching = [d for d in docs if d["metadata"]["doc_id"] == "<norm-fail@example.com>"]
+    assert len(matching) == 1
