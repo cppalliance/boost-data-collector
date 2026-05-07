@@ -68,7 +68,7 @@ def test_to_text_non_string_and_none():
 
 def test_extract_list_name_from_to_header():
     assert (
-        _extract_list_name("Discussion <boost-users@lists.boost.org>")
+        _extract_list_name("", "Discussion <boost-users@lists.boost.org>")
         == "boost-users@lists.boost.org"
     )
 
