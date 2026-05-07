@@ -10,7 +10,7 @@ from core.operations.github_ops import git_ops
 
 @pytest.fixture
 def fake_token():
-    return "ghp_super_secret_do_not_leak"
+    return "fake_token_for_redaction_tests_only"
 
 
 @patch("core.operations.github_ops.git_ops.get_github_token", return_value="tok")

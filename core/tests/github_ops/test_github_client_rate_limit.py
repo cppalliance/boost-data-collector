@@ -7,6 +7,7 @@ import pytest
 import requests
 
 from core.operations.github_ops.client import (
+    RATE_LIMIT_WAIT_SAFETY_MARGIN_SEC,
     ConnectionException,
     GitHubAPIClient,
     RateLimitException,
@@ -163,8 +164,9 @@ def test_handle_rate_limit_caps_wait_and_calls_check(monkeypatch):
         "core.operations.github_ops.client.time.sleep", lambda s: slept.append(s)
     )
     client._check_rate_limit = MagicMock(return_value=True)
-    client._handle_rate_limit(999_999, max_delay=10)
-    assert slept
+    max_delay = 10
+    client._handle_rate_limit(999_999, max_delay=max_delay)
+    assert slept == [max_delay + RATE_LIMIT_WAIT_SAFETY_MARGIN_SEC]
     client._check_rate_limit.assert_called_once()
 
 
