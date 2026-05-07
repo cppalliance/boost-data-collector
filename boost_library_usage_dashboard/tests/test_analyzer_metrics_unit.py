@@ -26,19 +26,25 @@ class _FixedNowDatetime:
 
 
 def test_float_from_env_empty_uses_default():
-    key = "BOOST_DASHBOARD_TEST_FLOAT_METRICS_" + str(id(test_float_from_env_empty_uses_default))
+    key = "BOOST_DASHBOARD_TEST_FLOAT_METRICS_" + str(
+        id(test_float_from_env_empty_uses_default)
+    )
     os.environ.pop(key, None)
     assert metrics._float_from_env(key, 0.42) == pytest.approx(0.42)
 
 
 def test_float_from_env_valid_number():
-    key = "BOOST_DASHBOARD_TEST_FLOAT_METRICS_" + str(id(test_float_from_env_valid_number))
+    key = "BOOST_DASHBOARD_TEST_FLOAT_METRICS_" + str(
+        id(test_float_from_env_valid_number)
+    )
     with patch.dict(os.environ, {key: " 2.5 "}):
         assert metrics._float_from_env(key, 1.0) == pytest.approx(2.5)
 
 
 def test_float_from_env_invalid_falls_back():
-    key = "BOOST_DASHBOARD_TEST_FLOAT_METRICS_" + str(id(test_float_from_env_invalid_falls_back))
+    key = "BOOST_DASHBOARD_TEST_FLOAT_METRICS_" + str(
+        id(test_float_from_env_invalid_falls_back)
+    )
     with patch.dict(os.environ, {key: "not-a-float"}):
         assert metrics._float_from_env(key, 0.25) == pytest.approx(0.25)
 
@@ -64,7 +70,9 @@ def test_calculate_trend_metrics_uses_fallback_when_only_current_year():
         (fixed_year, {"created_count": 5, "last_commit_count": 0}),
     ]
     _FixedNowDatetime.fixed_year = fixed_year
-    with patch("boost_library_usage_dashboard.analyzer_metrics.datetime", _FixedNowDatetime):
+    with patch(
+        "boost_library_usage_dashboard.analyzer_metrics.datetime", _FixedNowDatetime
+    ):
         out = metrics.calculate_trend_metrics(
             year_data, recent_year_threshold=fixed_year - 5
         )
@@ -80,7 +88,9 @@ def test_calculate_trend_metrics_zero_denom_trend_skipped():
         (2020, {"created_count": 3, "last_commit_count": 0}),
         (2020, {"created_count": 2, "last_commit_count": 0}),
     ]
-    with patch("boost_library_usage_dashboard.analyzer_metrics.datetime", _FixedNowDatetime):
+    with patch(
+        "boost_library_usage_dashboard.analyzer_metrics.datetime", _FixedNowDatetime
+    ):
         out = metrics.calculate_trend_metrics(year_data, recent_year_threshold=2019)
     assert out["total_usage"] == 5
     assert isinstance(out["activity_score"], float)
@@ -89,7 +99,9 @@ def test_calculate_trend_metrics_zero_denom_trend_skipped():
 def test_calculate_trend_metrics_momentum_requires_two_points():
     fixed_now_year = 2027
     _FixedNowDatetime.fixed_year = fixed_now_year
-    with patch("boost_library_usage_dashboard.analyzer_metrics.datetime", _FixedNowDatetime):
+    with patch(
+        "boost_library_usage_dashboard.analyzer_metrics.datetime", _FixedNowDatetime
+    ):
         single = metrics.calculate_trend_metrics(
             [(2024, {"created_count": 10, "last_commit_count": 0})],
             recent_year_threshold=2020,

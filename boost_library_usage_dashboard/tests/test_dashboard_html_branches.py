@@ -6,6 +6,7 @@ import json
 
 from boost_library_usage_dashboard.dashboard_html import generate_dashboard_html
 
+
 def _base_payload():
     return {
         "repos_by_year": {"2023": 2},

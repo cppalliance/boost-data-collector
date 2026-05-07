@@ -98,7 +98,9 @@ def test_load_repository_count_from_db_merges_cpp_rows(tmp_path: Path):
     )
 
     analyzer = BoostUsageDashboardAnalyzer(tmp_path)
-    out = analyzer._load_repository_count_from_db({"2024": 7})  # pylint: disable=protected-access
+    out = analyzer._load_repository_count_from_db(
+        {"2024": 7}
+    )  # pylint: disable=protected-access
 
     row_by_year = {r["year"]: r for r in out["repos_by_year_boost_rate"]}
     assert row_by_year["2024"]["boost_over_10"] == 7
@@ -114,5 +116,7 @@ def test_load_repository_count_from_db_lookup_error_returns_empty(tmp_path: Path
         "boost_library_usage_dashboard.analyzer.apps.get_model",
         side_effect=LookupError("no model"),
     ):
-        out = analyzer._load_repository_count_from_db({"2024": 1})  # pylint: disable=protected-access
+        out = analyzer._load_repository_count_from_db(
+            {"2024": 1}
+        )  # pylint: disable=protected-access
     assert out == {"repos_by_year_boost_rate": [], "language_comparison_data": {}}

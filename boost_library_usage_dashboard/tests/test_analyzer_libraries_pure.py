@@ -34,12 +34,8 @@ def test_get_first_version_released_after_no_candidates():
 
 
 def test_get_first_version_released_after_picks_earliest_future_release():
-    v_early = _FakeVersion(
-        "boost-1.82.0", datetime(2023, 6, 1, tzinfo=timezone.utc)
-    )
-    v_later = _FakeVersion(
-        "boost-1.83.0", datetime(2024, 6, 1, tzinfo=timezone.utc)
-    )
+    v_early = _FakeVersion("boost-1.82.0", datetime(2023, 6, 1, tzinfo=timezone.utc))
+    v_later = _FakeVersion("boost-1.83.0", datetime(2024, 6, 1, tzinfo=timezone.utc))
     commit_at = datetime(2023, 1, 1, tzinfo=timezone.utc)
     assert (
         get_first_version_released_after([v_later, v_early], commit_at)
@@ -130,9 +126,7 @@ def test_build_library_overview_data_aggregates_chart():
             },
         },
     }
-    with patch(
-        "boost_library_usage_dashboard.analyzer_libraries.datetime"
-    ) as dt_mock:
+    with patch("boost_library_usage_dashboard.analyzer_libraries.datetime") as dt_mock:
         dt_mock.now.return_value = now_ret
         overview = build_library_overview_data(lib_source, lib_data)
     assert overview["internal_consumers"] == 1
