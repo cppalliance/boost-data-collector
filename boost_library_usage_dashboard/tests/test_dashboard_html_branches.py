@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 from boost_library_usage_dashboard.dashboard_html import generate_dashboard_html
 
@@ -78,7 +79,12 @@ def test_generate_dashboard_html_covers_index_and_library_branches(tmp_path):
 
 
 def test_build_library_page_ext_chart_int_year_keys(tmp_path):
-    """Exercise ext_chart.get(y) vs get(int(y)) branch."""
+    """Integer keys in chart_data are lost through JSON; patch loads to preserve them.
+
+    ``build_library_page`` uses ``ext_chart.get(y, ext_chart.get(int(y), {}))`` where
+    ``y`` is the string year. Keys stored as int (e.g. 2024) miss ``.get(y)`` and hit
+    the ``int(y)`` fallback — only possible if data is not round-tripped through JSON.
+    """
     payload = _base_payload()
     payload["libraries_page_data"] = {
         "filesystem": {
@@ -89,12 +95,16 @@ def test_build_library_page_ext_chart_int_year_keys(tmp_path):
                     2024: {"repos": 1, "by_created": 2, "by_last_commit": 3},
                 },
             },
-            "contribute_data": {"table_data": [], "chart_data": []},
+            "contribute_data": {"table_data": [], "chart_data": {}},
             "internal_dependents_data": {"table_data": [], "chart_data": {}},
         },
     }
     data_file = tmp_path / "dashboard_data.json"
-    data_file.write_text(json.dumps(payload), encoding="utf-8")
-    generate_dashboard_html(data_file, tmp_path, tmp_path / "libraries")
+    data_file.write_text("{}", encoding="utf-8")
+    with patch(
+        "boost_library_usage_dashboard.dashboard_html.json.loads",
+        return_value=payload,
+    ):
+        generate_dashboard_html(data_file, tmp_path, tmp_path / "libraries")
     html = (tmp_path / "libraries" / "filesystem.html").read_text(encoding="utf-8")
     assert "filesystem" in html
