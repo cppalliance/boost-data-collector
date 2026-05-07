@@ -106,9 +106,7 @@ def test_detect_stale_titled_paths_at_repo_root_skips_non_md(tmp_path: Path):
     new_md = tmp_path / "#3 - New title.md"
     new_md.write_text("b", encoding="utf-8")
     (tmp_path / "notes.txt").write_text("x", encoding="utf-8")
-    stale = detect_stale_titled_paths(
-        tmp_path, {"#3 - New title.md": str(new_md)}
-    )
+    stale = detect_stale_titled_paths(tmp_path, {"#3 - New title.md": str(new_md)})
     assert stale == ["#3 - Old title.md"]
 
 

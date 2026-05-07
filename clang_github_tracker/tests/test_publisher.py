@@ -226,7 +226,10 @@ def test_publish_invalid_repo_backslash(raw_and_md):
 
 
 @pytest.mark.django_db
-@patch("clang_github_tracker.publisher.get_github_token", side_effect=ValueError("no token"))
+@patch(
+    "clang_github_tracker.publisher.get_github_token",
+    side_effect=ValueError("no token"),
+)
 def test_publish_clang_token_error_wraps(_tok, raw_and_md):
     raw, md, _ = raw_and_md
     with _author_settings(raw):
@@ -259,9 +262,7 @@ def test_publish_prepare_clone_fails(
 @patch("clang_github_tracker.publisher.pull")
 @patch("clang_github_tracker.publisher.prepare_repo_for_pull")
 @patch("clang_github_tracker.publisher.get_github_token", return_value="tok")
-def test_publish_pull_fails(
-    _token, _prepare, mock_pull, _reset, _push, raw_and_md
-):
+def test_publish_pull_fails(_token, _prepare, mock_pull, _reset, _push, raw_and_md):
     raw, md, _clone_root = raw_and_md
     err = subprocess.CalledProcessError(1, ["git"])
     err.stderr = "pull failed"

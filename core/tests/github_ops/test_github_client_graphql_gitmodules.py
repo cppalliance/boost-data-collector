@@ -41,7 +41,7 @@ def test_get_submodules_from_file_missing_returns_empty():
 def test_get_submodules_from_file_read_error_returns_empty(tmp_path):
     client = GitHubAPIClient("t")
     p = tmp_path / "gm"
-    p.write_text("[submodule \"a\"]\n", encoding="utf-8")
+    p.write_text('[submodule "a"]\n', encoding="utf-8")
     real_open = open
 
     def selective_open(name, *args, **kwargs):

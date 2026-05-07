@@ -206,7 +206,9 @@ def test_get_slack_bot_token_raises_when_fallback_team_id_empty():
         "core.operations.slack_ops.tokens._slack_team_fallback",
         return_value="",
     ):
-        with pytest.raises(ValueError, match="team id is required for get_slack_bot_token"):
+        with pytest.raises(
+            ValueError, match="team id is required for get_slack_bot_token"
+        ):
             get_slack_bot_token("")
 
 
@@ -215,5 +217,7 @@ def test_get_slack_app_token_raises_when_fallback_team_id_empty():
         "core.operations.slack_ops.tokens._slack_team_fallback",
         return_value="",
     ):
-        with pytest.raises(ValueError, match="team id is required for get_slack_app_token"):
+        with pytest.raises(
+            ValueError, match="team id is required for get_slack_app_token"
+        ):
             get_slack_app_token("")

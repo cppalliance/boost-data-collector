@@ -17,7 +17,7 @@ def test_parse_link_next_extracts_url():
 
 def test_parse_link_next_none_when_missing():
     assert GitHubAPIClient._parse_link_next(None) is None
-    assert GitHubAPIClient._parse_link_next("<http://x>; rel=\"prev\"") is None
+    assert GitHubAPIClient._parse_link_next('<http://x>; rel="prev"') is None
 
 
 def test_parse_link_rels_builds_dict():

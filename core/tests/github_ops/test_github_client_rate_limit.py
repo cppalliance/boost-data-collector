@@ -64,7 +64,9 @@ def test_check_rate_limit_connection_error_retries_then_raises():
 
 def test_check_rate_limit_request_exception_raises():
     client = GitHubAPIClient("t")
-    client.session.get = MagicMock(side_effect=requests.exceptions.RequestException("x"))
+    client.session.get = MagicMock(
+        side_effect=requests.exceptions.RequestException("x")
+    )
     with pytest.raises(requests.exceptions.RequestException):
         client._check_rate_limit()
 

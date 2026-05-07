@@ -117,7 +117,9 @@ def test_issue_preprocessor_naive_final_sync_made_aware(mock_build, tmp_path, se
 
 @pytest.mark.django_db
 @patch("clang_github_tracker.preprocessors.issue_preprocessor.build_issue_document")
-def test_issue_preprocessor_skips_missing_raw_and_bad_json(mock_build, tmp_path, settings):
+def test_issue_preprocessor_skips_missing_raw_and_bad_json(
+    mock_build, tmp_path, settings
+):
     settings.CLANG_GITHUB_OWNER = "llvm"
     settings.CLANG_GITHUB_REPO = "llvm-project"
     ClangGithubIssueItem.objects.create(

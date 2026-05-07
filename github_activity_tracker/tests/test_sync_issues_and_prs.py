@@ -256,7 +256,9 @@ def test_sync_issues_and_prs_issue_branch_none_number_skipped(github_repository)
         issues_mod.fetcher,
         "fetch_issues_and_prs_from_github",
         lambda *a, **k: [item],
-    ), patch.object(issues_mod, "RedisListETagCache", return_value=MagicMock()):
+    ), patch.object(
+        issues_mod, "RedisListETagCache", return_value=MagicMock()
+    ):
         out = issues_mod.sync_issues_and_prs(github_repository)
     assert out["issues"] == []
 
@@ -304,7 +306,9 @@ def test_sync_issues_start_date_issue_only_branch(github_repository):
         issues_mod.fetcher,
         "fetch_issues_and_prs_from_github",
         mock_fetch,
-    ), patch.object(issues_mod, "RedisListETagCache", return_value=MagicMock()):
+    ), patch.object(
+        issues_mod, "RedisListETagCache", return_value=MagicMock()
+    ):
         issues_mod.sync_issues_and_prs(github_repository)
 
     start = mock_fetch.call_args[0][3]
@@ -341,7 +345,9 @@ def test_sync_issues_start_date_pr_only_branch(github_repository):
         issues_mod.fetcher,
         "fetch_issues_and_prs_from_github",
         mock_fetch,
-    ), patch.object(issues_mod, "RedisListETagCache", return_value=MagicMock()):
+    ), patch.object(
+        issues_mod, "RedisListETagCache", return_value=MagicMock()
+    ):
         issues_mod.sync_issues_and_prs(github_repository)
 
     start = mock_fetch.call_args[0][3]
@@ -548,7 +554,8 @@ def test_sync_issues_and_prs_rate_limit(github_repository):
 
 @pytest.mark.django_db
 def test_process_existing_issue_jsons_success_nested(
-    github_repository, tmp_path,
+    github_repository,
+    tmp_path,
 ):
     owner_acc = github_repository.owner_account
     body = {
@@ -599,7 +606,9 @@ def test_sync_issues_pr_info_present_but_number_none(github_repository):
         issues_mod.fetcher,
         "fetch_issues_and_prs_from_github",
         lambda *a, **k: [item],
-    ), patch.object(issues_mod, "RedisListETagCache", return_value=MagicMock()):
+    ), patch.object(
+        issues_mod, "RedisListETagCache", return_value=MagicMock()
+    ):
         out = issues_mod.sync_issues_and_prs(github_repository)
     assert out["pull_requests"] == []
 

@@ -265,7 +265,10 @@ def test_promote_issue_raw_failure_keeps_staging(tmp_path):
         with patch.object(
             sync_raw, "save_issue_raw_source", side_effect=OSError("raw")
         ):
-            assert sync_raw._promote_issue_staging("llvm", "llvm-project", sp, item) is False
+            assert (
+                sync_raw._promote_issue_staging("llvm", "llvm-project", sp, item)
+                is False
+            )
     assert sp.exists()
 
 
@@ -280,7 +283,9 @@ def test_promote_pr_raw_failure_keeps_staging(tmp_path):
     sync_raw._write_staging_json(sp, item)
     with patch.object(sync_raw.clang_services, "upsert_issue_item", return_value=None):
         with patch.object(sync_raw, "save_pr_raw_source", side_effect=OSError("raw")):
-            assert sync_raw._promote_pr_staging("llvm", "llvm-project", sp, item) is False
+            assert (
+                sync_raw._promote_pr_staging("llvm", "llvm-project", sp, item) is False
+            )
     assert sp.exists()
 
 
@@ -396,9 +401,9 @@ def test_sync_clang_github_activity_issues_and_prs_branches():
                             sync_raw, "get_pr_json_path", return_value=Path("p.json")
                         ):
                             with patch.object(
-                                sync_raw, "get_issue_json_path", return_value=Path(
-                                    "i.json"
-                                )
+                                sync_raw,
+                                "get_issue_json_path",
+                                return_value=Path("i.json"),
                             ):
                                 with patch.object(
                                     sync_raw, "_promote_pr_staging", return_value=True
@@ -408,7 +413,9 @@ def test_sync_clang_github_activity_issues_and_prs_branches():
                                         "_promote_issue_staging",
                                         return_value=True,
                                     ):
-                                        c, issues, prs = sync_raw.sync_clang_github_activity()
+                                        c, issues, prs = (
+                                            sync_raw.sync_clang_github_activity()
+                                        )
     assert c == 0
     assert 12 in prs
     assert 5 in issues

@@ -20,7 +20,7 @@ def test_list_contents_root_and_nested():
 
 def test_get_submodules_from_api_file():
     c = GitHubAPIClient("t")
-    raw = b"[submodule \"x\"]\npath = x\nurl = ../x.git\n"
+    raw = b'[submodule "x"]\npath = x\nurl = ../x.git\n'
     b64 = base64.b64encode(raw).decode("ascii")
     c.rest_request = MagicMock(
         return_value={"type": "file", "encoding": "base64", "content": b64}

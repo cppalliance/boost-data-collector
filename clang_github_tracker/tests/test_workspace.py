@@ -19,7 +19,7 @@ def test_sanitize_segment_via_get_raw_repo_dir_invalid():
 
 @patch("clang_github_tracker.workspace.get_workspace_path")
 def test_get_raw_root_creates_parents(mock_get_ws: MagicMock, tmp_path: Path):
-    app_dir = tmp_path / "gh"
+    _app_dir = tmp_path / "gh"
     mock_get_ws.return_value = tmp_path / "raw"
     root = ws.get_raw_root()
     assert root == tmp_path / "raw" / "github_activity_tracker"
@@ -27,9 +27,7 @@ def test_get_raw_root_creates_parents(mock_get_ws: MagicMock, tmp_path: Path):
 
 
 @patch("clang_github_tracker.workspace.get_workspace_path")
-def test_get_raw_repo_dir_create_false_no_mkdir(
-    mock_get_ws: MagicMock, tmp_path: Path
-):
+def test_get_raw_repo_dir_create_false_no_mkdir(mock_get_ws: MagicMock, tmp_path: Path):
     mock_get_ws.return_value = tmp_path / "raw"
     p = ws.get_raw_repo_dir("llvm", "llvm-project", create=False)
     assert p == tmp_path / "raw" / "github_activity_tracker" / "llvm" / "llvm-project"

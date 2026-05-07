@@ -225,7 +225,8 @@ def test_process_existing_commit_jsons_logs_on_bad_json(github_repository, tmp_p
 
 @pytest.mark.django_db
 def test_process_existing_commit_jsons_success_then_unlink(
-    github_repository, tmp_path,
+    github_repository,
+    tmp_path,
 ):
     sha = "a" * 40
     body = {
@@ -257,7 +258,8 @@ def test_process_existing_commit_jsons_success_then_unlink(
 
 @pytest.mark.django_db
 def test_sync_commits_normal_fetch_and_persist(
-    github_repository, tmp_path,
+    github_repository,
+    tmp_path,
 ):
     sha = "b" * 40
     commit_data = {
@@ -315,7 +317,8 @@ def test_sync_commits_normal_fetch_and_persist(
 
 @pytest.mark.django_db
 def test_sync_commits_big_commit_submits_worker(
-    github_repository, tmp_path,
+    github_repository,
+    tmp_path,
 ):
     sha = "c" * 40
     commit_data = {
@@ -379,7 +382,8 @@ def test_sync_commits_big_commit_submits_worker(
 
 @pytest.mark.django_db
 def test_sync_commits_big_worker_get_files_falls_back(
-    github_repository, tmp_path,
+    github_repository,
+    tmp_path,
 ):
     sha = "e" * 40
     commit_data = {
@@ -473,7 +477,8 @@ def test_sync_commits_raises_rate_limit(github_repository):
 
 @pytest.mark.django_db
 def test_sync_commits_future_result_exception_logged(
-    github_repository, tmp_path,
+    github_repository,
+    tmp_path,
 ):
     sha = "f" * 40
     commit_data = {

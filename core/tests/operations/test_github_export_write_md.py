@@ -62,7 +62,9 @@ def test_write_md_files_writes_issue_and_pr(
         folder_prefix="boost",
     )
     assert len(mapping) == 2
-    issue_md = out_root / "boost" / "issues" / "2024" / "2024-02" / "#7 - Unsafe chars.md"
+    issue_md = (
+        out_root / "boost" / "issues" / "2024" / "2024-02" / "#7 - Unsafe chars.md"
+    )
     pr_md = (
         out_root / "boost" / "pull_requests" / "2024" / "2024-02" / "#3 - PR title.md"
     )

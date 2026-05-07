@@ -104,7 +104,10 @@ def test_delete_file_calls_rest_delete_when_sha_present():
 
 def test_rest_request_url_with_all_links_hits_do_request():
     c = GitHubAPIClient("t")
-    r = _ok_json({"items": []}, headers={"Link": '<https://api.github.com/repos/o/r?page=2>; rel="next"'})
+    r = _ok_json(
+        {"items": []},
+        headers={"Link": '<https://api.github.com/repos/o/r?page=2>; rel="next"'},
+    )
     c._rest_get_url = MagicMock(return_value=r)
     data, links = c.rest_request_url_with_all_links(
         "https://api.github.com/repos/o/r/issues?page=1"

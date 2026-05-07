@@ -3,7 +3,6 @@
 import time
 from unittest.mock import MagicMock
 
-import pytest
 
 from core.operations.github_ops import git_ops as go
 
