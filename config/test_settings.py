@@ -18,7 +18,6 @@ if not os.environ.get("DATABASE_URL", "").strip():
             "NAME": ":memory:",
         }
     }
-}
 
 # Prefer SQLite for pytest so a developer .env DATABASE_URL (Docker Postgres) does not
 # require a running server. CI Postgres jobs set USE_POSTGRES_TESTS=1 so DATABASE_URL
