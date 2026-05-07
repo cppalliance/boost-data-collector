@@ -240,6 +240,19 @@ def test_iter_existing_message_jsons_ignores_non_json(mock_workspace_path):
     assert paths[0].name == "x.json"
 
 
+def test_iter_existing_message_jsons_skips_dot_prefixed_files(mock_workspace_path):
+    """Hidden-style JSON names starting with '.' are skipped."""
+    messages_dir = (
+        mock_workspace_path / "boost_mailing_list_tracker" / "dotlist" / "messages"
+    )
+    messages_dir.mkdir(parents=True)
+    (messages_dir / ".hidden.json").write_text("{}")
+    (messages_dir / "visible.json").write_text("{}")
+    paths = list(iter_existing_message_jsons("dotlist"))
+    assert len(paths) == 1
+    assert paths[0].name == "visible.json"
+
+
 # --- iter_all_list_dirs ---
 
 
@@ -248,6 +261,16 @@ def test_iter_all_list_dirs_empty_when_no_root(mock_workspace_path):
     # Root exists but no list_name/messages/
     listed = list(iter_all_list_dirs())
     assert listed == []
+
+
+def test_iter_all_list_dirs_when_workspace_root_missing(tmp_path):
+    """If workspace root path does not exist, yield nothing."""
+    missing = tmp_path / "nonexistent_boost_ml_workspace"
+    with patch(
+        "boost_mailing_list_tracker.workspace.get_workspace_root",
+        return_value=missing,
+    ):
+        assert list(iter_all_list_dirs()) == []
 
 
 def test_iter_all_list_dirs_yields_lists_with_messages(mock_workspace_path):
