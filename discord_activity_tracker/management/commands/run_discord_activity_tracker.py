@@ -130,7 +130,7 @@ def _resolve_exporter_date_bounds(
 
 def task_preprocess_workspace(*, dry_run: bool) -> None:
     """Ensure ``WORKSPACE_DIR/raw/discord_activity_tracker`` and staging dirs exist."""
-    get_raw_dir()
+    # get_exporter_staging_dir() calls get_raw_dir(); both trees are mkdir'd here.
     get_exporter_staging_dir()
     if dry_run:
         logger.info(
@@ -541,8 +541,6 @@ class Command(BaseCollectorCommand):
                     )
                 logger.info("finished successfully (dry-run)")
                 return
-
-            task_preprocess_workspace(dry_run=False)
 
             task_discord_sync(
                 dry_run=False,

@@ -1,9 +1,9 @@
 """
 Shared text cleaning and light filtering helpers.
 
-Used by ``cppa_slack_tracker`` (and other apps) for normalizing message text and
-optional greeting/noise phrase removal. Default word lists are Slack-oriented
-(``SLACK_*`` constants).
+Used by ``cppa_slack_tracker`` and ``discord_activity_tracker`` for normalizing
+message text, optional greeting/noise phrase removal (Slack-oriented
+``SLACK_*`` constants), and Discord-specific markup stripping.
 """
 
 from __future__ import annotations
@@ -87,6 +87,35 @@ SLACK_UNESSENTIAL_WORDS: FrozenSet[str] = frozenset(
         "of course",
     }
 )
+
+# Discord message / export plaintext: user, role, channel mentions and custom emoji tokens.
+_DISCORD_USER_MENTION_RE = re.compile(r"<@!?(\d+)>")
+_DISCORD_ROLE_MENTION_RE = re.compile(r"<@&(\d+)>")
+_DISCORD_CHANNEL_MENTION_RE = re.compile(r"<#(\d+)>")
+_DISCORD_CUSTOM_EMOJI_RE = re.compile(r"<a?:(\w+):\d+>")
+_DISCORD_COLLAPSE_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def clean_discord_text(text: str) -> str:
+    """
+    Strip Discord mentions, role refs, channel refs; shorten custom emoji tokens.
+
+    User mentions ``<@123>`` / ``<@!123>``, roles ``<@&id>``, channels ``<#id>``
+    are removed. Custom emoji ``<:name:id>`` and animated ``<a:name:id>`` become
+    ``:name:``. Remaining whitespace is collapsed to single spaces.
+
+    Args:
+        text: Raw Discord message content.
+
+    Returns:
+        Plaintext suitable for search / embedding pipelines.
+    """
+    text = _DISCORD_USER_MENTION_RE.sub("", text)
+    text = _DISCORD_ROLE_MENTION_RE.sub("", text)
+    text = _DISCORD_CHANNEL_MENTION_RE.sub("", text)
+    text = _DISCORD_CUSTOM_EMOJI_RE.sub(r":\1:", text)
+    text = _DISCORD_COLLAPSE_WHITESPACE_RE.sub(" ", text).strip()
+    return text
 
 
 def clean_text(text: str | None, remove_extra_spaces: bool = True) -> str:

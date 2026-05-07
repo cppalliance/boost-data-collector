@@ -7,7 +7,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from discord_activity_tracker.sync.client import DiscordSyncClient, run_async
+from discord_activity_tracker.sync.client import (
+    DiscordSyncClient,
+    discord_message_to_sync_dict,
+    run_async,
+)
 
 
 @pytest.fixture
@@ -303,11 +307,16 @@ def test_context_manager_calls_close(mock_discord_pkg):
     inner.close = AsyncMock()
 
     # __exit__ calls shutdown_sync(); without .run() there is no dedicated loop,
-    # so shutdown_sync falls back to run_async(close()) — patch run_async.
-    with patch("discord_activity_tracker.sync.client.run_async") as ra:
+    # so shutdown_sync falls back to run_async(close()). The coroutine must be
+    # awaited — use wraps=real run_async instead of a bare MagicMock.
+    import discord_activity_tracker.sync.client as client_module
+
+    real_run_async = client_module.run_async
+    with patch.object(client_module, "run_async", wraps=real_run_async) as ra:
         with DiscordSyncClient("tok") as c:
             c._ready = True
-    assert ra.called
+    ra.assert_called_once()
+    inner.close.assert_awaited_once()
 
 
 def test_run_async_returns_coroutine_result():
@@ -362,8 +371,6 @@ def test_discord_sync_client_run_reuses_event_loop(mock_discord_pkg):
 
 
 def test_message_to_dict_with_attachment_and_reaction(mock_discord_pkg):
-    _, _inner = mock_discord_pkg
-    c = DiscordSyncClient("tok")
     msg = MagicMock()
     msg.id = 5
     msg.content = "c"
@@ -388,7 +395,7 @@ def test_message_to_dict_with_attachment_and_reaction(mock_discord_pkg):
     msg.type = SimpleNamespace(name="default")
     msg.pinned = False
 
-    d = c._message_to_dict(msg)
+    d = discord_message_to_sync_dict(msg)
     assert d["author"]["display_name"] == "n"
     assert d["message_type"] == "Default"
     assert d["is_pinned"] is False
@@ -397,8 +404,6 @@ def test_message_to_dict_with_attachment_and_reaction(mock_discord_pkg):
 
 
 def test_message_to_dict_reply_and_pinned(mock_discord_pkg):
-    _, _inner = mock_discord_pkg
-    c = DiscordSyncClient("tok")
     msg = MagicMock()
     msg.id = 1
     msg.content = ""
@@ -413,6 +418,6 @@ def test_message_to_dict_reply_and_pinned(mock_discord_pkg):
     msg.type = SimpleNamespace(name="reply")
     msg.pinned = True
 
-    d = c._message_to_dict(msg)
+    d = discord_message_to_sync_dict(msg)
     assert d["message_type"] == "Reply"
     assert d["is_pinned"] is True

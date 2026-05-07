@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from core.utils.text_processing import clean_discord_text
 from cppa_user_tracker.models import DiscordProfile
 from discord_activity_tracker.models import (
     DiscordChannel,
@@ -13,7 +14,6 @@ from discord_activity_tracker.models import (
 from discord_activity_tracker.preprocessor import (
     _build_reply_chains,
     _chain_to_document,
-    _clean_discord_text,
     _is_content_too_short,
     _normalize_failed_ids,
     _pinecone_channel_display_name,
@@ -38,23 +38,23 @@ _L_META = "This message has enough characters to pass the minimum text length ch
 
 
 def test_clean_discord_text_removes_user_mentions():
-    assert _clean_discord_text("hello <@123456>") == "hello"
+    assert clean_discord_text("hello <@123456>") == "hello"
 
 
 def test_clean_discord_text_removes_role_mentions():
-    assert "<@&" not in _clean_discord_text("hey <@&9876>")
+    assert "<@&" not in clean_discord_text("hey <@&9876>")
 
 
 def test_clean_discord_text_removes_channel_refs():
-    assert "<#" not in _clean_discord_text("see <#5555>")
+    assert "<#" not in clean_discord_text("see <#5555>")
 
 
 def test_clean_discord_text_converts_custom_emoji():
-    assert ":wave:" in _clean_discord_text("<:wave:123456789>")
+    assert ":wave:" in clean_discord_text("<:wave:123456789>")
 
 
 def test_clean_discord_text_preserves_plain_text():
-    assert _clean_discord_text("hello world") == "hello world"
+    assert clean_discord_text("hello world") == "hello world"
 
 
 def test_is_content_too_short_below_threshold():
@@ -215,6 +215,8 @@ def test_chain_to_document_single_message(channel, author):
     doc = _chain_to_document([msg])
     assert doc is not None
     assert _L in doc["content"]
+    assert doc["content"].startswith('alice: "')
+    assert doc["content"].endswith('"')
     meta = doc["metadata"]
     assert meta["doc_id"] == str(msg.message_id)
     assert meta["type"] == "discord"
@@ -222,6 +224,16 @@ def test_chain_to_document_single_message(channel, author):
     assert meta["server_name"] == channel.server.server_name
     assert meta["is_reply_chain"] is False
     assert meta["source_ids"] == str(msg.message_id)
+
+
+@pytest.mark.django_db
+def test_chain_to_document_escapes_internal_double_quotes(channel, author):
+    body = 'Before "quoted" after and more text so we exceed fifty chars easily fine.'
+    assert len(body) >= 50
+    msg = _make_msg(channel, author, 4004, body)
+    doc = _chain_to_document([msg])
+    assert doc is not None
+    assert '\\"quoted\\"' in doc["content"]
 
 
 @pytest.mark.django_db
@@ -233,6 +245,9 @@ def test_chain_to_document_reply_chain(channel, author):
     assert doc["metadata"]["is_reply_chain"] is True
     assert str(root.message_id) in doc["metadata"]["source_ids"]
     assert str(reply.message_id) in doc["metadata"]["source_ids"]
+    assert "\n" in doc["content"]
+    assert _L in doc["content"] and _L_REPLY in doc["content"]
+    assert doc["content"].startswith("alice:")
 
 
 @pytest.mark.django_db

@@ -4,20 +4,21 @@ Follows the contract defined in docs/Pinecone_preprocess_guideline.md and
 mirrors the structure of cppa_slack_tracker.preprocessor.
 
 Groups DiscordMessage rows by channel, merges reply chains (thread roots with
-their direct replies) into single documents, filters short / empty content, and
+their direct replies) into single documents (one line per message:
+``author: "text"``, joined by newlines), filters short / empty content, and
 emits ``{"content": str, "metadata": dict}`` records for cppa_pinecone_sync.
 """
 
 from __future__ import annotations
 
 import logging
-import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 from django.conf import settings
 from django.db.models import Q
 
+from core.utils.text_processing import clean_discord_text
 from discord_activity_tracker.models import DiscordChannel, DiscordMessage
 
 logger = logging.getLogger(__name__)
@@ -26,30 +27,10 @@ logger = logging.getLogger(__name__)
 # sent to Pinecone.  Mirrors PINECONE_MIN_TEXT_LENGTH in other preprocessors.
 _DEFAULT_MIN_TEXT_LENGTH = 20
 
-# Maximum number of messages to merge into one Pinecone document (reply chain cap).
-_REPLY_CHAIN_MAX = 20
-
 
 # ---------------------------------------------------------------------------
 # Text helpers
 # ---------------------------------------------------------------------------
-
-
-_MENTION_RE = re.compile(r"<@!?(\d+)>")
-_ROLE_RE = re.compile(r"<@&(\d+)>")
-_CHANNEL_RE = re.compile(r"<#(\d+)>")
-_CUSTOM_EMOJI_RE = re.compile(r"<a?:(\w+):\d+>")
-_WHITESPACE_RE = re.compile(r"\s+")
-
-
-def _clean_discord_text(text: str) -> str:
-    """Strip Discord mentions, role refs, channel refs, and custom emoji codes."""
-    text = _MENTION_RE.sub("", text)
-    text = _ROLE_RE.sub("", text)
-    text = _CHANNEL_RE.sub("", text)
-    text = _CUSTOM_EMOJI_RE.sub(r":\1:", text)
-    text = _WHITESPACE_RE.sub(" ", text).strip()
-    return text
 
 
 def _min_text_length() -> int:
@@ -87,9 +68,15 @@ def _build_reply_chains(
 ) -> list[list[DiscordMessage]]:
     """Group messages into reply chains.
 
-    A chain is: [root, reply_1, reply_2, …] where each reply's
-    ``reply_to_message_id`` points to the root or an earlier reply in the
-    same chain.  Standalone messages become single-item chains.
+    For each root message (not a reply to another message in this batch), the
+    chain is the root plus every other message in the batch whose
+    ``reply_to_message_id`` equals the root's ``message_id`` (direct replies
+    only). Standalone messages become single-item chains. Nested replies
+    (reply-to-reply) whose parent is not the root are emitted as separate
+    single-message chains by the orphan pass.
+
+    Long merged ``content`` is split later by ``cppa_pinecone_sync`` ingestion
+    when ``is_chunked=False`` (see docs/Pinecone_preprocess_guideline.md).
     """
     by_id: dict[int, DiscordMessage] = {m.message_id: m for m in messages}
     assigned: set[int] = set()
@@ -109,8 +96,6 @@ def _build_reply_chains(
             if reply.reply_to_message_id == msg.message_id:
                 chain.append(reply)
                 assigned.add(reply.message_id)
-                if len(chain) >= _REPLY_CHAIN_MAX:
-                    break
         chains.append(chain)
 
     # Any remaining (orphan replies whose root wasn't in this batch)
@@ -130,6 +115,13 @@ def _pinecone_channel_display_name(channel: DiscordChannel) -> str:
     return name or "?"
 
 
+def _format_chain_message_line(msg: DiscordMessage, cleaned: str) -> str:
+    """One line for merged reply-chain content: ``username: "message text"``."""
+    username = msg.author.username if msg.author_id else "unknown"
+    escaped = cleaned.replace("\\", "\\\\").replace('"', '\\"')
+    return f'{username}: "{escaped}"'
+
+
 def _chain_to_document(
     chain: list[DiscordMessage],
 ) -> Optional[dict[str, Any]]:
@@ -141,16 +133,16 @@ def _chain_to_document(
         raw = (msg.content or "").strip()
         if not raw:
             continue
-        cleaned = _clean_discord_text(raw)
+        cleaned = clean_discord_text(raw)
         if not cleaned:
             continue
-        parts.append(cleaned)
+        parts.append(_format_chain_message_line(msg, cleaned))
         ids.append(str(msg.message_id))
 
     if not parts:
         return None
 
-    content = " ".join(parts)
+    content = "\n".join(parts)
     if _is_content_too_short(content):
         return None
 

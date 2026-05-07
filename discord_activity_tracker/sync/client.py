@@ -22,6 +22,53 @@ def _message_type_label(message_type: Any) -> str:
     return "".join(part.capitalize() for part in name.split("_"))
 
 
+def discord_message_to_sync_dict(message: Any) -> Dict[str, Any]:
+    """Convert a ``discord.Message`` (or duck-typed test double) to sync pipeline dict.
+
+    Module-level so unit tests can validate mapping without constructing
+    :class:`DiscordSyncClient` (avoids async ``close`` / client lifecycle warnings).
+    """
+    return {
+        "id": message.id,
+        "content": message.content,
+        "author": {
+            "id": message.author.id,
+            "username": message.author.name,
+            "display_name": (
+                message.author.display_name
+                if hasattr(message.author, "display_name")
+                else ""
+            ),
+            "avatar_url": (
+                str(message.author.avatar.url) if message.author.avatar else ""
+            ),
+            "bot": message.author.bot,
+        },
+        "created_at": message.created_at.isoformat(),
+        "edited_at": message.edited_at.isoformat() if message.edited_at else None,
+        "message_type": _message_type_label(message.type),
+        "is_pinned": bool(message.pinned),
+        "reference": {
+            "message_id": (message.reference.message_id if message.reference else None),
+        },
+        "attachments": [
+            {
+                "url": attachment.url,
+                "filename": attachment.filename,
+                "size": attachment.size,
+            }
+            for attachment in message.attachments
+        ],
+        "reactions": [
+            {
+                "emoji": str(reaction.emoji),
+                "count": reaction.count,
+            }
+            for reaction in message.reactions
+        ],
+    }
+
+
 class DiscordSyncClient:
     """Discord client wrapper for syncing messages."""
 
@@ -52,8 +99,9 @@ class DiscordSyncClient:
         loop = self._asyncio_loop
         if loop is not None and not loop.is_closed():
             try:
-                if self._ready:
-                    loop.run_until_complete(self.close())
+                # Always drain ``close()`` on this loop so the coroutine is not left
+                # un-awaited (RuntimeWarning on Py3.12+); ``close`` no-ops when not _ready.
+                loop.run_until_complete(self.close())
             except Exception:
                 logger.exception("Error while closing Discord client")
             finally:
@@ -137,7 +185,7 @@ class DiscordSyncClient:
             async for message in channel.history(
                 limit=limit, after=after, oldest_first=True
             ):
-                msg_data = self._message_to_dict(message)
+                msg_data = discord_message_to_sync_dict(message)
                 messages.append(msg_data)
                 count += 1
 
@@ -158,48 +206,8 @@ class DiscordSyncClient:
         return messages
 
     def _message_to_dict(self, message: discord.Message) -> Dict[str, Any]:
-        """Convert message to dict."""
-        return {
-            "id": message.id,
-            "content": message.content,
-            "author": {
-                "id": message.author.id,
-                "username": message.author.name,
-                "display_name": (
-                    message.author.display_name
-                    if hasattr(message.author, "display_name")
-                    else ""
-                ),
-                "avatar_url": (
-                    str(message.author.avatar.url) if message.author.avatar else ""
-                ),
-                "bot": message.author.bot,
-            },
-            "created_at": message.created_at.isoformat(),
-            "edited_at": message.edited_at.isoformat() if message.edited_at else None,
-            "message_type": _message_type_label(message.type),
-            "is_pinned": bool(message.pinned),
-            "reference": {
-                "message_id": (
-                    message.reference.message_id if message.reference else None
-                ),
-            },
-            "attachments": [
-                {
-                    "url": attachment.url,
-                    "filename": attachment.filename,
-                    "size": attachment.size,
-                }
-                for attachment in message.attachments
-            ],
-            "reactions": [
-                {
-                    "emoji": str(reaction.emoji),
-                    "count": reaction.count,
-                }
-                for reaction in message.reactions
-            ],
-        }
+        """Convert message to dict (delegates to :func:`discord_message_to_sync_dict`)."""
+        return discord_message_to_sync_dict(message)
 
     async def close(self):
         """Close the client connection."""
