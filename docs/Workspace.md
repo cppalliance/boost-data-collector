@@ -173,15 +173,39 @@ python manage.py migrate_workspace_layout
 
 Use `--dry-run` to see what would be moved without changing files. For commits, the command prefers `master/`; if `master/` is missing it uses `developer/` (the `developer/` folder is ignored when `master/` exists).
 
-## Orphan temp files
+## Orphan temp files and JSON cache
 
-If a collector crashes between write and delete, leftover `*.tmp`, `*.part`, `*.lock`, or `*.swp` files may remain. Run:
+### Temp suffix files (`*.tmp`, `*.part`, `*.lock`, `*.swp`)
+
+If a collector crashes between write and delete, leftover partial-write artifacts may remain under `WORKSPACE_DIR`. Run:
 
 ```bash
 python manage.py cleanup_workspace_orphans
 ```
 
-By default this **dry-runs** (lists candidates). Use `--execute` to delete files older than `--max-age-hours` (default: 24).
+By default this **dry-runs** for suffix matches (lists candidates). Use `--execute` to delete files older than `--max-age-hours` (default: 24).
+
+### GitHub Activity Tracker JSON cache (Phase 1)
+
+Under `workspace/github_activity_tracker/<owner>/<repo>/{commits,issues,prs}/`, each `*.json` should be short-lived (written then imported to PostgreSQL then deleted). Crashes can leave **empty files or invalid JSON**. Those can be cleaned safely:
+
+```bash
+python manage.py cleanup_workspace_orphans --github-json-cache
+```
+
+Add `--execute` to delete invalid/empty JSON (or move them to `workspace/_quarantine/...` when `WORKSPACE_ORPHAN_USE_QUARANTINE_FOR_INVALID_JSON=true`). Valid JSON older than `WORKSPACE_ORPHAN_JSON_STALE_MAX_AGE_SECONDS` only logs a **warning** (may be normal backlog).
+
+### Automatic cleanup on process startup
+
+When `WORKSPACE_ORPHAN_CLEANUP_ENABLED=true` in the environment, **`CoreConfig.ready()`** runs the same GitHub JSON invalid-file cleanup once per worker (guarded so it does not run during `migrate`, `collectstatic`, `test`, **pytest**, `cleanup_workspace_orphans`, etc.). The Django dev **autoreloader parent** is skipped (`RUN_MAIN`); only the child process runs cleanup.
+
+Related settings (see `config/settings.py`):
+
+| Variable | Purpose |
+|----------|---------|
+| `WORKSPACE_ORPHAN_CLEANUP_ENABLED` | Enable startup cleanup (default `false`). |
+| `WORKSPACE_ORPHAN_USE_QUARANTINE_FOR_INVALID_JSON` | Move invalid JSON under `workspace/_quarantine/` instead of deleting. |
+| `WORKSPACE_ORPHAN_JSON_STALE_MAX_AGE_SECONDS` | Warn if valid JSON is older than this many seconds; `-1` disables (default). |
 
 ## Conventions
 

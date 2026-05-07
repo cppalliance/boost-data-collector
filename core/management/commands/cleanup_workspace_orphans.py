@@ -1,6 +1,7 @@
 """
-Scan WORKSPACE_DIR for common orphan temp artifacts (e.g. *.tmp, *.part, *.lock).
-Log or delete based on age. Does not delete arbitrary unknown files without suffix match.
+Scan WORKSPACE_DIR for orphan artifacts:
+  - Temp suffixes: *.tmp, *.part, *.lock, *.swp (age-based)
+  - Optional: github_activity_tracker JSON cache files that are empty or invalid JSON
 """
 
 from __future__ import annotations
@@ -12,6 +13,8 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+from core.workspace_orphans import cleanup_github_activity_tracker_json_cache
+
 logger = logging.getLogger(__name__)
 
 _ORPHAN_SUFFIXES = (".tmp", ".part", ".lock", ".swp")
@@ -19,8 +22,9 @@ _ORPHAN_SUFFIXES = (".tmp", ".part", ".lock", ".swp")
 
 class Command(BaseCommand):
     help = (
-        "List or remove stale workspace files matching common partial-write suffixes "
-        f"{_ORPHAN_SUFFIXES} under WORKSPACE_DIR."
+        "List or remove stale workspace files: (1) suffixes matching partial-write patterns "
+        f"{_ORPHAN_SUFFIXES}, optionally (2) invalid/empty JSON under "
+        "github_activity_tracker/.../{{commits,issues,prs}}/"
     )
 
     def add_arguments(self, parser):
@@ -28,12 +32,20 @@ class Command(BaseCommand):
             "--max-age-hours",
             type=float,
             default=24.0,
-            help="Only consider files not modified within this many hours (default: 24).",
+            help="For suffix scan only: only files not modified within this many hours (default: 24).",
         )
         parser.add_argument(
             "--execute",
             action="store_true",
-            help="Delete matching files; default is dry-run (log only).",
+            help="Delete matching files; default is dry-run for suffixes. "
+            "When combined with --github-json-cache, applies deletions/quarantine there too.",
+        )
+        parser.add_argument(
+            "--github-json-cache",
+            action="store_true",
+            help=(
+                "Also scan github_activity_tracker JSON cache; remove/quarantine empty or invalid JSON."
+            ),
         )
 
     def handle(self, *args, **options):
@@ -50,6 +62,38 @@ class Command(BaseCommand):
             )
             return
 
+        suffix_found = self._run_suffix_scan(root, max_age, execute)
+
+        gh_stats = None
+        if options["github_json_cache"]:
+            gh_stats = cleanup_github_activity_tracker_json_cache(
+                workspace_dir=root,
+                execute=execute,
+                use_quarantine=getattr(
+                    settings, "WORKSPACE_ORPHAN_USE_QUARANTINE_FOR_INVALID_JSON", False
+                ),
+                stale_max_age_seconds=getattr(
+                    settings, "WORKSPACE_ORPHAN_JSON_STALE_MAX_AGE_SECONDS", None
+                ),
+            )
+            rel = "Removed" if execute else "Would remove / logged"
+            self.stdout.write(
+                self.style.NOTICE(
+                    f"{rel} github_activity_tracker invalid JSON: scanned={gh_stats.scanned} "
+                    f"removed_invalid={gh_stats.removed_invalid} "
+                    f"quarantined={gh_stats.quarantined_invalid} "
+                    f"stale_warnings={gh_stats.stale_valid_warnings} errors={gh_stats.errors}"
+                )
+            )
+
+        self.stdout.write(
+            self.style.NOTICE(
+                f"{'Removed' if execute else 'Found'} {suffix_found} orphan suffix candidate(s) "
+                f"(suffix in {_ORPHAN_SUFFIXES}, older than {max_age}h)."
+            )
+        )
+
+    def _run_suffix_scan(self, root: Path, max_age: float, execute: bool) -> int:
         cutoff = time.time() - max_age * 3600.0
         found: list[Path] = []
         for path in root.rglob("*"):
@@ -77,9 +121,4 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(f"would delete (dry-run): {rel}")
 
-        self.stdout.write(
-            self.style.NOTICE(
-                f"{'Removed' if execute else 'Found'} {len(found)} orphan candidate(s) "
-                f"(suffix in {_ORPHAN_SUFFIXES}, older than {max_age}h)."
-            )
-        )
+        return len(found)
