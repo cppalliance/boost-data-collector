@@ -155,6 +155,39 @@ def test_cleanup_removes_invalid_after_grace(tmp_path):
 
 
 @pytest.mark.django_db
+def test_concurrent_unlink_file_not_found_not_error(tmp_path):
+    """Another worker may delete the same orphan first (multi-worker WSGI)."""
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from core.workspace_orphans import cleanup_github_activity_tracker_json_cache
+
+    p = _gat_commit_json(tmp_path) / "race.json"
+    p.write_text("{", encoding="utf-8")
+
+    real_unlink = Path.unlink
+
+    def unlink_simulate_other_worker(self, missing_ok=False):
+        try:
+            self.relative_to(tmp_path)
+        except ValueError:
+            return real_unlink(self, missing_ok=missing_ok)
+        raise FileNotFoundError()
+
+    with patch.object(Path, "unlink", unlink_simulate_other_worker):
+        stats = cleanup_github_activity_tracker_json_cache(
+            workspace_dir=tmp_path,
+            execute=True,
+            use_quarantine=False,
+            stale_max_age_seconds=None,
+            invalid_grace_seconds=0.0,
+        )
+
+    assert stats.errors == 0
+    assert stats.removed_invalid == 0
+
+
+@pytest.mark.django_db
 def test_management_command_github_json_cache_removes_invalid(tmp_path):
     bad = _gat_commit_json(tmp_path) / "x.json"
     bad.write_text("", encoding="utf-8")

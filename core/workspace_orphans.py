@@ -123,6 +123,12 @@ def cleanup_github_activity_tracker_json_cache(
             if grace > 0:
                 try:
                     age = now - path.stat().st_mtime
+                except FileNotFoundError:
+                    logger.debug(
+                        "Invalid JSON cache vanished before grace check (concurrent worker?): %s",
+                        path,
+                    )
+                    continue
                 except OSError as e:
                     stats.errors += 1
                     logger.warning(
@@ -164,6 +170,11 @@ def cleanup_github_activity_tracker_json_cache(
                         "Removed invalid/empty JSON cache file: %s",
                         path,
                     )
+            except FileNotFoundError:
+                logger.debug(
+                    "Invalid JSON cache already removed (concurrent worker?): %s",
+                    path,
+                )
             except OSError as e:
                 stats.errors += 1
                 logger.warning("Could not handle invalid JSON cache %s: %s", path, e)
