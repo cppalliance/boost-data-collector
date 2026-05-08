@@ -167,6 +167,24 @@ WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 for _slug in _WORKSPACE_APP_SLUGS:
     (WORKSPACE_DIR / _slug).mkdir(parents=True, exist_ok=True)
 
+# Orphan workspace cleanup (github_activity_tracker JSON cache — see docs/Workspace.md)
+WORKSPACE_ORPHAN_CLEANUP_ENABLED = env.bool(
+    "WORKSPACE_ORPHAN_CLEANUP_ENABLED", default=False
+)
+WORKSPACE_ORPHAN_USE_QUARANTINE_FOR_INVALID_JSON = env.bool(
+    "WORKSPACE_ORPHAN_USE_QUARANTINE_FOR_INVALID_JSON", default=False
+)
+# Valid JSON older than this (seconds) logs a warning only. Use -1 to disable stale warnings.
+_workspace_stale = env.int("WORKSPACE_ORPHAN_JSON_STALE_MAX_AGE_SECONDS", default=-1)
+WORKSPACE_ORPHAN_JSON_STALE_MAX_AGE_SECONDS = (
+    None if _workspace_stale < 0 else float(_workspace_stale)
+)
+# Do not delete/quarantine invalid JSON whose mtime is younger than this (writer race).
+# Set to 0 to disable the grace window.
+WORKSPACE_ORPHAN_INVALID_JSON_GRACE_SECONDS = float(
+    env("WORKSPACE_ORPHAN_INVALID_JSON_GRACE_SECONDS", default="5.0")
+)
+
 # =============================================================================
 # Clang GitHub Tracker
 # Syncs llvm/llvm-project (issues, PRs, commits) to raw + DB.

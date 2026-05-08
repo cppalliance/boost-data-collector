@@ -9,6 +9,9 @@ from pathlib import Path
 
 from .settings import *  # noqa: F401, F403
 
+# Never run workspace orphan cleanup during tests (CoreConfig.ready).
+WORKSPACE_ORPHAN_CLEANUP_ENABLED = False
+
 # In-memory SQLite for fast, isolated tests when we are not targeting Postgres (see below).
 _SQLITE_TEST_DB = {
     "default": {
