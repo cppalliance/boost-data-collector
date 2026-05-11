@@ -1,13 +1,15 @@
 """Tests for boost_collector_runner management commands."""
 
-import pytest
+import logging
 from io import StringIO
 from unittest.mock import patch
 
+import pytest
 from django.core.management import call_command, get_commands
 from django.core.management.base import CommandError
 
 from boost_collector_runner.schedule_config import DEFAULT_GROUP_BATCH_SCHEDULE_KIND
+from core import __version__
 
 
 @pytest.mark.django_db
@@ -15,6 +17,60 @@ def test_run_scheduled_collectors_command_exists():
     """run_scheduled_collectors is registered."""
     commands = get_commands()
     assert "run_scheduled_collectors" in commands
+
+
+@pytest.mark.django_db
+def test_run_scheduled_collectors_logs_version_at_startup(caplog, tmp_path, settings):
+    """Startup log includes collector_version in message and structured extra."""
+    import yaml
+
+    yaml_path = tmp_path / "boost_collector_schedule.yaml"
+    yaml_path.write_text(
+        yaml.dump(
+            {
+                "groups": {
+                    "github": {
+                        "default_time": "04:10",
+                        "tasks": [
+                            {
+                                "command": "run_boost_github_activity_tracker",
+                                "schedule": "daily",
+                            },
+                        ],
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(yaml_path)
+
+    caplog.set_level(logging.INFO)
+    out = StringIO()
+    err = StringIO()
+    with patch(
+        "boost_collector_runner.schedule_config._get_yaml_path",
+        return_value=yaml_path,
+    ), patch(
+        "boost_collector_runner.management.commands.run_scheduled_collectors.call_command",
+        return_value=None,
+    ):
+        call_command(
+            "run_scheduled_collectors",
+            "--schedule",
+            "daily",
+            stdout=out,
+            stderr=err,
+        )
+
+    startup = [
+        r
+        for r in caplog.records
+        if "run_scheduled_collectors: starting collector_version=" in r.getMessage()
+    ]
+    assert startup, "expected startup version log line"
+    assert startup[0].collector_version == __version__
+    assert __version__ in startup[0].getMessage()
 
 
 @pytest.mark.django_db
