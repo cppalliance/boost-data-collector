@@ -31,7 +31,10 @@ class PineconeInstance(str, Enum):
 try:
     from pinecone import Pinecone
 
-    from cppa_pinecone_sync.text_chunking import Document, RecursiveCharacterTextSplitter
+    from cppa_pinecone_sync.text_chunking import (
+        Document,
+        RecursiveCharacterTextSplitter,
+    )
 except ImportError as e:
     Pinecone = None  # type: ignore[assignment,misc]
     RecursiveCharacterTextSplitter = None  # type: ignore[assignment,misc]
