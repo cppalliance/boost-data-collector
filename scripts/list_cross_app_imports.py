@@ -159,7 +159,6 @@ def orm_coupling_candidates(all_rows: list[CrossAppImport]) -> list[CrossAppImpo
             continue
         key = row.source_file  # only flag each file once
         if key in seen:
-            # Still emit each distinct import row for completeness
             continue
         filepath = REPO_ROOT / row.source_file
         if _has_objects_usage(filepath):
