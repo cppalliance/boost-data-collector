@@ -48,12 +48,15 @@ def test_run_scheduled_collectors_logs_version_at_startup(caplog, tmp_path, sett
     caplog.set_level(logging.INFO)
     out = StringIO()
     err = StringIO()
-    with patch(
-        "boost_collector_runner.schedule_config._get_yaml_path",
-        return_value=yaml_path,
-    ), patch(
-        "boost_collector_runner.management.commands.run_scheduled_collectors.call_command",
-        return_value=None,
+    with (
+        patch(
+            "boost_collector_runner.schedule_config._get_yaml_path",
+            return_value=yaml_path,
+        ),
+        patch(
+            "boost_collector_runner.management.commands.run_scheduled_collectors.call_command",
+            return_value=None,
+        ),
     ):
         call_command(
             "run_scheduled_collectors",
@@ -101,13 +104,16 @@ def test_run_scheduled_collectors_daily_runs_tasks_from_yaml(tmp_path, settings)
 
     out = StringIO()
     err = StringIO()
-    with patch(
-        "boost_collector_runner.schedule_config._get_yaml_path",
-        return_value=yaml_path,
-    ), patch(
-        "boost_collector_runner.management.commands.run_scheduled_collectors.call_command",
-        return_value=None,
-    ) as mock_call:
+    with (
+        patch(
+            "boost_collector_runner.schedule_config._get_yaml_path",
+            return_value=yaml_path,
+        ),
+        patch(
+            "boost_collector_runner.management.commands.run_scheduled_collectors.call_command",
+            return_value=None,
+        ) as mock_call,
+    ):
         call_command(
             "run_scheduled_collectors",
             "--schedule",
@@ -150,13 +156,16 @@ def test_run_scheduled_collectors_default_group_batch(tmp_path, settings):
 
     out = StringIO()
     err = StringIO()
-    with patch(
-        "boost_collector_runner.schedule_config._get_yaml_path",
-        return_value=yaml_path,
-    ), patch(
-        "boost_collector_runner.management.commands.run_scheduled_collectors.call_command",
-        return_value=None,
-    ) as mock_call:
+    with (
+        patch(
+            "boost_collector_runner.schedule_config._get_yaml_path",
+            return_value=yaml_path,
+        ),
+        patch(
+            "boost_collector_runner.management.commands.run_scheduled_collectors.call_command",
+            return_value=None,
+        ) as mock_call,
+    ):
         call_command(
             "run_scheduled_collectors",
             "--schedule",
@@ -249,12 +258,15 @@ def test_run_scheduled_collectors_no_tasks_returns_zero(tmp_path, settings):
         encoding="utf-8",
     )
     settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(yaml_path)
-    with patch(
-        "boost_collector_runner.schedule_config._get_yaml_path",
-        return_value=yaml_path,
-    ), patch(
-        "boost_collector_runner.management.commands.run_scheduled_collectors.get_tasks_for_schedule",
-        return_value=[],
+    with (
+        patch(
+            "boost_collector_runner.schedule_config._get_yaml_path",
+            return_value=yaml_path,
+        ),
+        patch(
+            "boost_collector_runner.management.commands.run_scheduled_collectors.get_tasks_for_schedule",
+            return_value=[],
+        ),
     ):
         call_command(
             "run_scheduled_collectors",
@@ -273,15 +285,19 @@ def test_run_scheduled_collectors_child_system_exit_nonzero(tmp_path, settings):
     fake_tasks = [
         ("g", {"command": "run_foo", "schedule": "daily"}),
     ]
-    with patch(
-        "boost_collector_runner.schedule_config._get_yaml_path",
-        return_value=yaml_path,
-    ), patch(
-        "boost_collector_runner.management.commands.run_scheduled_collectors.get_tasks_for_schedule",
-        return_value=fake_tasks,
-    ), patch(
-        "boost_collector_runner.management.commands.run_scheduled_collectors.call_command",
-        side_effect=SystemExit(5),
+    with (
+        patch(
+            "boost_collector_runner.schedule_config._get_yaml_path",
+            return_value=yaml_path,
+        ),
+        patch(
+            "boost_collector_runner.management.commands.run_scheduled_collectors.get_tasks_for_schedule",
+            return_value=fake_tasks,
+        ),
+        patch(
+            "boost_collector_runner.management.commands.run_scheduled_collectors.call_command",
+            side_effect=SystemExit(5),
+        ),
     ):
         with pytest.raises(SystemExit) as ei:
             call_command(
@@ -309,16 +325,20 @@ def test_run_scheduled_collectors_stop_on_failure_short_circuits(tmp_path, setti
             raise SystemExit(1)
         return None
 
-    with patch(
-        "boost_collector_runner.schedule_config._get_yaml_path",
-        return_value=yaml_path,
-    ), patch(
-        "boost_collector_runner.management.commands.run_scheduled_collectors.get_tasks_for_schedule",
-        return_value=fake_tasks,
-    ), patch(
-        "boost_collector_runner.management.commands.run_scheduled_collectors.call_command",
-        side_effect=fail_first,
-    ) as mock_inner:
+    with (
+        patch(
+            "boost_collector_runner.schedule_config._get_yaml_path",
+            return_value=yaml_path,
+        ),
+        patch(
+            "boost_collector_runner.management.commands.run_scheduled_collectors.get_tasks_for_schedule",
+            return_value=fake_tasks,
+        ),
+        patch(
+            "boost_collector_runner.management.commands.run_scheduled_collectors.call_command",
+            side_effect=fail_first,
+        ) as mock_inner,
+    ):
         with pytest.raises(SystemExit) as ei:
             call_command(
                 "run_scheduled_collectors",
