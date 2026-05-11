@@ -1,11 +1,13 @@
 """Tests for core.utils.datetime_parsing."""
 
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
 from django.utils import timezone as django_timezone
 
 from core.utils.datetime_parsing import (
+    CANONICAL_INSTANT_UTC_Z_PATTERN,
     ensure_aware_utc,
     format_instant_iso_z,
     parse_iso_datetime,
@@ -118,3 +120,12 @@ def test_parse_iso_datetime_lenient_parametrized(date_str, expected_year):
     result = parse_iso_datetime_lenient(date_str)
     assert result is not None
     assert result.year == expected_year
+
+
+def test_canonical_instant_utc_z_pattern():
+    pat = re.compile(CANONICAL_INSTANT_UTC_Z_PATTERN)
+    assert pat.fullmatch("2026-01-01T00:00:00Z")
+    assert pat.fullmatch("2026-01-01T00:00:00.5Z")
+    assert pat.fullmatch("2026-01-01T00:00:00.123456Z")
+    assert pat.fullmatch("2026-01-01T00:00:00+00:00") is None
+    assert pat.fullmatch("") is None

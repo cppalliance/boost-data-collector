@@ -82,10 +82,10 @@ class DiscordBackfillCollector(CollectorBase):
             try:
                 data = parse_exported_json(json_path)
                 rel = _json_display_path(import_dir, json_path)
-                validate_envelope(data, source=rel)
-                guild_info = data.get("guild", {})
-                channel_info = data.get("channel", {})
-                messages = data.get("messages", [])
+                envelope = validate_envelope(data, source=rel)
+                guild_info = envelope.guild.model_dump(by_alias=True)
+                channel_info = envelope.channel.model_dump(by_alias=True)
+                messages = envelope.messages
 
                 ch_name = channel_info.get("name", "?")
                 self.stdout.write(

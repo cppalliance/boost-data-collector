@@ -1,5 +1,7 @@
 """Tests for core.utils.text_processing."""
 
+import pytest
+
 from core.utils.text_processing import (
     SLACK_GREETING_WORDS,
     clean_text,
@@ -83,3 +85,8 @@ def test_truncate_content_long_adds_ellipsis():
 
 def test_truncate_content_max_length_at_most_three():
     assert truncate_content("abcdef", max_length=2) == "ab"
+
+
+def test_truncate_content_negative_max_length_raises():
+    with pytest.raises(ValueError, match="max_length must be non-negative"):
+        truncate_content("hello", max_length=-1)

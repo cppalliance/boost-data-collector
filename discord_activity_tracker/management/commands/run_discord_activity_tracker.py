@@ -200,10 +200,10 @@ def task_discord_sync(
     for i, json_path in enumerate(json_files, 1):
         try:
             data = parse_exported_json(json_path)
-            validate_envelope(data, source=json_path.name)
-            guild_info = data.get("guild", {})
-            channel_info = data.get("channel", {})
-            messages = data.get("messages", [])
+            envelope = validate_envelope(data, source=json_path.name)
+            guild_info = envelope.guild.model_dump(by_alias=True)
+            channel_info = envelope.channel.model_dump(by_alias=True)
+            messages = envelope.messages
 
             ch_name = channel_info.get("name", "?")
             ch_id = _safe_int(channel_info.get("id", 0))

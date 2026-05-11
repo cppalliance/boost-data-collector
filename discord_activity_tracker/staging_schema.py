@@ -17,9 +17,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Union
+from typing import Annotated, Any, Union
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+
+from core.utils.datetime_parsing import CANONICAL_INSTANT_UTC_Z_PATTERN
+
+NormalizedMessageInstantUtcZ = Annotated[
+    str, Field(pattern=CANONICAL_INSTANT_UTC_Z_PATTERN)
+]
 
 
 def _validation_error(prefix: str, err: ValidationError) -> ValueError:
@@ -108,17 +114,26 @@ class NormalizedDiscordMessage(BaseModel):
 
     id: int
     content: str = ""
-    created_at: str = Field(min_length=1)
-    edited_at: str | None = None
+    created_at: NormalizedMessageInstantUtcZ
+    edited_at: NormalizedMessageInstantUtcZ | None = None
     message_type: str = "Default"
     is_pinned: bool = False
     author: NormalizedAuthorExport
     attachments: list[NormalizedAttachment] = Field(default_factory=list)
     reactions: list[NormalizedReaction] = Field(default_factory=list)
     reference: dict[str, Any] | None = None
-    occurred_at: str | None = None
+    occurred_at: NormalizedMessageInstantUtcZ | None = None
     actor_id: str | None = None
     source_url: str | None = None
+
+    @field_validator("edited_at", "occurred_at", mode="before")
+    @classmethod
+    def _blank_optional_timestamp_to_none(cls, v: Any) -> Any:
+        if v is None:
+            return None
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
 
 def validate_envelope(
@@ -157,10 +172,10 @@ def build_staging_json_schema_bundle() -> dict[str, Any]:
             "validation uses Pydantic models in discord_activity_tracker/staging_schema.py."
         ),
         "discord_chat_exporter_envelope": DiscordChatExporterEnvelope.model_json_schema(
-            ref_template="#/$defs/{model}"
+            ref_template="#/discord_chat_exporter_envelope/$defs/{model}"
         ),
         "normalized_discord_message": NormalizedDiscordMessage.model_json_schema(
-            ref_template="#/$defs/{model}"
+            ref_template="#/normalized_discord_message/$defs/{model}"
         ),
     }
 

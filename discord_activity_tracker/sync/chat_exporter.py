@@ -12,12 +12,28 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
-from core.utils.datetime_parsing import format_instant_iso_z
+from core.utils.datetime_parsing import (
+    CANONICAL_INSTANT_UTC_Z_PATTERN,
+    format_instant_iso_z,
+)
 
 from .utils import format_discord_url
 from ..workspace import get_workspace_root
 
 _SAFE_INT_MAX = 2**63 - 1  # max safe BigIntegerField value
+
+_INSTANT_Z_RE = re.compile(CANONICAL_INSTANT_UTC_Z_PATTERN)
+
+
+def _coerce_exporter_timestamp(raw: Any) -> str:
+    """Normalize DiscordChatExporter timestamp strings toward ISO 8601 UTC ``Z``."""
+    return format_instant_iso_z(raw if raw is not None else "")
+
+
+def _coerce_optional_exporter_timestamp(raw: Any) -> str | None:
+    if raw is None or (isinstance(raw, str) and not str(raw).strip()):
+        return None
+    return _coerce_exporter_timestamp(raw)
 
 
 def _safe_int(value: object, default: int = 0) -> int:
@@ -638,10 +654,14 @@ def convert_exporter_message_to_dict(
     - All snowflake IDs coerced from string → int via _safe_int.
     - Reaction emoji extracted from nested {"name": ...} dict to plain string;
       reactions with no resolvable emoji are dropped (not persisted).
+    - Reaction ``count`` coerced via :func:`_safe_int` (malformed values → ``0``).
     - Author avatarUrl mapped to avatar_url.
     - message_type and is_pinned mapped from DiscordChatExporter fields.
     - When ``server_id`` and ``channel_id`` are set, adds ``source_url``;
       ``occurred_at`` (ISO 8601 UTC ``Z``) and ``actor_id`` when derivable.
+    - ``created_at`` / ``edited_at`` are normalized with :func:`format_instant_iso_z`
+      where possible so values match the canonical ``Z`` instant pattern used at
+      validation time.
     """
     author = msg_data.get("author", {})
 
@@ -657,18 +677,22 @@ def convert_exporter_message_to_dict(
         emoji_name = (emoji_name or "").strip()
         if not emoji_name:
             continue
+        count = _safe_int(reaction.get("count", 0), default=0)
         reactions_out.append(
             {
                 "emoji": emoji_name,
-                "count": max(0, int(reaction.get("count", 0) or 0)),
+                "count": max(0, count),
             }
         )
+
+    created_at_z = _coerce_exporter_timestamp(msg_data.get("timestamp", ""))
+    edited_at_z = _coerce_optional_exporter_timestamp(msg_data.get("timestampEdited"))
 
     converted: Dict[str, Any] = {
         "id": _safe_int(msg_data.get("id", 0)),
         "content": msg_data.get("content", ""),
-        "created_at": msg_data.get("timestamp", ""),
-        "edited_at": msg_data.get("timestampEdited"),
+        "created_at": created_at_z,
+        "edited_at": edited_at_z,
         "message_type": msg_data.get("type", "Default") or "Default",
         "is_pinned": bool(msg_data.get("isPinned", False)),
         "author": {
@@ -690,9 +714,8 @@ def convert_exporter_message_to_dict(
         ref_id = ref.get("messageId") or ref.get("message_id")
         converted["reference"] = {"message_id": _safe_int(ref_id) if ref_id else None}
 
-    created = (converted.get("created_at") or "").strip()
-    if created:
-        converted["occurred_at"] = format_instant_iso_z(created)
+    if created_at_z and _INSTANT_Z_RE.fullmatch(created_at_z):
+        converted["occurred_at"] = created_at_z
 
     author_id = _safe_int(author.get("id", 0))
     if author_id:

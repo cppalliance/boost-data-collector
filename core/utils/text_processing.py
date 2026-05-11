@@ -248,6 +248,8 @@ def filter_sentence(
 
 def truncate_content(content: str, max_length: int = 100) -> str:
     """Return ``content`` truncated to ``max_length`` characters with ``...`` when longer."""
+    if max_length < 0:
+        raise ValueError("max_length must be non-negative")
     if len(content) <= max_length:
         return content
     if max_length <= 3:

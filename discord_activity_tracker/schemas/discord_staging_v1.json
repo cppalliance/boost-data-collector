@@ -128,10 +128,10 @@
     "description": "Top-level shape of a DiscordChatExporter ``.json`` export.",
     "properties": {
       "guild": {
-        "$ref": "#/$defs/DiscordExporterGuild"
+        "$ref": "#/discord_chat_exporter_envelope/$defs/DiscordExporterGuild"
       },
       "channel": {
-        "$ref": "#/$defs/DiscordExporterChannel"
+        "$ref": "#/discord_chat_exporter_envelope/$defs/DiscordExporterChannel"
       },
       "messages": {
         "items": {},
@@ -231,13 +231,14 @@
         "type": "string"
       },
       "created_at": {
-        "minLength": 1,
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
         "title": "Created At",
         "type": "string"
       },
       "edited_at": {
         "anyOf": [
           {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
             "type": "string"
           },
           {
@@ -258,18 +259,18 @@
         "type": "boolean"
       },
       "author": {
-        "$ref": "#/$defs/NormalizedAuthorExport"
+        "$ref": "#/normalized_discord_message/$defs/NormalizedAuthorExport"
       },
       "attachments": {
         "items": {
-          "$ref": "#/$defs/NormalizedAttachment"
+          "$ref": "#/normalized_discord_message/$defs/NormalizedAttachment"
         },
         "title": "Attachments",
         "type": "array"
       },
       "reactions": {
         "items": {
-          "$ref": "#/$defs/NormalizedReaction"
+          "$ref": "#/normalized_discord_message/$defs/NormalizedReaction"
         },
         "title": "Reactions",
         "type": "array"
@@ -290,6 +291,7 @@
       "occurred_at": {
         "anyOf": [
           {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
             "type": "string"
           },
           {

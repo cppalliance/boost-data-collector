@@ -9,6 +9,9 @@ from django.utils import timezone as django_timezone
 
 logger = logging.getLogger(__name__)
 
+# ISO 8601 UTC instant with ``Z`` (optional fractional seconds). Used by JSON Schema and Pydantic.
+CANONICAL_INSTANT_UTC_Z_PATTERN = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$"
+
 
 def ensure_aware_utc(dt: datetime | None) -> datetime | None:
     """

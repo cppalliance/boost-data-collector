@@ -552,6 +552,24 @@ def test_convert_exporter_message_reaction_emoji_flattened():
     assert out["reactions"][0]["count"] == 3
 
 
+def test_convert_exporter_message_reaction_malformed_count_defaults():
+    raw = {
+        "id": "1",
+        "timestamp": "2026-01-01T00:00:00Z",
+        "content": "",
+        "author": {"id": "1", "name": "a"},
+        "attachments": [],
+        "reactions": [
+            {"emoji": {"name": "x"}, "count": "not-a-number"},
+            {"emoji": {"name": "y"}, "count": -2},
+        ],
+    }
+    out = convert_exporter_message_to_dict(raw)
+    assert len(out["reactions"]) == 2
+    assert out["reactions"][0]["count"] == 0
+    assert out["reactions"][1]["count"] == 0
+
+
 def test_convert_exporter_message_reaction_null_emoji_is_dropped():
     raw = {
         "id": "1",

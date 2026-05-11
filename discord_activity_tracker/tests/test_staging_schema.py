@@ -80,8 +80,47 @@ def test_validate_normalized_malformed_rejects_with_valueerror():
     assert err.__cause__ is not None
 
 
+def test_validate_normalized_rejects_created_at_without_z_suffix():
+    bad = {
+        "id": 1,
+        "content": "x",
+        "created_at": "2026-01-01T00:00:00+00:00",
+        "edited_at": None,
+        "message_type": "Default",
+        "is_pinned": False,
+        "author": {
+            "id": 0,
+            "username": "x",
+            "global_name": "",
+            "avatar_url": "",
+            "bot": False,
+        },
+        "attachments": [],
+        "reactions": [],
+        "reference": None,
+    }
+    with pytest.raises(ValueError, match="Invalid normalized Discord message"):
+        validate_normalized_message(bad, source="unit")
+
+
 def test_validate_envelope_rejects_non_list_messages():
     with pytest.raises(ValueError, match="Invalid Discord export envelope"):
         validate_envelope(
             {"guild": {}, "channel": {}, "messages": "nope"}, source="x.json"
         )
+
+
+def test_validate_envelope_messages_none_becomes_empty_list():
+    env = validate_envelope(
+        {
+            "guild": {"id": "1", "name": "G"},
+            "channel": {"id": "2", "name": "C"},
+            "messages": None,
+        },
+        source="empty.json",
+    )
+    assert env.messages == []
+    guild = env.guild.model_dump(by_alias=True)
+    channel = env.channel.model_dump(by_alias=True)
+    assert guild.get("id") == "1"
+    assert channel.get("name") == "C"
