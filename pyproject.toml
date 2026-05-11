@@ -10,8 +10,8 @@ description = "Boost Data Collector Django project"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["core*"]
-exclude = ["core.tests*"]
+include = ["*"]
+exclude = ["*.tests", "*.tests.*", "tests", "tests.*"]
 
 [tool.setuptools_scm]
 fallback_version = "0.1.0"
