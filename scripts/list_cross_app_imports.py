@@ -6,9 +6,9 @@ Usage:
     python scripts/list_cross_app_imports.py [--format md|csv] [--no-tests]
 
 Output (Markdown by default):
-    1. Production imports  – files outside tests/ directories.
-    2. Test-only imports   – files inside tests/ directories.
-    3. ORM read-coupling candidates – production files outside models.py that
+    1. Production imports  - files outside tests/ directories.
+    2. Test-only imports   - files inside tests/ directories.
+    3. ORM read-coupling candidates - production files outside models.py that
        import a model from another tracker app AND contain a .objects usage.
 
 Re-run after large refactors to keep docs/cross-app-dependencies.md current.
@@ -160,7 +160,7 @@ def orm_coupling_candidates(all_rows: list[CrossAppImport]) -> list[CrossAppImpo
         key = row.source_file  # only flag each file once
         if key in seen:
             # Still emit each distinct import row for completeness
-            pass
+            continue
         filepath = REPO_ROOT / row.source_file
         if _has_objects_usage(filepath):
             candidates.append(row)
