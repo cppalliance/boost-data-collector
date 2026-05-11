@@ -62,7 +62,7 @@ class CrossAppImport(NamedTuple):
     source_app: str
     source_file: str  # relative to repo root, forward slashes
     target_app: str
-    symbols: str      # comma-separated names, or bare module path for plain `import`
+    symbols: str  # comma-separated names, or bare module path for plain `import`
     is_test: bool
     line: int
 
@@ -185,9 +185,13 @@ def _md_table(rows: list[CrossAppImport]) -> str:
 def _csv_output(rows: list[CrossAppImport]) -> str:
     buf = io.StringIO()
     w = csv_mod.writer(buf)
-    w.writerow(["source_app", "source_file", "target_app", "symbols", "is_test", "line"])
+    w.writerow(
+        ["source_app", "source_file", "target_app", "symbols", "is_test", "line"]
+    )
     for r in rows:
-        w.writerow([r.source_app, r.source_file, r.target_app, r.symbols, r.is_test, r.line])
+        w.writerow(
+            [r.source_app, r.source_file, r.target_app, r.symbols, r.is_test, r.line]
+        )
     return buf.getvalue()
 
 
