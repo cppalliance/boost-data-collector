@@ -91,12 +91,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends pandoc
 
+      # Fully pinned tree (requirements-dev.in → requirements-dev.lock).
       - name: Install dependencies
         env:
           SETUPTOOLS_SCM_WRITE_TO_SOURCE: "1"
         run: |
           uv venv
-          uv pip install -r requirements-dev.txt
+          uv pip install -r requirements-dev.lock
           uv pip install -e .
 
       # Same DATABASE_URL as pytest; 127.0.0.1 avoids occasional localhost → IPv6 quirks on runners.
