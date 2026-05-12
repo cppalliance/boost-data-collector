@@ -5,7 +5,12 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from django.utils import timezone as django_timezone
 
-from core.utils.datetime_parsing import ensure_aware_utc, parse_iso_datetime
+from core.utils.datetime_parsing import (
+    ensure_aware_utc,
+    format_instant_iso_z,
+    parse_iso_datetime,
+    parse_iso_datetime_lenient,
+)
 
 
 def test_ensure_aware_utc_none():
@@ -67,3 +72,49 @@ def test_parse_iso_datetime_with_offset_strips_tz_to_naive_utc():
 def test_parse_iso_datetime_invalid_raises():
     with pytest.raises(ValueError, match="Invalid ISO datetime"):
         parse_iso_datetime("not-a-date")
+
+
+def test_format_instant_iso_z_empty():
+    assert format_instant_iso_z(None) == ""
+    assert format_instant_iso_z("") == ""
+    assert format_instant_iso_z("   ") == ""
+
+
+def test_format_instant_iso_z_z_suffix_utc():
+    assert format_instant_iso_z("2024-03-15T10:30:00Z") == "2024-03-15T10:30:00Z"
+
+
+def test_format_instant_iso_z_offset_to_z():
+    assert format_instant_iso_z("2024-01-01T00:00:00+05:00") == "2023-12-31T19:00:00Z"
+
+
+def test_format_instant_iso_z_invalid_returns_original():
+    assert format_instant_iso_z("not-a-date") == "not-a-date"
+
+
+def test_parse_iso_datetime_lenient_empty():
+    assert parse_iso_datetime_lenient(None) is None
+    assert parse_iso_datetime_lenient("") is None
+    assert parse_iso_datetime_lenient("   ") is None
+
+
+def test_parse_iso_datetime_lenient_z_utc_aware():
+    dt = parse_iso_datetime_lenient("2024-01-15T10:30:00Z")
+    assert dt == datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+
+
+def test_parse_iso_datetime_lenient_invalid_returns_none():
+    assert parse_iso_datetime_lenient("not-a-date") is None
+
+
+@pytest.mark.parametrize(
+    "date_str,expected_year",
+    [
+        ("2023-06-01T00:00:00Z", 2023),
+        ("2025-12-31T23:59:59Z", 2025),
+    ],
+)
+def test_parse_iso_datetime_lenient_parametrized(date_str, expected_year):
+    result = parse_iso_datetime_lenient(date_str)
+    assert result is not None
+    assert result.year == expected_year

@@ -23,7 +23,7 @@ from django.core.management.base import CommandError
 
 from core.collectors.base import CollectorBase
 from core.collectors.command_base import BaseCollectorCommand
-from core.utils.datetime_parsing import parse_iso_datetime
+from core.utils.datetime_parsing import parse_iso_datetime, parse_iso_datetime_lenient
 from discord_activity_tracker.models import DiscordServer
 from discord_activity_tracker.pinecone_runner import task_discord_pinecone_sync
 from discord_activity_tracker.services import (
@@ -31,6 +31,10 @@ from discord_activity_tracker.services import (
     get_or_create_discord_server,
     update_channel_last_activity,
     update_channel_last_synced,
+)
+from discord_activity_tracker.staging_schema import (
+    validate_envelope,
+    validate_normalized_message,
 )
 from discord_activity_tracker.sync.exporter_window import (
     latest_message_created_at_for_guild,
@@ -44,7 +48,6 @@ from discord_activity_tracker.sync.chat_exporter import (
     parse_exported_json,
 )
 from discord_activity_tracker.sync.messages import _process_messages_in_batches
-from discord_activity_tracker.sync.utils import parse_datetime
 from discord_activity_tracker.workspace import (
     clear_exporter_staging_dir,
     get_channel_raw_dir,
@@ -197,6 +200,7 @@ def task_discord_sync(
     for i, json_path in enumerate(json_files, 1):
         try:
             data = parse_exported_json(json_path)
+            validate_envelope(data, source=json_path.name)
             guild_info = data.get("guild", {})
             channel_info = data.get("channel", {})
             messages = data.get("messages", [])
@@ -347,7 +351,14 @@ class DiscordActivityCollector(CollectorBase):
             category_name=channel_info.get("category") or "",
         )
 
-        converted = [convert_exporter_message_to_dict(m) for m in messages]
+        srv_id = _safe_int(guild_info.get("id", 0))
+        ch_id = _safe_int(channel_info.get("id", 0))
+        converted = [
+            convert_exporter_message_to_dict(m, server_id=srv_id, channel_id=ch_id)
+            for m in messages
+        ]
+        for idx, cmsg in enumerate(converted):
+            validate_normalized_message(cmsg, source=f"message[{idx}]")
         count = await _process_messages_in_batches(channel, converted)
 
         def finalize_exporter_channel_sync() -> None:
@@ -355,7 +366,8 @@ class DiscordActivityCollector(CollectorBase):
                 parsed_times = [
                     t
                     for m in converted
-                    if (t := parse_datetime(m.get("created_at"))) is not None
+                    if (t := parse_iso_datetime_lenient(m.get("created_at")))
+                    is not None
                 ]
                 if parsed_times:
                     update_channel_last_activity(channel, max(parsed_times))

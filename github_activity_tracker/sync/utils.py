@@ -4,13 +4,10 @@ Sync utilities: parse user/datetime for GitHub data. GitHub client/tokens live i
 
 from __future__ import annotations
 
-import logging
-from datetime import datetime
 from typing import Any, Optional
 
 from core.operations.github_ops import get_github_client, get_github_token
-
-logger = logging.getLogger(__name__)
+from core.utils.datetime_parsing import parse_iso_datetime_lenient as parse_datetime
 
 # Re-export for backward compatibility; prefer "from core.operations.github_ops import ..."
 __all__ = [
@@ -66,14 +63,3 @@ def parse_github_user(user_dict: Optional[dict]) -> dict:
         "display_name": user_dict.get("name", ""),
         "avatar_url": user_dict.get("avatar_url", ""),
     }
-
-
-def parse_datetime(date_str: Optional[str]) -> Optional[datetime]:
-    """Parse ISO datetime string from GitHub API. Returns datetime or None."""
-    if not date_str:
-        return None
-    try:
-        return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-    except Exception as e:
-        logger.debug(f"Failed to parse datetime '{date_str}': {e}")
-        return None

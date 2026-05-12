@@ -1,27 +1,28 @@
 """Tests for discord_activity_tracker.sync.utils."""
 
+from core.utils.datetime_parsing import parse_iso_datetime_lenient
+from core.utils.text_processing import truncate_content
+
 from discord_activity_tracker.sync.utils import (
     format_discord_url,
-    parse_datetime,
     parse_discord_user,
     sanitize_channel_name,
-    truncate_content,
 )
 
 
 def test_parse_datetime_empty():
-    assert parse_datetime("") is None
-    assert parse_datetime(None) is None
+    assert parse_iso_datetime_lenient("") is None
+    assert parse_iso_datetime_lenient(None) is None
 
 
 def test_parse_datetime_z_normalized():
-    dt = parse_datetime("2026-03-01T15:30:00Z")
+    dt = parse_iso_datetime_lenient("2026-03-01T15:30:00Z")
     assert dt is not None
     assert dt.tzinfo is not None
 
 
 def test_parse_datetime_invalid_returns_none():
-    assert parse_datetime("not-a-timestamp") is None
+    assert parse_iso_datetime_lenient("not-a-timestamp") is None
 
 
 def test_parse_discord_user_empty_dict():

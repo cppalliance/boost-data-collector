@@ -520,6 +520,21 @@ def test_convert_exporter_message_ids_are_int():
     assert isinstance(out["author"]["id"], int)
 
 
+def test_convert_exporter_message_canonical_fields_with_server_channel():
+    raw = {
+        "id": "10",
+        "timestamp": "2026-01-01T00:00:00Z",
+        "content": "c",
+        "author": {"id": "1", "name": "a"},
+        "attachments": [],
+        "reactions": [],
+    }
+    out = convert_exporter_message_to_dict(raw, server_id=99, channel_id=100)
+    assert out["actor_id"] == "1"
+    assert out["occurred_at"] == "2026-01-01T00:00:00Z"
+    assert out["source_url"] == "https://discord.com/channels/99/100/10"
+
+
 def test_convert_exporter_message_reaction_emoji_flattened():
     """Reaction emoji dict must be flattened to a plain string."""
     raw = {
@@ -537,7 +552,7 @@ def test_convert_exporter_message_reaction_emoji_flattened():
     assert out["reactions"][0]["count"] == 3
 
 
-def test_convert_exporter_message_reaction_null_emoji_is_empty_string():
+def test_convert_exporter_message_reaction_null_emoji_is_dropped():
     raw = {
         "id": "1",
         "timestamp": "2026-01-01T00:00:00Z",
@@ -547,7 +562,7 @@ def test_convert_exporter_message_reaction_null_emoji_is_empty_string():
         "reactions": [{"emoji": None, "count": 1}],
     }
     out = convert_exporter_message_to_dict(raw)
-    assert out["reactions"][0]["emoji"] == ""
+    assert out["reactions"] == []
 
 
 def test_convert_exporter_message_avatarUrl_mapped():

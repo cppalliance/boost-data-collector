@@ -12,6 +12,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
+from core.utils.datetime_parsing import format_instant_iso_z
+
+from .utils import format_discord_url
 from ..workspace import get_workspace_root
 
 _SAFE_INT_MAX = 2**63 - 1  # max safe BigIntegerField value
@@ -623,18 +626,45 @@ def parse_exported_json(json_path: Path) -> Dict[str, Any]:
         raise
 
 
-def convert_exporter_message_to_dict(msg_data: Dict[str, Any]) -> Dict[str, Any]:
+def convert_exporter_message_to_dict(
+    msg_data: Dict[str, Any],
+    *,
+    server_id: Optional[int] = None,
+    channel_id: Optional[int] = None,
+) -> Dict[str, Any]:
     """Convert DiscordChatExporter message format to our internal format.
 
     Key normalizations applied here:
     - All snowflake IDs coerced from string → int via _safe_int.
-    - Reaction emoji extracted from nested {"name": ...} dict to plain string.
+    - Reaction emoji extracted from nested {"name": ...} dict to plain string;
+      reactions with no resolvable emoji are dropped (not persisted).
     - Author avatarUrl mapped to avatar_url.
     - message_type and is_pinned mapped from DiscordChatExporter fields.
+    - When ``server_id`` and ``channel_id`` are set, adds ``source_url``;
+      ``occurred_at`` (ISO 8601 UTC ``Z``) and ``actor_id`` when derivable.
     """
     author = msg_data.get("author", {})
 
-    converted = {
+    reactions_out: List[Dict[str, Any]] = []
+    for reaction in msg_data.get("reactions", []):
+        emoji_raw = reaction.get("emoji")
+        if isinstance(emoji_raw, dict):
+            emoji_name = emoji_raw.get("name") or ""
+        elif emoji_raw is None:
+            emoji_name = ""
+        else:
+            emoji_name = str(emoji_raw)
+        emoji_name = (emoji_name or "").strip()
+        if not emoji_name:
+            continue
+        reactions_out.append(
+            {
+                "emoji": emoji_name,
+                "count": max(0, int(reaction.get("count", 0) or 0)),
+            }
+        )
+
+    converted: Dict[str, Any] = {
         "id": _safe_int(msg_data.get("id", 0)),
         "content": msg_data.get("content", ""),
         "created_at": msg_data.get("timestamp", ""),
@@ -651,13 +681,7 @@ def convert_exporter_message_to_dict(msg_data: Dict[str, Any]) -> Dict[str, Any]
         "attachments": [
             {"url": att.get("url")} for att in msg_data.get("attachments", [])
         ],
-        "reactions": [
-            {
-                "emoji": (reaction.get("emoji") or {}).get("name") or "",
-                "count": reaction.get("count", 0),
-            }
-            for reaction in msg_data.get("reactions", [])
-        ],
+        "reactions": reactions_out,
         "reference": None,
     }
 
@@ -665,6 +689,26 @@ def convert_exporter_message_to_dict(msg_data: Dict[str, Any]) -> Dict[str, Any]
         ref = msg_data["reference"]
         ref_id = ref.get("messageId") or ref.get("message_id")
         converted["reference"] = {"message_id": _safe_int(ref_id) if ref_id else None}
+
+    created = (converted.get("created_at") or "").strip()
+    if created:
+        converted["occurred_at"] = format_instant_iso_z(created)
+
+    author_id = _safe_int(author.get("id", 0))
+    if author_id:
+        converted["actor_id"] = str(author_id)
+
+    mid = converted["id"]
+    if (
+        server_id is not None
+        and channel_id is not None
+        and mid
+        and int(server_id) > 0
+        and int(channel_id) > 0
+    ):
+        converted["source_url"] = format_discord_url(
+            int(server_id), int(channel_id), int(mid)
+        )
 
     return converted
 

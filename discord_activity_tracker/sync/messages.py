@@ -9,6 +9,8 @@ from django.utils import timezone as django_timezone
 from asgiref.sync import sync_to_async
 
 from cppa_user_tracker.services import get_or_create_discord_profile
+from core.utils.datetime_parsing import parse_iso_datetime_lenient
+
 from ..models import DiscordServer, DiscordChannel
 from ..services import (
     get_or_create_discord_server,
@@ -20,7 +22,7 @@ from ..services import (
     bulk_process_message_batch,
 )
 from .client import DiscordSyncClient
-from .utils import parse_datetime, parse_discord_user
+from .utils import parse_discord_user
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +92,8 @@ async def _process_message_data(channel: DiscordChannel, message_data: Dict[str,
             is_bot=author_info["is_bot"],
         )
 
-        created_at = parse_datetime(message_data.get("created_at"))
-        edited_at = parse_datetime(message_data.get("edited_at"))
+        created_at = parse_iso_datetime_lenient(message_data.get("created_at"))
+        edited_at = parse_iso_datetime_lenient(message_data.get("edited_at"))
 
         if created_at is None:
             logger.error(
@@ -142,8 +144,8 @@ def _prepare_message_data(
     author_data = message_data.get("author", {})
     author_info = parse_discord_user(author_data)
 
-    created_at = parse_datetime(message_data.get("created_at"))
-    edited_at = parse_datetime(message_data.get("edited_at"))
+    created_at = parse_iso_datetime_lenient(message_data.get("created_at"))
+    edited_at = parse_iso_datetime_lenient(message_data.get("edited_at"))
 
     if created_at is None:
         logger.error(f"Message {message_data.get('id')} has no created_at timestamp")
@@ -243,7 +245,7 @@ async def sync_channel_messages_async(
         logger.info(f"Bulk-processed {processed} messages for #{channel.channel_name}")
 
         if messages:
-            last_message_time = parse_datetime(messages[-1]["created_at"])
+            last_message_time = parse_iso_datetime_lenient(messages[-1]["created_at"])
             if last_message_time:
                 await sync_to_async(update_channel_last_activity)(
                     channel, last_message_time

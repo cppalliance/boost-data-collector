@@ -107,3 +107,17 @@ def test_iter_existing_message_jsons_empty_when_missing(mock_discord_workspace):
         return_value=mock_discord_workspace,
     ):
         assert list(iter_existing_message_jsons(99, 99)) == []
+
+
+def test_iter_existing_message_jsons_sorted_by_filename(mock_discord_workspace):
+    """Paths must be yielded in sorted order for deterministic incremental reads."""
+    with patch(
+        "discord_activity_tracker.workspace.get_workspace_path",
+        return_value=mock_discord_workspace,
+    ):
+        msg_dir = mock_discord_workspace / "7" / "messages" / "8"
+        msg_dir.mkdir(parents=True)
+        (msg_dir / "2026-01-02.json").write_text("{}", encoding="utf-8")
+        (msg_dir / "2026-01-01.json").write_text("{}", encoding="utf-8")
+        names = [p.name for p in iter_existing_message_jsons(7, 8)]
+    assert names == ["2026-01-01.json", "2026-01-02.json"]
