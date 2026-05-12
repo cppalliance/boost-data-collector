@@ -138,7 +138,9 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
     """
     Map an exception to a failure category for structured logging.
 
-    Keep this conservative: unknown is fine when we cannot infer intent.
+    ``requests.HTTPError`` with ``response.status_code`` 429 maps to
+    :attr:`CollectorFailureCategory.RATE_LIMIT`; 401 and 403 map to
+    :attr:`CollectorFailureCategory.AUTH`. Other cases stay conservative.
     """
     # Django / app
     try:
@@ -165,7 +167,15 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
     exc_mod = type(exc).__module__
     exc_name = type(exc).__name__
     if exc_mod.startswith("requests.exceptions"):
-        if exc_name in ("HTTPError", "SSLError"):
+        if exc_name == "HTTPError":
+            response = getattr(exc, "response", None)
+            status = getattr(response, "status_code", None)
+            if status == 429:
+                return CollectorFailureCategory.RATE_LIMIT
+            if status in (401, 403):
+                return CollectorFailureCategory.AUTH
+            return CollectorFailureCategory.NETWORK
+        if exc_name == "SSLError":
             return CollectorFailureCategory.NETWORK
         if exc_name.endswith("Timeout"):
             return CollectorFailureCategory.TIMEOUT

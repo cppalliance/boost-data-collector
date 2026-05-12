@@ -166,6 +166,53 @@ def test_classify_requests_exceptions(name, category):
     assert classify_failure(cls("x")) is category
 
 
+def _http_error_with_status(status_code: int | None):
+    pytest.importorskip("requests")
+    import requests
+
+    exc = requests.HTTPError()
+    if status_code is None:
+        exc.response = None
+    else:
+        resp = requests.Response()
+        resp.status_code = status_code
+        exc.response = resp
+    return exc
+
+
+def test_classify_requests_http_error_429_rate_limit():
+    assert (
+        classify_failure(_http_error_with_status(429))
+        is CollectorFailureCategory.RATE_LIMIT
+    )
+
+
+def test_classify_requests_http_error_401_auth():
+    assert (
+        classify_failure(_http_error_with_status(401)) is CollectorFailureCategory.AUTH
+    )
+
+
+def test_classify_requests_http_error_403_auth():
+    assert (
+        classify_failure(_http_error_with_status(403)) is CollectorFailureCategory.AUTH
+    )
+
+
+def test_classify_requests_http_error_other_status_network():
+    assert (
+        classify_failure(_http_error_with_status(500))
+        is CollectorFailureCategory.NETWORK
+    )
+
+
+def test_classify_requests_http_error_no_response_network():
+    assert (
+        classify_failure(_http_error_with_status(None))
+        is CollectorFailureCategory.NETWORK
+    )
+
+
 @pytest.mark.parametrize(
     ("name", "category"),
     [
