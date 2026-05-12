@@ -105,16 +105,23 @@ def validate_github_token_for_use(
     Confirm the resolved token exists and is accepted by GitHub (GET /user).
 
     Raises:
-        ValueError: No token configured, rejected credentials (401/403), rate limit
-            while validating, unreachable GitHub, or other HTTP/API failures during check.
+        ValueError: Unknown ``use``, missing token (from :func:`get_github_token`),
+            rejected credentials (401/403), rate limit while validating, unreachable
+            GitHub, or other HTTP/API failures during check.
     """
     label = "scraping" if use == "scraping" else "write"
-    client = get_github_client(use=use)
-    if client is None:
+    # Resolve token outside get_github_client so ValueError (unknown use, missing token)
+    # is not turned into None and misreported as "not configured".
+    try:
+        token = get_github_token(use=use)
+    except ValueError:
+        raise
+    if not token:
         raise ValueError(
             f"No GitHub {label} token configured (see docs for GITHUB_TOKENS_SCRAPING / "
             "GITHUB_TOKEN or GITHUB_TOKEN_WRITE)."
         )
+    client = GitHubAPIClient(token)
     try:
         client.rest_request("/user")
     except requests.exceptions.HTTPError as e:

@@ -39,7 +39,7 @@ These are the Django apps under **`INSTALLED_APPS`** (excluding `django.contrib.
 
 | App | Role | Typical entry / notes |
 |-----|------|------------------------|
-| **core** | Shared infrastructure | Collectors base classes, **`core.operations`** (GitHub, markdown, files). Not a “collector” app by itself. |
+| **core** | Shared infrastructure | **`core.collectors`** (`AbstractCollector`, `BaseCollectorCommand`, …), **`core.operations`** (GitHub, markdown, files). Not a “collector” app by itself. |
 | **boost_collector_runner** | Scheduling | **`run_scheduled_collectors`** reads YAML; wires Celery Beat. |
 | **cppa_user_tracker** | Identity / profiles | Canonical **Identity**, **BaseProfile**, GitHub/Slack/mailing-list profile rows; staging merge tables. |
 | **github_activity_tracker** | GitHub mirror | Repos, commits, issues, PRs, **Language** / **License** reference data; workspace JSON cache patterns. |
@@ -77,7 +77,7 @@ When adding a feature, ask: **who owns the table?** Only that app’s **`service
 
 Historically, collectors evolved separately: some subclass **`CollectorBase`**, some use plain **`BaseCommand`**, workspace layouts differ, and docstring coverage varies. Use this **practical** approach:
 
-1. **Anchor on contracts** — Prefer **`CollectorBase` + `BaseCollectorCommand`** for new work (**[How_to_add_a_collector.md](How_to_add_a_collector.md)**).
+1. **Anchor on contracts** — Prefer **`AbstractCollector` + `BaseCollectorCommand`** for new collectors (`name`, `validate_config`, `collect`; see **[How_to_add_a_collector.md](How_to_add_a_collector.md)** and **[Core_public_API.md](Core_public_API.md)**). Older commands may still use legacy **`CollectorBase`** (`run()` only) or plain **`BaseCommand`**.
 2. **Pick two reference apps** — For GitHub + DB + workspace: **`github_activity_tracker`** + **`boost_library_tracker`**. For Pinecone + docs: **`boost_library_docs_tracker`** + **`cppa_pinecone_sync`**.
 3. **Trace one vertical slice** — Example: “new Boost release” → **`collect_boost_libraries`** / **`check_new_boost_release`** → downstream **`run_boost_library_docs_tracker`** / usage jobs. Follow imports and **`services`** calls.
 4. **Operations vs services** — **`core.operations.github_ops`** = talking to GitHub/git; **`github_activity_tracker.services`** = persisting ORM rows. Do not mix the two responsibilities in one module.

@@ -228,13 +228,35 @@ def test_get_github_client_returns_none_when_token_empty():
 
 
 @pytest.mark.django_db
-def test_validate_github_token_for_use_raises_when_no_client():
-    """validate_github_token_for_use raises when get_github_client returns None."""
+def test_validate_github_token_for_use_re_raises_get_github_token_valueerror():
+    """Missing/invalid token errors from get_github_token must not be masked."""
     with patch(
-        "core.operations.github_ops.tokens.get_github_client",
-        return_value=None,
+        "core.operations.github_ops.tokens.get_github_token",
+        side_effect=ValueError(
+            "No scraping token: set GITHUB_TOKENS_SCRAPING or GITHUB_TOKEN."
+        ),
     ):
-        with pytest.raises(ValueError, match="No GitHub scraping token"):
+        with pytest.raises(
+            ValueError, match="No scraping token: set GITHUB_TOKENS_SCRAPING"
+        ):
+            validate_github_token_for_use("scraping")
+
+
+@pytest.mark.django_db
+def test_validate_github_token_for_use_unknown_use_propagates():
+    """Invalid ``use`` must surface get_github_token's message, not 'not configured'."""
+    with pytest.raises(ValueError, match="Unknown use"):
+        validate_github_token_for_use("not_a_valid_use")  # type: ignore[arg-type]
+
+
+@pytest.mark.django_db
+def test_validate_github_token_for_use_empty_token_after_resolution():
+    """Defensive: empty string token yields configured message (should not happen via get_github_token)."""
+    with patch(
+        "core.operations.github_ops.tokens.get_github_token",
+        return_value="",
+    ):
+        with pytest.raises(ValueError, match="No GitHub scraping token configured"):
             validate_github_token_for_use("scraping")
 
 
@@ -247,9 +269,15 @@ def test_validate_github_token_for_use_401_raises():
     err = requests.exceptions.HTTPError()
     err.response = resp
     client.rest_request.side_effect = err
-    with patch(
-        "core.operations.github_ops.tokens.get_github_client",
-        return_value=client,
+    with (
+        patch(
+            "core.operations.github_ops.tokens.get_github_token",
+            return_value="fake",
+        ),
+        patch(
+            "core.operations.github_ops.tokens.GitHubAPIClient",
+            return_value=client,
+        ),
     ):
         with pytest.raises(ValueError, match="invalid or not authorized"):
             validate_github_token_for_use("scraping")
@@ -260,9 +288,15 @@ def test_validate_github_token_for_use_success():
     """Happy path: rest_request /user succeeds."""
     client = MagicMock()
     client.rest_request.return_value = {"login": "test"}
-    with patch(
-        "core.operations.github_ops.tokens.get_github_client",
-        return_value=client,
+    with (
+        patch(
+            "core.operations.github_ops.tokens.get_github_token",
+            return_value="fake",
+        ),
+        patch(
+            "core.operations.github_ops.tokens.GitHubAPIClient",
+            return_value=client,
+        ),
     ):
         validate_github_token_for_use("write")
     client.rest_request.assert_called_once_with("/user")

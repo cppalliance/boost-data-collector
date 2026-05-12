@@ -13,9 +13,11 @@ Add a task under the right group in `config/boost_collector_schedule.yaml` (see 
 
 ## 3. Shared abstractions (recommended)
 
-- **Preferred:** Subclass [`AbstractCollector`](../core/collectors/base_collector.py) and implement a stable `name` property, `validate_config()`, and `collect()`. The base provides concrete `run()` as `validate_config()` then `collect()`, plus `handle_error()` / `sync_pinecone()` aligned with [`CollectorBase`](../core/collectors/base.py). Use [`BaseCollectorCommand`](../core/collectors/command_base.py) so the management command stays thin (`get_collector()` returns any [`CollectorRunnable`](../core/collectors/base_collector.py): `run`, `sync_pinecone`, `handle_error`).
-- **Legacy:** Subclass [`CollectorBase`](../core/collectors/base.py) and implement `run()` only (same error/Pinecone hooks). New work should prefer `AbstractCollector`.
-- [`DjangoCommandCollector`](../core/collectors/base.py) remains available for tests or internal `call_command` wrappers.
+Stable imports live under **`core.collectors`** (re-exported in [`core/collectors/__init__.py`](../core/collectors/__init__.py)); see the **Collectors** table in [Core_public_API.md](Core_public_API.md#collectors) for `AbstractCollector`, `CollectorBase`, `CollectorRunnable`, `BaseCollectorCommand`, and `DjangoCommandCollector`.
+
+- **Preferred:** Subclass **`AbstractCollector`** and implement a stable `name` property, `validate_config()`, and `collect()`. The base provides concrete `run()` as `validate_config()` then `collect()`, plus `handle_error()` / `sync_pinecone()` aligned with legacy **`CollectorBase`**. Use **`BaseCollectorCommand`** so the management command stays thin (`get_collector()` returns any **`CollectorRunnable`**: `run`, `sync_pinecone`, `handle_error`).
+- **Legacy:** Subclass **`CollectorBase`** and implement `run()` only (same error/Pinecone hooks). New work should prefer **`AbstractCollector`**.
+- **`DjangoCommandCollector`** remains available for tests or internal `call_command` wrappers.
 
 ## 4. Skeleton collector (minimal copy-paste example)
 
@@ -52,7 +54,7 @@ my_skeleton_tracker/
 
 ### Import rules (read before pasting)
 
-- **Do import** from **`core`** (e.g. `core.collectors.base_collector`, `core.collectors.command_base`, and `core.errors` if you customize error handling) and from **Django**.
+- **Do import** from **`core`** using the public **`core.collectors`** surface (e.g. `from core.collectors import AbstractCollector, BaseCollectorCommand`, as in [Core_public_API.md — Collectors](Core_public_API.md#collectors)) and **`core.errors`** if you customize error handling, plus **Django**.
 - **Do import** from **your own app** (`my_skeleton_tracker.services`, `my_skeleton_tracker.collectors`, etc.).
 - **Do not import** from other tracker apps in the collector or command unless you have a deliberate integration; shared protocols belong in `core` (see [Core_public_API.md](Core_public_API.md) if applicable).
 
@@ -120,7 +122,7 @@ from __future__ import annotations
 
 import logging
 
-from core.collectors.base_collector import AbstractCollector
+from core.collectors import AbstractCollector
 from my_skeleton_tracker.services import record_skeleton_run
 
 # If you override handle_error, you can log or map errors explicitly, e.g.:
