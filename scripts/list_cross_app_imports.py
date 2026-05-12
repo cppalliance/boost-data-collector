@@ -183,7 +183,8 @@ def _md_table(rows: list[CrossAppImport]) -> str:
 
 def _csv_output(rows: list[CrossAppImport]) -> str:
     buf = io.StringIO()
-    w = csv_mod.writer(buf)
+    # Use LF only: csv's default CRLF + Windows stdout newline translation yields \r\r\n.
+    w = csv_mod.writer(buf, lineterminator="\n")
     w.writerow(
         ["source_app", "source_file", "target_app", "symbols", "is_test", "line"]
     )
@@ -215,11 +216,12 @@ def main() -> None:
         sys.stdout.write(_csv_output(all_rows))
         return
 
-    print("## Cross-App Python Imports — Production Files\n")
+    print("## Cross-App Python Imports - Production Files\n")
     print(_md_table(prod_rows))
 
-    print("\n\n## Cross-App Python Imports — Test Files\n")
-    print(_md_table(test_rows))
+    if not args.no_tests:
+        print("\n\n## Cross-App Python Imports - Test Files\n")
+        print(_md_table(test_rows))
 
     print("\n\n## ORM Read-Coupling Candidates\n")
     print(
