@@ -576,7 +576,7 @@ def test_collector_propagates_unhandled_phase_error(monkeypatch):
 @pytest.mark.django_db
 def test_persist_video_skips_blank_tags(monkeypatch):
     monkeypatch.setattr(f"{_CMD}.resolve_speakers", lambda **_: ["S"])
-    created, skipped = _persist_video(
+    _created, skipped = _persist_video(
         {
             "video_id": "tagblank",
             "channel_id": "c1",
