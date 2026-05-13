@@ -22,8 +22,10 @@ from discord_activity_tracker.pinecone_runner import task_discord_pinecone_sync
 from discord_activity_tracker.services import (
     get_or_create_discord_channel,
     get_or_create_discord_server,
-    update_channel_last_activity,
-    update_channel_last_synced,
+)
+from discord_activity_tracker.staging_schema import (
+    validate_envelope,
+    validate_normalized_message,
 )
 from discord_activity_tracker.sync.chat_exporter import (
     convert_exporter_message_to_dict,
@@ -32,7 +34,6 @@ from discord_activity_tracker.sync.chat_exporter import (
     _safe_int,
 )
 from discord_activity_tracker.sync.messages import _process_messages_in_batches
-from discord_activity_tracker.sync.utils import parse_datetime
 from discord_activity_tracker.workspace import get_cpp_discussion_import_dir
 
 logger = logging.getLogger(__name__)
@@ -77,12 +78,13 @@ class DiscordBackfillCollector(CollectorBase):
         for i, json_path in enumerate(json_files, 1):
             try:
                 data = parse_exported_json(json_path)
-                guild_info = data.get("guild", {})
-                channel_info = data.get("channel", {})
-                messages = data.get("messages", [])
+                rel = _json_display_path(import_dir, json_path)
+                envelope = validate_envelope(data, source=rel)
+                guild_info = envelope.guild.model_dump(by_alias=True)
+                channel_info = envelope.channel.model_dump(by_alias=True)
+                messages = envelope.messages
 
                 ch_name = channel_info.get("name", "?")
-                rel = _json_display_path(import_dir, json_path)
                 self.stdout.write(
                     f"  [{i}/{len(json_files)}] {rel} — #{ch_name}: {len(messages)} messages"
                 )
@@ -132,16 +134,15 @@ class DiscordBackfillCollector(CollectorBase):
             category_name=channel_info.get("category") or "",
         )
 
-        converted = [convert_exporter_message_to_dict(m) for m in messages]
+        srv_id = _safe_int(guild_info.get("id", 0))
+        ch_id = _safe_int(channel_info.get("id", 0))
+        converted = [
+            convert_exporter_message_to_dict(m, server_id=srv_id, channel_id=ch_id)
+            for m in messages
+        ]
+        for idx, cmsg in enumerate(converted):
+            validate_normalized_message(cmsg, source=f"message[{idx}]")
         count = await _process_messages_in_batches(channel, converted)
-
-        if messages:
-            last_converted = convert_exporter_message_to_dict(messages[-1])
-            last_time = parse_datetime(last_converted.get("created_at"))
-            if last_time:
-                await sync_to_async(update_channel_last_activity)(channel, last_time)
-
-        await sync_to_async(update_channel_last_synced)(channel)
         return count
 
     def sync_pinecone(self) -> None:

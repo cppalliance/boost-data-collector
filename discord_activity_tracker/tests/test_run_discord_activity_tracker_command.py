@@ -14,6 +14,7 @@ from discord_activity_tracker.management.commands.run_discord_activity_tracker i
     _parse_channel_ids,
     _resolve_exporter_date_bounds,
 )
+from discord_activity_tracker.staging_schema import StagingValidationError
 
 
 def _cmd_and_collector(**opts):
@@ -36,6 +37,10 @@ def _cmd_and_collector(**opts):
     collector.style.SUCCESS = lambda x: x
     collector.style.WARNING = lambda x: x
     return cmd, collector
+
+
+def test_staging_validation_error_subclasses_value_error():
+    assert issubclass(StagingValidationError, ValueError)
 
 
 # ---------------------------------------------------------------------------

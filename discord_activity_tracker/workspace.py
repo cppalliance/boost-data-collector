@@ -83,7 +83,7 @@ def iter_existing_message_jsons(server_id: int, channel_id: int):
     messages_dir = get_server_dir(server_id) / "messages" / str(channel_id)
     if not messages_dir.is_dir():
         return
-    for path in messages_dir.glob("*.json"):
+    for path in sorted(messages_dir.glob("*.json")):
         if path.name.startswith("._"):
             continue
         yield path

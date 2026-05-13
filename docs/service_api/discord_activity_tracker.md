@@ -22,8 +22,8 @@ New fields (migration `0005`): `category_id: BigIntegerField | null`, `category_
 | Function                        | Parameter types                                                                                                                                          | Return type                    | Description                                                               |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
 | `get_or_create_discord_channel` | `server: DiscordServer`, `channel_id: int`, `channel_name: str`, `channel_type: str`, `topic: str = ""`, `position: int = 0`, `category_id: int \| None = None`, `category_name: str = ""` | `tuple[DiscordChannel, bool]`  | Get or create channel; update all fields (incl. category) if changed.    |
-| `update_channel_last_activity`  | `channel: DiscordChannel`, `last_activity_at: datetime`                                                                                                  | `DiscordChannel`               | Update `last_activity_at`.                                                |
-| `update_channel_last_synced`    | `channel: DiscordChannel`, `timestamp: datetime \| None = None`                                                                                          | `DiscordChannel`               | Update `last_synced_at` (defaults to now).                               |
+| `get_channel_latest_message_at` | `channel: DiscordChannel`                                                                                                                              | `datetime \| None`             | Max `message_created_at` among non-deleted `DiscordMessage` rows for the channel. |
+| `queryset_channels_with_recent_messages` | `server: DiscordServer`, `cutoff: datetime`, `channel_ids: list[int] \| None = None`                                                            | `QuerySet[DiscordChannel]`     | Channels on the server with at least one non-deleted message at or after `cutoff`; optional Discord `channel_id` allowlist. |
 
 ---
 
@@ -65,7 +65,7 @@ Inputs are lists of pre-normalised message dicts (from `sync.messages._prepare_m
 
 | Function              | Parameter types                                                    | Return type | Description                                         |
 | --------------------- | ------------------------------------------------------------------ | ----------- | --------------------------------------------------- |
-| `get_active_channels` | `server: DiscordServer`, `days: int = 30`, `channel_ids: list[int] \| None = None` | `QuerySet`  | Channels with activity in last N days, optionally filtered by `channel_ids` allowlist. |
+| `get_active_channels` | `server: DiscordServer`, `days: int = 30`, `channel_ids: list[int] \| None = None` | `QuerySet`  | Same as `queryset_channels_with_recent_messages` with `cutoff = now - days`. |
 
 ---
 

@@ -29,8 +29,11 @@ from discord_activity_tracker.pinecone_runner import task_discord_pinecone_sync
 from discord_activity_tracker.services import (
     get_or_create_discord_channel,
     get_or_create_discord_server,
-    update_channel_last_activity,
-    update_channel_last_synced,
+)
+from discord_activity_tracker.staging_schema import (
+    StagingValidationError,
+    validate_envelope,
+    validate_normalized_message,
 )
 from discord_activity_tracker.sync.exporter_window import (
     latest_message_created_at_for_guild,
@@ -44,7 +47,6 @@ from discord_activity_tracker.sync.chat_exporter import (
     parse_exported_json,
 )
 from discord_activity_tracker.sync.messages import _process_messages_in_batches
-from discord_activity_tracker.sync.utils import parse_datetime
 from discord_activity_tracker.workspace import (
     clear_exporter_staging_dir,
     get_channel_raw_dir,
@@ -197,9 +199,10 @@ def task_discord_sync(
     for i, json_path in enumerate(json_files, 1):
         try:
             data = parse_exported_json(json_path)
-            guild_info = data.get("guild", {})
-            channel_info = data.get("channel", {})
-            messages = data.get("messages", [])
+            envelope = validate_envelope(data, source=json_path.name)
+            guild_info = envelope.guild.model_dump(by_alias=True)
+            channel_info = envelope.channel.model_dump(by_alias=True)
+            messages = envelope.messages
 
             ch_name = channel_info.get("name", "?")
             ch_id = _safe_int(channel_info.get("id", 0))
@@ -223,6 +226,17 @@ def task_discord_sync(
             dest = channel_raw_dir / f"{date_tag}.json"
             json_path.rename(dest)
 
+        except StagingValidationError as exc:
+            logger.error(
+                "Staging validation failed for %s (file left in staging): %s",
+                json_path.name,
+                exc,
+            )
+            continue
+        except ValueError as exc:
+            logger.error("Failed to process %s: %s", json_path.name, exc)
+            json_path.unlink(missing_ok=True)
+            continue
         except Exception as exc:
             logger.error("Failed to process %s: %s", json_path.name, exc)
             json_path.unlink(missing_ok=True)
@@ -347,21 +361,15 @@ class DiscordActivityCollector(CollectorBase):
             category_name=channel_info.get("category") or "",
         )
 
-        converted = [convert_exporter_message_to_dict(m) for m in messages]
+        srv_id = _safe_int(guild_info.get("id", 0))
+        ch_id = _safe_int(channel_info.get("id", 0))
+        converted = [
+            convert_exporter_message_to_dict(m, server_id=srv_id, channel_id=ch_id)
+            for m in messages
+        ]
+        for idx, cmsg in enumerate(converted):
+            validate_normalized_message(cmsg, source=f"message[{idx}]")
         count = await _process_messages_in_batches(channel, converted)
-
-        def finalize_exporter_channel_sync() -> None:
-            if converted:
-                parsed_times = [
-                    t
-                    for m in converted
-                    if (t := parse_datetime(m.get("created_at"))) is not None
-                ]
-                if parsed_times:
-                    update_channel_last_activity(channel, max(parsed_times))
-            update_channel_last_synced(channel)
-
-        await sync_to_async(finalize_exporter_channel_sync)()
         return count
 
 

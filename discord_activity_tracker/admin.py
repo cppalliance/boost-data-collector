@@ -24,8 +24,6 @@ class DiscordChannelAdmin(admin.ModelAdmin):
         "server",
         "channel_type",
         "category_name",
-        "last_synced_at",
-        "last_activity_at",
     )
     list_filter = ("channel_type", "server")
     search_fields = ("channel_name", "channel_id", "category_name")

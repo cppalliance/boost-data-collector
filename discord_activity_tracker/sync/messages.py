@@ -9,18 +9,19 @@ from django.utils import timezone as django_timezone
 from asgiref.sync import sync_to_async
 
 from cppa_user_tracker.services import get_or_create_discord_profile
-from ..models import DiscordServer, DiscordChannel
+from core.utils.datetime_parsing import parse_iso_datetime_lenient
+
+from ..models import DiscordServer, DiscordChannel, DiscordMessage
 from ..services import (
     get_or_create_discord_server,
     get_or_create_discord_channel,
     create_or_update_discord_message,
     add_or_update_reaction,
-    update_channel_last_synced,
-    update_channel_last_activity,
+    get_channel_latest_message_at,
     bulk_process_message_batch,
 )
 from .client import DiscordSyncClient
-from .utils import parse_datetime, parse_discord_user
+from .utils import parse_discord_user
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +91,8 @@ async def _process_message_data(channel: DiscordChannel, message_data: Dict[str,
             is_bot=author_info["is_bot"],
         )
 
-        created_at = parse_datetime(message_data.get("created_at"))
-        edited_at = parse_datetime(message_data.get("edited_at"))
+        created_at = parse_iso_datetime_lenient(message_data.get("created_at"))
+        edited_at = parse_iso_datetime_lenient(message_data.get("edited_at"))
 
         if created_at is None:
             logger.error(
@@ -142,8 +143,8 @@ def _prepare_message_data(
     author_data = message_data.get("author", {})
     author_info = parse_discord_user(author_data)
 
-    created_at = parse_datetime(message_data.get("created_at"))
-    edited_at = parse_datetime(message_data.get("edited_at"))
+    created_at = parse_iso_datetime_lenient(message_data.get("created_at"))
+    edited_at = parse_iso_datetime_lenient(message_data.get("edited_at"))
 
     if created_at is None:
         logger.error(f"Message {message_data.get('id')} has no created_at timestamp")
@@ -217,13 +218,15 @@ async def sync_channel_messages_async(
     elif since_date:
         after = since_date
         logger.info(f"Syncing messages since: {after}")
-    elif channel.last_synced_at:
-        after = channel.last_synced_at
-        logger.info(f"Syncing messages since last sync: {after}")
     else:
-        # Default: fetch last 30 days
-        after = django_timezone.now() - timedelta(days=30)
-        logger.info(f"First sync: fetching messages from last 30 days ({after})")
+        latest = await sync_to_async(get_channel_latest_message_at)(channel)
+        if latest:
+            after = latest
+            logger.info(f"Syncing messages since last stored message: {after}")
+        else:
+            # Default: fetch last 30 days
+            after = django_timezone.now() - timedelta(days=30)
+            logger.info(f"First sync: fetching messages from last 30 days ({after})")
 
     discord_channel = await client.get_channel(channel.channel_id)
     if discord_channel is None:
@@ -241,15 +244,6 @@ async def sync_channel_messages_async(
 
         processed = await _process_messages_in_batches(channel, messages)
         logger.info(f"Bulk-processed {processed} messages for #{channel.channel_name}")
-
-        if messages:
-            last_message_time = parse_datetime(messages[-1]["created_at"])
-            if last_message_time:
-                await sync_to_async(update_channel_last_activity)(
-                    channel, last_message_time
-                )
-
-        await sync_to_async(update_channel_last_synced)(channel)
 
         logger.info(
             f"Successfully synced {len(messages)} messages for #{channel.channel_name}"
@@ -344,11 +338,16 @@ def sync_all_channels(
         # Filter for active channels if requested
         if active_only and not full_sync:
             cutoff = django_timezone.now() - timedelta(days=active_days)
-            channels = [
-                ch
-                for ch in channels
-                if ch.last_activity_at and ch.last_activity_at >= cutoff
-            ]
+            recent_pks = set(
+                DiscordMessage.objects.filter(
+                    channel__server=server,
+                    message_created_at__gte=cutoff,
+                    is_deleted=False,
+                )
+                .values_list("channel_id", flat=True)
+                .distinct()
+            )
+            channels = [ch for ch in channels if ch.pk in recent_pks]
             logger.info(
                 f"Filtered to {len(channels)} active channels "
                 f"(last {active_days} days)"

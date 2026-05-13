@@ -13,7 +13,6 @@ from discord_activity_tracker.services import (
     bulk_upsert_discord_reactions,
     bulk_upsert_discord_users,
     mark_message_deleted,
-    update_channel_last_synced,
 )
 
 
@@ -55,13 +54,6 @@ def test_mark_message_deleted_default_timestamp(channel):
     assert msg.is_deleted is True
     assert msg.deleted_at is not None
     assert msg.deleted_at >= before
-
-
-@pytest.mark.django_db
-def test_update_channel_last_synced_default_now(channel):
-    update_channel_last_synced(channel)
-    channel.refresh_from_db()
-    assert channel.last_synced_at is not None
 
 
 @pytest.mark.django_db

@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from django.db import transaction
+from django.db.models import Max, QuerySet
 from django.utils import timezone as django_timezone
 
 from cppa_user_tracker.models import DiscordProfile
@@ -175,46 +176,47 @@ def add_or_update_reaction(
     return reaction, created
 
 
-def update_channel_last_activity(
-    channel: DiscordChannel, last_activity_at: datetime
-) -> DiscordChannel:
-    """Update channel last_activity_at timestamp."""
-    channel.last_activity_at = last_activity_at
-    channel.save(update_fields=["last_activity_at", "updated_at"])
-    return channel
+def get_channel_latest_message_at(channel: DiscordChannel) -> Optional[datetime]:
+    """Latest ``message_created_at`` among non-deleted messages in this channel, or None."""
+    row = DiscordMessage.objects.filter(channel=channel, is_deleted=False).aggregate(
+        m=Max("message_created_at")
+    )
+    return row["m"]
 
 
-def update_channel_last_synced(
-    channel: DiscordChannel, timestamp: Optional[datetime] = None
-) -> DiscordChannel:
-    """Update channel last_synced_at (defaults to now)."""
-    if timestamp is None:
-        timestamp = django_timezone.now()
-
-    channel.last_synced_at = timestamp
-    channel.save(update_fields=["last_synced_at", "updated_at"])
-    logger.info(f"Updated last_synced_at for channel {channel.channel_name}")
-    return channel
+def queryset_channels_with_recent_messages(
+    server: DiscordServer,
+    cutoff: datetime,
+    channel_ids: Optional[List[int]] = None,
+) -> QuerySet[DiscordChannel]:
+    """Channels on *server* that have at least one non-deleted message at or after *cutoff*."""
+    pks = (
+        DiscordMessage.objects.filter(
+            channel__server=server,
+            message_created_at__gte=cutoff,
+            is_deleted=False,
+        )
+        .values_list("channel_id", flat=True)
+        .distinct()
+    )
+    qs = DiscordChannel.objects.filter(server=server, pk__in=pks).order_by(
+        "position", "channel_name"
+    )
+    if channel_ids:
+        qs = qs.filter(channel_id__in=channel_ids)
+    return qs
 
 
 def get_active_channels(
     server: DiscordServer,
     days: int = 30,
     channel_ids: Optional[List[int]] = None,
-) -> list:
-    """Get channels with activity in last N days, optionally filtered by channel_ids allowlist."""
+) -> QuerySet[DiscordChannel]:
+    """Channels with at least one non-deleted message in the last *days*, optional allowlist."""
     from datetime import timedelta
 
     cutoff = django_timezone.now() - timedelta(days=days)
-
-    qs = DiscordChannel.objects.filter(
-        server=server, last_activity_at__gte=cutoff
-    ).order_by("position", "channel_name")
-
-    if channel_ids:
-        qs = qs.filter(channel_id__in=channel_ids)
-
-    return qs
+    return queryset_channels_with_recent_messages(server, cutoff, channel_ids)
 
 
 # ---------------------------------------------------------------------------

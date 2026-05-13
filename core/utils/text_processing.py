@@ -246,6 +246,17 @@ def filter_sentence(
     return sentence_lower.strip()
 
 
+def truncate_content(content: str, max_length: int = 100) -> str:
+    """Return ``content`` truncated to ``max_length`` characters with ``...`` when longer."""
+    if max_length < 0:
+        raise ValueError("max_length must be non-negative")
+    if len(content) <= max_length:
+        return content
+    if max_length <= 3:
+        return content[:max_length]
+    return content[: max_length - 3] + "..."
+
+
 def validate_content_length(content: str | None, min_length: int = 50) -> bool:
     """
     Validate that content meets minimum length requirement.
