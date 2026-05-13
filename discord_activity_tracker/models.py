@@ -4,7 +4,16 @@ from cppa_user_tracker.models import DiscordProfile
 
 
 class DiscordServer(models.Model):
-    """Discord server/guild."""
+    """Persisted Discord guild (server) metadata synced from export or API pipelines.
+
+    One row per Discord guild snowflake ``server_id``. Holds display ``server_name``
+    and optional ``icon_url`` for UI or audit. Timestamps ``created_at`` /
+    ``updated_at`` track row lifecycle.
+
+    Relationships:
+        Reverse ``channels``: ``DiscordChannel`` rows with FK to this server
+        (``related_name="channels"`` on ``DiscordChannel``).
+    """
 
     server_id = models.BigIntegerField(unique=True, db_index=True)
     server_name = models.CharField(max_length=255, db_index=True)
@@ -20,7 +29,17 @@ class DiscordServer(models.Model):
 
 
 class DiscordChannel(models.Model):
-    """Discord channel within a server."""
+    """A channel (text thread, category child, etc.) belonging to one ``DiscordServer``.
+
+    Key fields: ``channel_id`` (Discord snowflake, globally unique), ``channel_name``,
+    ``channel_type`` (e.g. exporter string), ``topic``, ``position``, and optional
+    ``category_id`` / ``category_name`` for grouping in the guild tree.
+
+    Relationships:
+        ``server``: FK to ``DiscordServer`` (column ``server_id``).
+        Reverse ``messages``: ``DiscordMessage`` rows for this channel
+        (``related_name="messages"`` on ``DiscordMessage``).
+    """
 
     server = models.ForeignKey(
         DiscordServer,
@@ -50,7 +69,23 @@ class DiscordChannel(models.Model):
 
 
 class DiscordMessage(models.Model):
-    """Discord message in a channel."""
+    """A single Discord message stored for search, export, and Pinecone preprocessing.
+
+    Key fields: ``message_id`` (snowflake, unique), ``content``, ``message_type``
+    (e.g. ``Default``, ``Reply``), ``is_pinned``, ``message_created_at`` /
+    ``message_edited_at``, ``reply_to_message_id``, ``attachment_urls`` (JSON list),
+    ``has_attachments``, and soft-delete flags ``is_deleted`` / ``deleted_at``.
+
+    Relationships:
+        ``channel``: FK to ``DiscordChannel`` (column ``channel_id``).
+        ``author``: FK to ``DiscordProfile`` (``cppa_user_tracker.models``); column
+        ``author_id``. Reverse on profile: ``discord_messages``.
+        Reverse ``reactions``: ``DiscordReaction`` rows
+        (``related_name="reactions"`` on ``DiscordReaction``).
+
+    Indexes on ``(channel, message_created_at)``, ``message_created_at``,
+    ``is_deleted``, and ``message_type`` support sync windows and queries.
+    """
 
     message_id = models.BigIntegerField(unique=True, db_index=True)
     channel = models.ForeignKey(
@@ -94,7 +129,14 @@ class DiscordMessage(models.Model):
 
 
 class DiscordReaction(models.Model):
-    """Reaction on a Discord message."""
+    """Aggregated emoji reaction counts on a ``DiscordMessage``.
+
+    One row per (``message``, ``emoji``) pair (enforced by unique constraint). ``count``
+    stores the total from the source payload at sync time.
+
+    Relationships:
+        ``message``: FK to ``DiscordMessage`` (column ``message_id``).
+    """
 
     message = models.ForeignKey(
         DiscordMessage,

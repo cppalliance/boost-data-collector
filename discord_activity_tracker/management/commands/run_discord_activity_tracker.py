@@ -1,12 +1,34 @@
-"""
-Management command: run_discord_activity_tracker
+"""Django management command ``run_discord_activity_tracker``.
 
-Runs several tasks in order:
-  1. Ensure raw workspace layout
-  2. Fetch Discord messages (DiscordChatExporter) → DB → archive JSON under
-     WORKSPACE_DIR/raw/discord_activity_tracker/<server_id>/<channel_id>/
-  3. Export DB messages as Markdown to DISCORD_CONTEXT_REPO_PATH (optional git push)
-  4. Upsert Discord messages to Pinecone (run_cppa_pinecone_sync)
+Orchestrates the scheduled Discord ingest pipeline: workspace prep, optional
+DiscordChatExporter fetch with DB upsert and raw JSON archival, Markdown export to
+``DISCORD_CONTEXT_REPO_PATH``, and optional Pinecone sync via ``run_cppa_pinecone_sync``.
+
+Phases (see ``DiscordActivityCollector`` and task helpers in this module):
+
+    1. **Workspace** — Ensure raw/staging dirs under ``WORKSPACE_DIR`` (see
+       ``discord_activity_tracker.workspace``).
+    2. **Sync** — Run DiscordChatExporter (unless ``--skip-discord-sync``), parse JSON,
+       validate staging schema, upsert via ``discord_activity_tracker.services``,
+       move exports under
+       ``{WORKSPACE_DIR}/raw/discord_activity_tracker/<server_id>/<channel_id>/``.
+    3. **Markdown** — Export DB rows to the context repo (unless ``--skip-markdown-export``);
+       optional git push when ``DISCORD_CONTEXT_AUTO_COMMIT`` is true and
+       ``--skip-remote-push`` is not set.
+    4. **Pinecone** — ``task_discord_pinecone_sync`` when ``PINECONE_DISCORD_*`` are set
+       and ``--skip-pinecone`` is not used.
+
+Required settings for a full sync: ``DISCORD_USER_TOKEN``, ``DISCORD_SERVER_ID``.
+Channel scope uses ``DISCORD_CHANNEL_IDS`` unless overridden by ``--channels``.
+
+CLI flags are documented on ``Command.add_argument`` ``help=`` strings and in
+``docs/service_api/discord_activity_tracker.md``.
+
+Raises:
+    django.core.management.base.CommandError: Missing token/guild, invalid
+    ``--since``/``--until`` parse, or DiscordChatExporter failure (wrapped from
+    ``DiscordChatExporterError``). Other exceptions from the collector may propagate
+    after logging from ``_handle_core``.
 """
 
 from __future__ import annotations
@@ -312,7 +334,18 @@ def task_markdown_export_and_push(
 
 
 class DiscordActivityCollector(CollectorBase):
-    """Discord sync + Markdown + Pinecone; ``sync_pinecone`` runs ``run_cppa_pinecone_sync``."""
+    """Collector implementation for ``run_discord_activity_tracker``.
+
+    Holds stdout/style, resolved ``channel_ids`` (from ``--channels`` or
+    ``settings.DISCORD_CHANNEL_IDS``), and delegates to ``Command._handle_core``.
+
+    ``run()`` drives fetch → Markdown → Pinecone according to options.
+    ``sync_pinecone()`` runs ``task_discord_pinecone_sync`` when not dry-run and not
+    skipping Pinecone.
+
+    Side effects: Same as the management command (DB, filesystem, subprocess calls
+    to DiscordChatExporter and Pinecone tooling via configured runners).
+    """
 
     def __init__(self, cmd: "Command", options: dict) -> None:
         self.cmd = cmd
@@ -374,7 +407,35 @@ class DiscordActivityCollector(CollectorBase):
 
 
 class Command(BaseCollectorCommand):
-    """Discord activity tracker: fetch → DB → raw JSON; Markdown export; Pinecone upsert."""
+    """``manage.py run_discord_activity_tracker`` — incremental Discord ingest and exports.
+
+    Wraps ``DiscordActivityCollector`` with ``BaseCollectorCommand`` (dry-run, logging,
+    collector phases). See module docstring for phases and required settings.
+
+    Optional arguments (full text on each ``add_argument``):
+
+        ``--dry-run``, ``--skip-discord-sync``, ``--skip-markdown-export``,
+        ``--skip-remote-push``, ``--skip-pinecone`` / ``--ignore-pinecone``,
+        ``--since`` / ``--until`` (and aliases), ``--channels``, ``--task`` (deprecated).
+
+    Examples:
+        ``python manage.py run_discord_activity_tracker`` — full pipeline with
+        settings-based channel allowlist.
+
+        ``python manage.py run_discord_activity_tracker --dry-run`` — log planned
+        steps only.
+
+        ``python manage.py run_discord_activity_tracker --channels 123,456 --skip-pinecone`` —
+        restrict channels and skip Pinecone.
+
+    Raises:
+        CommandError: If ``DISCORD_USER_TOKEN`` or ``DISCORD_SERVER_ID`` is unset, or
+        date options fail to parse, or DiscordChatExporter fails (see ``task_discord_sync``).
+
+    See Also:
+        ``docs/service_api/discord_activity_tracker.md``
+        ``docs/operations/discord_chat_exporter.md``
+    """
 
     help = (
         "Discord activity tracker: (1) fetch via DiscordChatExporter + DB + raw archive; "

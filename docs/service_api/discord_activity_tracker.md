@@ -7,6 +7,35 @@
 
 ---
 
+## Service contract
+
+- **get_or_create pattern:** `get_or_create_discord_server` and `get_or_create_discord_channel` return `tuple[Model, bool]` where the `bool` is Django's `created` flag (a new row was inserted on this call).
+- **update_or_create pattern:** `create_or_update_discord_message` and `add_or_update_reaction` return `tuple[Model, bool]` with Django `update_or_create` semantics for `created`.
+- **Partial updates:** On existing rows, server and channel helpers use `save(update_fields=[...])` when metadata changed; `mark_message_deleted` updates `is_deleted`, `deleted_at`, and `updated_at` via `update_fields`.
+- **Bulk upsert:** `bulk_upsert_discord_messages` and `bulk_upsert_discord_reactions` use `bulk_create(..., update_conflicts=True, unique_fields=..., update_fields=...)`. **`bulk_upsert_discord_users`** uses per-row queries and `get_or_create_discord_profile` because `DiscordProfile` uses multi-table inheritance (no `bulk_create(update_conflicts=True)`).
+- **Transactions:** `bulk_process_message_batch` wraps user → message → reaction upserts in a single `transaction.atomic()`; an unhandled exception rolls back all phases.
+- **`bulk_process_message_batch` return value:** Returns `len(message_data_list)` when the input list is non-empty, **not** the count of rows successfully written. Individual messages may still be skipped inside `bulk_upsert_discord_messages` (see below).
+
+---
+
+## Raises and edge behavior
+
+- **`discord_activity_tracker.services` does not intentionally raise `ValueError`** for invalid arguments; validate inputs at sync/staging boundaries where appropriate.
+- **`bulk_upsert_discord_users`:** Each dict must include `user_id` (and keys used in the loop); malformed payloads can raise **`KeyError`**.
+- **`bulk_upsert_discord_messages`:** If `user_map` has no profile for `message_data["author"]["user_id"]`, that message is **skipped** and a **warning** is logged (no exception). If every message in the batch is skipped, no bulk insert runs and `{}` is returned.
+- **`bulk_upsert_discord_reactions`:** If `message_map` has no message for `discord_message_id`, that reaction is skipped **silently**. Duplicate `(message, emoji)` pairs in one batch keep the **last** entry.
+- **ORM:** Functions may propagate Django database exceptions (e.g. `IntegrityError`, `OperationalError`) under concurrency or infrastructure faults.
+
+---
+
+## CollectorFailureCategory
+
+`discord_activity_tracker.services` performs **database I/O only**. It does not call Discord HTTP APIs and does **not** assign [`CollectorFailureCategory`](../../core/errors.py) values.
+
+Collectors, management commands, and sync layers classify failures with [`classify_failure`](../../core/errors.py) when handling exceptions (e.g. DiscordChatExporter subprocess failures wrapped in `CommandError`, discord.py HTTP errors, rate limits). If ORM errors are passed through `classify_failure`, mapping follows **`core/errors.py`** (for example `django.core.exceptions.ValidationError` may map to **`VALIDATION`** in typical paths).
+
+---
+
 ## DiscordServer
 
 | Function                      | Parameter types                                                    | Return type                  | Description                                                       |
@@ -57,7 +86,7 @@ Inputs are lists of pre-normalised message dicts (from `sync.messages._prepare_m
 | `bulk_upsert_discord_users`   | `user_data_list: list[dict]`                                                                            | `dict[int, DiscordProfile]` | Upsert `DiscordProfile` rows; returns `{discord_user_id: profile}`.                             |
 | `bulk_upsert_discord_messages` | `message_data_list: list[dict]`, `channel: DiscordChannel`, `user_map: dict[int, DiscordProfile]`     | `dict[int, DiscordMessage]` | Upsert `DiscordMessage` rows incl. `message_type` and `is_pinned`; returns `{message_id: msg}`. |
 | `bulk_upsert_discord_reactions` | `reaction_data_list: list[dict]`, `message_map: dict[int, DiscordMessage]`                            | `None`      | Upsert `DiscordReaction` rows.                                                                  |
-| `bulk_process_message_batch`  | `message_data_list: list[dict]`, `channel: DiscordChannel`                                             | `int`       | Orchestrates user upsert → message upsert → reaction upsert; returns number of messages upserted. |
+| `bulk_process_message_batch`  | `message_data_list: list[dict]`, `channel: DiscordChannel`                                             | `int`       | Runs users → messages → reactions inside one `transaction.atomic()`. Return value is **`len(message_data_list)`** when non-empty (not the count of rows actually upserted); see **Raises and edge behavior** above. |
 
 ---
 

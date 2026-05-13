@@ -421,3 +421,70 @@ def test_message_to_dict_reply_and_pinned(mock_discord_pkg):
     d = discord_message_to_sync_dict(msg)
     assert d["message_type"] == "Reply"
     assert d["is_pinned"] is True
+
+
+def test_fetch_messages_since_http_429_returns_empty(mock_discord_pkg):
+    m, inner = mock_discord_pkg
+    exc = m.HTTPException()
+    exc.status = 429
+
+    async def hist(*_a, **_k):
+        if False:
+            yield None
+        raise exc
+
+    ch = MagicMock()
+    ch.name = "c"
+    ch.history = hist
+
+    c = DiscordSyncClient("tok")
+    c._ready = True
+
+    async def run():
+        return await c.fetch_messages_since(ch, after=None, limit=None)
+
+    assert asyncio.run(run()) == []
+
+
+def test_message_type_label_from_typed_message_type(mock_discord_pkg):
+    m, _ = mock_discord_pkg
+    MT = type("MessageType", (), {})
+    m.MessageType = MT
+    mt = MT()
+    mt.name = "thread_created"
+    from discord_activity_tracker.sync.client import _message_type_label
+
+    assert _message_type_label(mt) == "ThreadCreated"
+
+
+def test_discord_sync_client_message_to_dict_delegates(mock_discord_pkg):
+    _, inner = mock_discord_pkg
+    c = DiscordSyncClient("tok")
+    msg = MagicMock()
+    msg.id = 1
+    msg.content = "x"
+    msg.author = SimpleNamespace(
+        id=1, name="a", display_name="a", bot=False, avatar=None
+    )
+    msg.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    msg.edited_at = None
+    msg.reference = None
+    msg.attachments = []
+    msg.reactions = []
+    msg.type = SimpleNamespace(name="default")
+    msg.pinned = False
+    d = c._message_to_dict(msg)
+    assert d["id"] == 1
+
+
+def test_shutdown_sync_logs_when_close_raises(mock_discord_pkg, caplog):
+    import logging
+
+    caplog.set_level(logging.ERROR)
+    _, inner = mock_discord_pkg
+    inner.close = AsyncMock(side_effect=RuntimeError("close failed"))
+    c = DiscordSyncClient("tok")
+    c._ready = True
+    c._asyncio_loop = asyncio.new_event_loop()
+    c.shutdown_sync()
+    assert "Error while closing" in caplog.text

@@ -678,3 +678,20 @@ def test_export_and_parse_returns_channels(tmp_path):
     assert len(rows) == 1
     assert rows[0]["guild"] == {"id": "g"}
     assert rows[0]["file_path"] == ok
+
+
+def test_convert_exporter_message_with_embeds_key_ignored():
+    raw = {
+        "id": "1",
+        "timestamp": "2026-01-01T00:00:00Z",
+        "content": "body",
+        "author": {"id": "1", "name": "a"},
+        "attachments": [],
+        "reactions": [],
+        "embeds": [{"title": "E", "description": "d"}],
+    }
+    out = convert_exporter_message_to_dict(raw, server_id=1, channel_id=2)
+    assert out["content"] == "body"
+    from discord_activity_tracker.staging_schema import validate_normalized_message
+
+    validate_normalized_message(out, source="embed-test")
