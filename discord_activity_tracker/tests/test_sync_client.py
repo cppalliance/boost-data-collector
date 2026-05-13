@@ -424,7 +424,7 @@ def test_message_to_dict_reply_and_pinned(mock_discord_pkg):
 
 
 def test_fetch_messages_since_http_429_returns_empty(mock_discord_pkg):
-    m, inner = mock_discord_pkg
+    m, _ = mock_discord_pkg
     exc = m.HTTPException()
     exc.status = 429
 
@@ -458,7 +458,6 @@ def test_message_type_label_from_typed_message_type(mock_discord_pkg):
 
 
 def test_discord_sync_client_message_to_dict_delegates(mock_discord_pkg):
-    _, inner = mock_discord_pkg
     c = DiscordSyncClient("tok")
     msg = MagicMock()
     msg.id = 1

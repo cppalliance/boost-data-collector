@@ -164,19 +164,28 @@ def test_handle_core_non_dry_calls_sync_and_markdown(monkeypatch, settings):
 
 
 @pytest.mark.django_db
-def test_handle_core_skip_pinecone_logs(monkeypatch, settings):
+def test_handle_core_skip_pinecone_logs(monkeypatch, settings, caplog):
+    caplog.set_level("INFO")
     monkeypatch.setattr(settings, "DISCORD_USER_TOKEN", "tok")
     monkeypatch.setattr(settings, "DISCORD_SERVER_ID", 9006)
     _, collector = _cmd_collector(dry_run=False, skip_pinecone=True)
     with (
         patch(
             "discord_activity_tracker.management.commands.run_discord_activity_tracker.task_discord_sync"
-        ),
+        ) as ts,
         patch(
             "discord_activity_tracker.management.commands.run_discord_activity_tracker.task_markdown_export_and_push"
-        ),
+        ) as tm,
+        patch(
+            "discord_activity_tracker.management.commands.run_discord_activity_tracker.task_discord_pinecone_sync"
+        ) as tp,
     ):
         collector.cmd._handle_core(collector.options, collector)
+        collector.sync_pinecone()
+    ts.assert_called_once()
+    tm.assert_called_once()
+    tp.assert_not_called()
+    assert "skipping Pinecone (--skip-pinecone)" in caplog.text
 
 
 @pytest.mark.django_db
@@ -215,7 +224,7 @@ def test_task_preprocess_workspace_dry_run(tmp_path, settings):
 
 def test_resolve_bounds_since_naive_becomes_utc():
     after, before = _resolve_exporter_date_bounds(
-        {"since": "2026-04-01T00:00:00Z", "until": None},
+        {"since": "2026-04-01T00:00:00", "until": None},
         guild_snowflake=1,
         channel_ids=[],
     )

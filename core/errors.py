@@ -192,18 +192,20 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
         if "HTTPStatus" in exc_name or "Transport" in exc_name or "Connect" in exc_name:
             return CollectorFailureCategory.NETWORK
 
-    # discord.py (optional dependency): HTTPException exposes ``status``.
+    # discord.py (optional dependency): HTTPException and subclasses expose ``status``.
     if exc_mod.startswith("discord"):
-        if exc_name == "HTTPException":
-            status = getattr(exc, "status", None)
+        status = getattr(exc, "status", None)
+        if isinstance(status, int):
             if status == 429:
                 return CollectorFailureCategory.RATE_LIMIT
             if status in (401, 403):
                 return CollectorFailureCategory.AUTH
-            if isinstance(status, int) and 500 <= status < 600:
+            if 500 <= status < 600:
                 return CollectorFailureCategory.NETWORK
-            if isinstance(status, int) and 400 <= status < 500:
+            if 400 <= status < 500:
                 return CollectorFailureCategory.UNKNOWN
+            return CollectorFailureCategory.NETWORK
+        if exc_name == "HTTPException":
             return CollectorFailureCategory.NETWORK
         if exc_name in ("LoginFailure", "PrivilegedIntentsRequired", "ClientException"):
             return CollectorFailureCategory.AUTH

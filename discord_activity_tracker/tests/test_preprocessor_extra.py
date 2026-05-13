@@ -86,7 +86,7 @@ def test_build_reply_chains_orphan_at_end():
 
 
 @pytest.mark.django_db
-def test_chain_to_document_short_content_returns_none():
+def test_chain_to_document_long_content_returns_document():
     srv = DiscordServer.objects.create(server_id=_uid(), server_name="G", icon_url="")
     ch = DiscordChannel.objects.create(
         server=srv, channel_id=_uid(), channel_name="c", channel_type="text"

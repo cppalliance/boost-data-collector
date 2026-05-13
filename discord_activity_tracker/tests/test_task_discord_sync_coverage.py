@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 from datetime import datetime, timezone
 from io import StringIO
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -13,6 +14,10 @@ from discord_activity_tracker.management.commands.run_discord_activity_tracker i
     DiscordActivityCollector,
     task_discord_sync,
 )
+
+
+def _phony_token() -> str:
+    return secrets.token_hex(16)
 
 
 def _minimal_envelope(guild_id: int, channel_id: int):
@@ -35,7 +40,8 @@ def _minimal_envelope(guild_id: int, channel_id: int):
 
 @pytest.mark.django_db
 def test_task_discord_sync_skip_returns_early(settings):
-    settings.DISCORD_USER_TOKEN = "x"
+    tok = _phony_token()
+    settings.DISCORD_USER_TOKEN = tok
     cmd = MagicMock()
     cmd.stdout = StringIO()
     cmd.style = MagicMock()
@@ -44,7 +50,7 @@ def test_task_discord_sync_skip_returns_early(settings):
     task_discord_sync(
         dry_run=False,
         skip_discord_sync=True,
-        user_token="t",
+        user_token=tok,
         guild_id=1,
         channel_ids=[],
         after_date=None,
@@ -55,14 +61,15 @@ def test_task_discord_sync_skip_returns_early(settings):
 
 @pytest.mark.django_db
 def test_task_discord_sync_dry_run_returns_early(settings):
-    settings.DISCORD_USER_TOKEN = "x"
+    tok = _phony_token()
+    settings.DISCORD_USER_TOKEN = tok
     cmd = MagicMock()
     cmd.stdout = StringIO()
     collector = DiscordActivityCollector(cmd=cmd, options={})
     task_discord_sync(
         dry_run=True,
         skip_discord_sync=False,
-        user_token="t",
+        user_token=tok,
         guild_id=1,
         channel_ids=[],
         after_date=None,
@@ -75,7 +82,8 @@ def test_task_discord_sync_dry_run_returns_early(settings):
 def test_task_discord_sync_happy_path_rename_raw(settings, tmp_path, monkeypatch):
     settings.WORKSPACE_DIR = tmp_path / "ws"
     settings.WORKSPACE_DIR.mkdir(parents=True)
-    settings.DISCORD_USER_TOKEN = "tok"
+    tok = _phony_token()
+    settings.DISCORD_USER_TOKEN = tok
 
     gid, cid = 880011, 880022
     staging = tmp_path / "staging"
@@ -120,7 +128,7 @@ def test_task_discord_sync_happy_path_rename_raw(settings, tmp_path, monkeypatch
         task_discord_sync(
             dry_run=False,
             skip_discord_sync=False,
-            user_token="t",
+            user_token=tok,
             guild_id=gid,
             channel_ids=[],
             after_date=datetime(2026, 1, 1, tzinfo=timezone.utc),
@@ -136,6 +144,7 @@ def test_task_discord_sync_happy_path_rename_raw(settings, tmp_path, monkeypatch
 def test_task_discord_sync_skips_channel_not_in_allowlist(settings, tmp_path):
     settings.WORKSPACE_DIR = tmp_path / "ws"
     settings.WORKSPACE_DIR.mkdir(parents=True)
+    tok = _phony_token()
 
     gid, cid = 770011, 770022
     staging = tmp_path / "st2"
@@ -174,7 +183,7 @@ def test_task_discord_sync_skips_channel_not_in_allowlist(settings, tmp_path):
         task_discord_sync(
             dry_run=False,
             skip_discord_sync=False,
-            user_token="t",
+            user_token=tok,
             guild_id=gid,
             channel_ids=[999999],
             after_date=None,
@@ -191,6 +200,7 @@ def test_task_discord_sync_staging_validation_error_keeps_file(
 ):
     settings.WORKSPACE_DIR = tmp_path / "ws"
     settings.WORKSPACE_DIR.mkdir(parents=True)
+    tok = _phony_token()
     gid, cid = 660011, 660022
     staging = tmp_path / "st3"
     staging.mkdir()
@@ -229,7 +239,7 @@ def test_task_discord_sync_staging_validation_error_keeps_file(
         task_discord_sync(
             dry_run=False,
             skip_discord_sync=False,
-            user_token="t",
+            user_token=tok,
             guild_id=gid,
             channel_ids=[],
             after_date=None,
@@ -243,6 +253,7 @@ def test_task_discord_sync_staging_validation_error_keeps_file(
 def test_task_discord_sync_value_error_unlinks(settings, tmp_path):
     settings.WORKSPACE_DIR = tmp_path / "ws"
     settings.WORKSPACE_DIR.mkdir(parents=True)
+    tok = _phony_token()
     gid, cid = 550011, 550022
     staging = tmp_path / "st4"
     staging.mkdir()
@@ -279,7 +290,7 @@ def test_task_discord_sync_value_error_unlinks(settings, tmp_path):
         task_discord_sync(
             dry_run=False,
             skip_discord_sync=False,
-            user_token="t",
+            user_token=tok,
             guild_id=gid,
             channel_ids=[],
             after_date=None,
@@ -297,6 +308,7 @@ def test_task_discord_sync_exporter_error_becomes_command_error(settings, tmp_pa
 
     settings.WORKSPACE_DIR = tmp_path / "ws"
     settings.WORKSPACE_DIR.mkdir(parents=True)
+    tok = _phony_token()
     cmd = MagicMock()
     cmd.stdout = StringIO()
     cmd.style = MagicMock()
@@ -310,7 +322,7 @@ def test_task_discord_sync_exporter_error_becomes_command_error(settings, tmp_pa
             task_discord_sync(
                 dry_run=False,
                 skip_discord_sync=False,
-                user_token="t",
+                user_token=tok,
                 guild_id=1,
                 channel_ids=[],
                 after_date=None,
@@ -323,6 +335,7 @@ def test_task_discord_sync_exporter_error_becomes_command_error(settings, tmp_pa
 def test_task_discord_sync_persist_raises_unlinks(settings, tmp_path):
     settings.WORKSPACE_DIR = tmp_path / "ws"
     settings.WORKSPACE_DIR.mkdir(parents=True)
+    tok = _phony_token()
     gid, cid = 440011, 440022
     staging = tmp_path / "st5"
     staging.mkdir()
@@ -360,7 +373,7 @@ def test_task_discord_sync_persist_raises_unlinks(settings, tmp_path):
         task_discord_sync(
             dry_run=False,
             skip_discord_sync=False,
-            user_token="t",
+            user_token=tok,
             guild_id=gid,
             channel_ids=[],
             after_date=None,
@@ -374,6 +387,7 @@ def test_task_discord_sync_persist_raises_unlinks(settings, tmp_path):
 def test_task_discord_sync_stdout_includes_before_date(settings, tmp_path):
     settings.WORKSPACE_DIR = tmp_path / "ws"
     settings.WORKSPACE_DIR.mkdir(parents=True)
+    tok = _phony_token()
     gid, cid = 410011, 410022
     staging = tmp_path / "st6"
     staging.mkdir()
@@ -411,7 +425,7 @@ def test_task_discord_sync_stdout_includes_before_date(settings, tmp_path):
         task_discord_sync(
             dry_run=False,
             skip_discord_sync=False,
-            user_token="t",
+            user_token=tok,
             guild_id=gid,
             channel_ids=[],
             after_date=None,

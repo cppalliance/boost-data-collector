@@ -78,7 +78,10 @@ def test_backfill_run_handles_bad_json(tmp_path, settings):
             stdout=out, style=style, dry_run=False, skip_pinecone=True
         ).run()
 
-    assert "Failed" in out.getvalue() or "Import complete" in out.getvalue()
+    output = out.getvalue()
+    assert "bad.json" in output
+    assert "Failed bad.json:" in output
+    assert "Import complete: 0 messages from 1 file(s)" in output
 
 
 @pytest.mark.django_db

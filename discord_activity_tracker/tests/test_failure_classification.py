@@ -28,6 +28,22 @@ def test_discord_http_403_is_auth():
     assert classify_failure(exc) is CollectorFailureCategory.AUTH
 
 
+def test_discord_forbidden_subclass_403_is_auth():
+    cls = type("Forbidden", (Exception,), {})
+    cls.__module__ = "discord.errors"
+    exc = cls()
+    exc.status = 403
+    assert classify_failure(exc) is CollectorFailureCategory.AUTH
+
+
+def test_discord_not_found_subclass_404_is_unknown():
+    cls = type("NotFound", (Exception,), {})
+    cls.__module__ = "discord.errors"
+    exc = cls()
+    exc.status = 404
+    assert classify_failure(exc) is CollectorFailureCategory.UNKNOWN
+
+
 def test_discord_http_502_is_network():
     exc = _make_discord_http_exception(502)
     assert classify_failure(exc) is CollectorFailureCategory.NETWORK
