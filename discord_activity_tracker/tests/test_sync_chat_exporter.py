@@ -692,6 +692,7 @@ def test_convert_exporter_message_with_embeds_key_ignored():
     }
     out = convert_exporter_message_to_dict(raw, server_id=1, channel_id=2)
     assert out["content"] == "body"
+    assert "embeds" not in out
     from discord_activity_tracker.staging_schema import validate_normalized_message
 
     validate_normalized_message(out, source="embed-test")
