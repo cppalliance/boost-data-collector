@@ -12,7 +12,6 @@ Runs several tasks in order:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,6 +31,7 @@ from discord_activity_tracker.services import (
     get_or_create_discord_server,
 )
 from discord_activity_tracker.staging_schema import (
+    StagingValidationError,
     validate_envelope,
     validate_normalized_message,
 )
@@ -55,16 +55,6 @@ from discord_activity_tracker.workspace import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _is_discord_staging_validation_error(exc: BaseException) -> bool:
-    """True for envelope/message validation failures from staging_schema (not JSON syntax)."""
-    if not isinstance(exc, ValueError) or isinstance(exc, json.JSONDecodeError):
-        return False
-    msg = str(exc)
-    return msg.startswith("Invalid Discord export envelope") or msg.startswith(
-        "Invalid normalized Discord message"
-    )
 
 
 def _parse_channel_ids(raw: str) -> list[int]:
@@ -236,14 +226,14 @@ def task_discord_sync(
             dest = channel_raw_dir / f"{date_tag}.json"
             json_path.rename(dest)
 
+        except StagingValidationError as exc:
+            logger.error(
+                "Staging validation failed for %s (file left in staging): %s",
+                json_path.name,
+                exc,
+            )
+            continue
         except ValueError as exc:
-            if _is_discord_staging_validation_error(exc):
-                logger.error(
-                    "Staging validation failed for %s (file left in staging): %s",
-                    json_path.name,
-                    exc,
-                )
-                continue
             logger.error("Failed to process %s: %s", json_path.name, exc)
             json_path.unlink(missing_ok=True)
             continue

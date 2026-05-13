@@ -3,8 +3,6 @@
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
-import json
-
 import pytest
 from django.conf import settings
 from django.core.management import call_command
@@ -13,10 +11,10 @@ from django.core.management.base import CommandError
 from discord_activity_tracker.management.commands.run_discord_activity_tracker import (
     Command,
     DiscordActivityCollector,
-    _is_discord_staging_validation_error,
     _parse_channel_ids,
     _resolve_exporter_date_bounds,
 )
+from discord_activity_tracker.staging_schema import StagingValidationError
 
 
 def _cmd_and_collector(**opts):
@@ -41,26 +39,8 @@ def _cmd_and_collector(**opts):
     return cmd, collector
 
 
-def test_is_discord_staging_validation_error_envelope():
-    assert _is_discord_staging_validation_error(
-        ValueError("Invalid Discord export envelope (bad.json)")
-    )
-
-
-def test_is_discord_staging_validation_error_normalized_message():
-    assert _is_discord_staging_validation_error(
-        ValueError("Invalid normalized Discord message (message[0])")
-    )
-
-
-def test_is_discord_staging_validation_error_rejects_json_decode():
-    assert not _is_discord_staging_validation_error(
-        json.JSONDecodeError("Expecting value", "doc", 0)
-    )
-
-
-def test_is_discord_staging_validation_error_rejects_other_valueerror():
-    assert not _is_discord_staging_validation_error(ValueError("something else"))
+def test_staging_validation_error_subclasses_value_error():
+    assert issubclass(StagingValidationError, ValueError)
 
 
 # ---------------------------------------------------------------------------

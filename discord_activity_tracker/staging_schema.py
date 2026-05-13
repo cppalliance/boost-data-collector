@@ -28,6 +28,10 @@ NormalizedMessageInstantUtcZ = Annotated[
 ]
 
 
+class StagingValidationError(ValueError):
+    """Discord staging payload failed Pydantic validation (envelope or normalized message)."""
+
+
 class DiscordExporterGuild(BaseModel):
     """Guild object inside a DiscordChatExporter JSON file."""
 
@@ -126,14 +130,14 @@ class NormalizedDiscordMessage(BaseModel):
         return v
 
 
-def _validation_error(prefix: str, err: ValidationError) -> ValueError:
+def _validation_error(prefix: str, err: ValidationError) -> None:
     detail = err.errors()[:5]
     msg = f"{prefix}: " + "; ".join(
         f"{e.get('loc', ())}: {e.get('msg', '')}" for e in detail
     )
     if len(err.errors()) > 5:
         msg += f" … ({len(err.errors())} errors total)"
-    raise ValueError(msg) from err
+    raise StagingValidationError(msg) from err
 
 
 def validate_envelope(
@@ -141,7 +145,7 @@ def validate_envelope(
     *,
     source: str | None = None,
 ) -> DiscordChatExporterEnvelope:
-    """Validate parsed DiscordChatExporter file contents. Raises ``ValueError``."""
+    """Validate parsed DiscordChatExporter file contents. Raises ``StagingValidationError``."""
     prefix = f"Invalid Discord export envelope{f' ({source})' if source else ''}"
     try:
         return DiscordChatExporterEnvelope.model_validate(data)
@@ -154,7 +158,7 @@ def validate_normalized_message(
     *,
     source: str | None = None,
 ) -> NormalizedDiscordMessage:
-    """Validate one normalized message dict. Raises ``ValueError``."""
+    """Validate one normalized message dict. Raises ``StagingValidationError``."""
     prefix = f"Invalid normalized Discord message{f' ({source})' if source else ''}"
     try:
         return NormalizedDiscordMessage.model_validate(obj)

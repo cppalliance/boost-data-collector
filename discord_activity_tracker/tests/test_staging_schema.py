@@ -3,6 +3,7 @@
 import pytest
 
 from discord_activity_tracker.staging_schema import (
+    StagingValidationError,
     validate_envelope,
     validate_normalized_message,
 )
@@ -52,7 +53,7 @@ def test_validate_normalized_well_formed_reactions():
     assert model.reactions[0].count == 2
 
 
-def test_validate_normalized_malformed_rejects_with_valueerror():
+def test_validate_normalized_malformed_rejects_with_staging_validation_error():
     bad = {
         "id": 1,
         "content": "",
@@ -72,7 +73,7 @@ def test_validate_normalized_malformed_rejects_with_valueerror():
         "reference": None,
     }
     with pytest.raises(
-        ValueError, match="Invalid normalized Discord message"
+        StagingValidationError, match="Invalid normalized Discord message"
     ) as excinfo:
         validate_normalized_message(bad, source="unit")
     assert "pydantic" not in type(excinfo.value).__name__.lower()
@@ -84,12 +85,14 @@ def test_validate_normalized_rejects_created_at_without_z_suffix():
     raw = _minimal_exporter_message()
     bad = convert_exporter_message_to_dict(raw, server_id=1, channel_id=2)
     bad["created_at"] = "2026-01-01T00:00:00+00:00"
-    with pytest.raises(ValueError, match="Invalid normalized Discord message"):
+    with pytest.raises(
+        StagingValidationError, match="Invalid normalized Discord message"
+    ):
         validate_normalized_message(bad, source="unit")
 
 
 def test_validate_envelope_rejects_non_list_messages():
-    with pytest.raises(ValueError, match="Invalid Discord export envelope"):
+    with pytest.raises(StagingValidationError, match="Invalid Discord export envelope"):
         validate_envelope(
             {
                 "guild": {"id": "1", "name": "G"},
