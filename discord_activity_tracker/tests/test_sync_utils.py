@@ -2,9 +2,10 @@
 
 ISO datetime parsing is implemented and tested in ``core.utils.datetime_parsing``
 (see ``core/tests/test_datetime_parsing.py``).
-"""
 
-from core.utils.text_processing import truncate_content
+``truncate_content`` lives in ``core.utils.text_processing``; see
+``core/tests/test_text_processing.py``.
+"""
 
 from discord_activity_tracker.sync.utils import (
     format_discord_url,
@@ -116,14 +117,3 @@ def test_sanitize_channel_name_strips_unsafe_chars():
 
 def test_format_discord_url():
     assert format_discord_url(1, 2, 3) == "https://discord.com/channels/1/2/3"
-
-
-def test_truncate_content_short_unchanged():
-    assert truncate_content("hi", max_length=100) == "hi"
-
-
-def test_truncate_content_long_adds_ellipsis():
-    s = "x" * 50
-    out = truncate_content(s, max_length=10)
-    assert out.endswith("...")
-    assert len(out) == 10
