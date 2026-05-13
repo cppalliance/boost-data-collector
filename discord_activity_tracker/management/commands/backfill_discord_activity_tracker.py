@@ -18,13 +18,10 @@ from asgiref.sync import sync_to_async
 
 from core.collectors.base import CollectorBase
 from core.collectors.command_base import BaseCollectorCommand
-from core.utils.datetime_parsing import parse_iso_datetime_lenient
 from discord_activity_tracker.pinecone_runner import task_discord_pinecone_sync
 from discord_activity_tracker.services import (
     get_or_create_discord_channel,
     get_or_create_discord_server,
-    update_channel_last_activity,
-    update_channel_last_synced,
 )
 from discord_activity_tracker.staging_schema import (
     validate_envelope,
@@ -146,16 +143,6 @@ class DiscordBackfillCollector(CollectorBase):
         for idx, cmsg in enumerate(converted):
             validate_normalized_message(cmsg, source=f"message[{idx}]")
         count = await _process_messages_in_batches(channel, converted)
-
-        if messages:
-            last_converted = convert_exporter_message_to_dict(
-                messages[-1], server_id=srv_id, channel_id=ch_id
-            )
-            last_time = parse_iso_datetime_lenient(last_converted.get("created_at"))
-            if last_time:
-                await sync_to_async(update_channel_last_activity)(channel, last_time)
-
-        await sync_to_async(update_channel_last_synced)(channel)
         return count
 
     def sync_pinecone(self) -> None:

@@ -28,16 +28,6 @@ NormalizedMessageInstantUtcZ = Annotated[
 ]
 
 
-def _validation_error(prefix: str, err: ValidationError) -> ValueError:
-    detail = err.errors()[:5]
-    msg = f"{prefix}: " + "; ".join(
-        f"{e.get('loc', ())}: {e.get('msg', '')}" for e in detail
-    )
-    if len(err.errors()) > 5:
-        msg += f" … ({len(err.errors())} errors total)"
-    raise ValueError(msg) from err
-
-
 class DiscordExporterGuild(BaseModel):
     """Guild object inside a DiscordChatExporter JSON file."""
 
@@ -134,6 +124,16 @@ class NormalizedDiscordMessage(BaseModel):
         if isinstance(v, str) and not v.strip():
             return None
         return v
+
+
+def _validation_error(prefix: str, err: ValidationError) -> ValueError:
+    detail = err.errors()[:5]
+    msg = f"{prefix}: " + "; ".join(
+        f"{e.get('loc', ())}: {e.get('msg', '')}" for e in detail
+    )
+    if len(err.errors()) > 5:
+        msg += f" … ({len(err.errors())} errors total)"
+    raise ValueError(msg) from err
 
 
 def validate_envelope(

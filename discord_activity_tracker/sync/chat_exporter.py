@@ -25,15 +25,17 @@ _SAFE_INT_MAX = 2**63 - 1  # max safe BigIntegerField value
 _INSTANT_Z_RE = re.compile(CANONICAL_INSTANT_UTC_Z_PATTERN)
 
 
-def _coerce_exporter_timestamp(raw: Any) -> str:
-    """Normalize DiscordChatExporter timestamp strings toward ISO 8601 UTC ``Z``."""
+def _coerce_exporter_timestamp(raw: Any, *, optional: bool = False) -> str | None:
+    """Normalize DiscordChatExporter timestamp strings toward ISO 8601 UTC ``Z``.
+
+    Uses :func:`format_instant_iso_z`. When *optional* is True, missing or blank
+    values return ``None`` (e.g. ``timestampEdited``). Otherwise empty input is
+    normalized via ``format_instant_iso_z`` like any other string (typically ``""``).
+    """
+    if optional:
+        if raw is None or (isinstance(raw, str) and not str(raw).strip()):
+            return None
     return format_instant_iso_z(raw if raw is not None else "")
-
-
-def _coerce_optional_exporter_timestamp(raw: Any) -> str | None:
-    if raw is None or (isinstance(raw, str) and not str(raw).strip()):
-        return None
-    return _coerce_exporter_timestamp(raw)
 
 
 def _safe_int(value: object, default: int = 0) -> int:
@@ -686,7 +688,9 @@ def convert_exporter_message_to_dict(
         )
 
     created_at_z = _coerce_exporter_timestamp(msg_data.get("timestamp", ""))
-    edited_at_z = _coerce_optional_exporter_timestamp(msg_data.get("timestampEdited"))
+    edited_at_z = _coerce_exporter_timestamp(
+        msg_data.get("timestampEdited"), optional=True
+    )
 
     converted: Dict[str, Any] = {
         "id": _safe_int(msg_data.get("id", 0)),

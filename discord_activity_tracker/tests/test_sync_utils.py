@@ -1,6 +1,9 @@
-"""Tests for discord_activity_tracker.sync.utils."""
+"""Tests for discord_activity_tracker.sync.utils.
 
-from core.utils.datetime_parsing import parse_iso_datetime_lenient
+ISO datetime parsing is implemented and tested in ``core.utils.datetime_parsing``
+(see ``core/tests/test_datetime_parsing.py``).
+"""
+
 from core.utils.text_processing import truncate_content
 
 from discord_activity_tracker.sync.utils import (
@@ -8,21 +11,6 @@ from discord_activity_tracker.sync.utils import (
     parse_discord_user,
     sanitize_channel_name,
 )
-
-
-def test_parse_datetime_empty():
-    assert parse_iso_datetime_lenient("") is None
-    assert parse_iso_datetime_lenient(None) is None
-
-
-def test_parse_datetime_z_normalized():
-    dt = parse_iso_datetime_lenient("2026-03-01T15:30:00Z")
-    assert dt is not None
-    assert dt.tzinfo is not None
-
-
-def test_parse_datetime_invalid_returns_none():
-    assert parse_iso_datetime_lenient("not-a-timestamp") is None
 
 
 def test_parse_discord_user_empty_dict():

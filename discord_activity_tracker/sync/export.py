@@ -12,6 +12,7 @@ from dateutil.relativedelta import relativedelta
 from django.utils import timezone as django_timezone
 
 from ..models import DiscordServer, DiscordChannel, DiscordMessage
+from ..services import queryset_channels_with_recent_messages
 from .utils import sanitize_channel_name, format_discord_url
 
 logger = logging.getLogger(__name__)
@@ -286,10 +287,8 @@ def export_all_active_channels(
     logger.info(f"Exporting all active channels for last {months_back} months")
 
     cutoff = django_timezone.now() - timedelta(days=active_days)
-    channels = (
-        DiscordChannel.objects.filter(server=server, last_activity_at__gte=cutoff)
-        .select_related("server")
-        .order_by("position", "channel_name")
+    channels = queryset_channels_with_recent_messages(server, cutoff).select_related(
+        "server"
     )
 
     logger.info(f"Found {channels.count()} active channels")

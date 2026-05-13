@@ -899,8 +899,6 @@ erDiagram
         string category_name
         text topic
         int position
-        datetime last_synced_at "IX"
-        datetime last_activity_at "IX"
         datetime created_at
         datetime updated_at
     }

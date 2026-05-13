@@ -12,11 +12,10 @@ from discord_activity_tracker.services import (
     add_or_update_reaction,
     create_or_update_discord_message,
     get_active_channels,
+    get_channel_latest_message_at,
     get_or_create_discord_channel,
     get_or_create_discord_server,
     mark_message_deleted,
-    update_channel_last_activity,
-    update_channel_last_synced,
 )
 
 
@@ -199,22 +198,39 @@ def test_add_or_update_reaction(channel, author):
 
 
 @pytest.mark.django_db
-def test_update_channel_last_activity_and_synced(channel):
-    act = django_timezone.now()
-    update_channel_last_activity(channel, act)
-    channel.refresh_from_db()
-    assert channel.last_activity_at == act
-
-    sync_ts = django_timezone.now() - timedelta(hours=1)
-    update_channel_last_synced(channel, sync_ts)
-    channel.refresh_from_db()
-    assert channel.last_synced_at == sync_ts
+def test_get_channel_latest_message_at(channel, author):
+    assert get_channel_latest_message_at(channel) is None
+    ts = django_timezone.now()
+    create_or_update_discord_message(
+        _uniq_id(), channel, author, "x", message_created_at=ts
+    )
+    assert get_channel_latest_message_at(channel) == ts
 
 
 @pytest.mark.django_db
-def test_get_active_channels_filters_by_days(channel, server):
-    channel.last_activity_at = django_timezone.now()
-    channel.save()
+def test_get_channel_latest_message_at_ignores_deleted(channel, author):
+    t_old = django_timezone.now() - timedelta(hours=1)
+    t_new = django_timezone.now()
+    create_or_update_discord_message(
+        _uniq_id(), channel, author, "old", message_created_at=t_old
+    )
+    msg_new, _ = create_or_update_discord_message(
+        _uniq_id(), channel, author, "new", message_created_at=t_new
+    )
+    assert get_channel_latest_message_at(channel) == t_new
+    mark_message_deleted(msg_new)
+    assert get_channel_latest_message_at(channel) == t_old
+
+
+@pytest.mark.django_db
+def test_get_active_channels_filters_by_days(channel, server, author):
+    create_or_update_discord_message(
+        _uniq_id(),
+        channel,
+        author,
+        "recent",
+        message_created_at=django_timezone.now(),
+    )
     stale = DiscordChannel.objects.create(
         server=server,
         channel_id=_uniq_id(),
@@ -222,7 +238,13 @@ def test_get_active_channels_filters_by_days(channel, server):
         channel_type="text",
         topic="",
         position=1,
-        last_activity_at=django_timezone.now() - timedelta(days=60),
+    )
+    create_or_update_discord_message(
+        _uniq_id(),
+        stale,
+        author,
+        "old",
+        message_created_at=django_timezone.now() - timedelta(days=60),
     )
     active = get_active_channels(server, days=30)
     ids = {c.channel_id for c in active}
@@ -231,7 +253,7 @@ def test_get_active_channels_filters_by_days(channel, server):
 
 
 @pytest.mark.django_db
-def test_get_active_channels_allowlist_filter(server):
+def test_get_active_channels_allowlist_filter(server, author):
     """channel_ids allowlist pre-filters the queryset."""
     now = django_timezone.now()
     ch1 = DiscordChannel.objects.create(
@@ -239,15 +261,17 @@ def test_get_active_channels_allowlist_filter(server):
         channel_id=_uniq_id(),
         channel_name="allowed",
         channel_type="text",
-        last_activity_at=now,
     )
     ch2 = DiscordChannel.objects.create(
         server=server,
         channel_id=_uniq_id(),
         channel_name="blocked",
         channel_type="text",
-        last_activity_at=now,
     )
+    for ch in (ch1, ch2):
+        create_or_update_discord_message(
+            _uniq_id(), ch, author, "x", message_created_at=now
+        )
     result = get_active_channels(server, days=30, channel_ids=[ch1.channel_id])
     ids = {c.channel_id for c in result}
     assert ch1.channel_id in ids
@@ -255,7 +279,7 @@ def test_get_active_channels_allowlist_filter(server):
 
 
 @pytest.mark.django_db
-def test_get_active_channels_empty_allowlist_returns_all(server):
+def test_get_active_channels_empty_allowlist_returns_all(server, author):
     """Empty channel_ids means no filter — all active channels returned."""
     now = django_timezone.now()
     ch1 = DiscordChannel.objects.create(
@@ -263,15 +287,17 @@ def test_get_active_channels_empty_allowlist_returns_all(server):
         channel_id=_uniq_id(),
         channel_name="a",
         channel_type="text",
-        last_activity_at=now,
     )
     ch2 = DiscordChannel.objects.create(
         server=server,
         channel_id=_uniq_id(),
         channel_name="b",
         channel_type="text",
-        last_activity_at=now,
     )
+    for ch in (ch1, ch2):
+        create_or_update_discord_message(
+            _uniq_id(), ch, author, "x", message_created_at=now
+        )
     result = get_active_channels(server, days=30, channel_ids=None)
     ids = {c.channel_id for c in result}
     assert ch1.channel_id in ids

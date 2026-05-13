@@ -26,15 +26,34 @@ def ensure_aware_utc(dt: datetime | None) -> datetime | None:
     return dt.astimezone(timezone.utc)
 
 
+def parse_iso_datetime_lenient(raw: str | None) -> datetime | None:
+    """
+    Parse ISO-like date/datetime strings from APIs (GitHub, Discord, etc.).
+
+    Returns ``None`` for empty/whitespace input or on parse failure (logs at DEBUG).
+    ``Z`` is normalized to ``+00:00`` for :meth:`datetime.fromisoformat`. Preserves
+    timezone awareness when present (unlike :func:`parse_iso_datetime`, which returns
+    naive UTC).
+
+    :func:`parse_iso_datetime` delegates here for the actual parse, then applies
+    strict error handling and naive-UTC normalization.
+    """
+    if not raw or not str(raw).strip():
+        return None
+    s = str(raw).strip().replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(s)
+    except ValueError as e:
+        logger.debug("Failed to parse datetime %r: %s", s, e)
+        return None
+
+
 def parse_iso_datetime(raw: str | None) -> datetime | None:
     """
     Parse a date or datetime string using ``datetime.fromisoformat``.
 
-    Accepts common ISO-style forms (e.g. ``YYYY-MM-DD``, ``YYYY-MM-DDTHH:MM:SS``,
-    ``YYYY-MM-DD HH:MM:SS`` on Python 3.11+, optional fractional seconds and offsets).
-    If the string ends with ``Z`` and contains ``T``, ``Z`` is treated as UTC before parsing.
-
-    Empty or whitespace-only input returns ``None``.
+    Delegates to :func:`parse_iso_datetime_lenient` for parsing. Empty or
+    whitespace-only input returns ``None``.
 
     Raises:
         ValueError: If the string is non-empty but cannot be parsed.
@@ -45,34 +64,12 @@ def parse_iso_datetime(raw: str | None) -> datetime | None:
     if not raw or not str(raw).strip():
         return None
     s = str(raw).strip()
-    if s.endswith("Z") and "T" in s:
-        s = s[:-1] + "+00:00"
-    try:
-        dt = datetime.fromisoformat(s)
-    except ValueError as e:
-        raise ValueError(f"Invalid ISO datetime ({s!r}): {e}") from e
+    dt = parse_iso_datetime_lenient(raw)
+    if dt is None:
+        raise ValueError(f"Invalid ISO datetime ({s!r})")
     if dt.tzinfo:
         return dt.astimezone(timezone.utc).replace(tzinfo=None)
     return dt
-
-
-def parse_iso_datetime_lenient(raw: str | None) -> datetime | None:
-    """
-    Parse ISO-like date/datetime strings from APIs (GitHub, Discord, etc.).
-
-    Returns ``None`` for empty/whitespace input or on parse failure (logs at DEBUG).
-    ``Z`` is normalized to ``+00:00`` for :meth:`datetime.fromisoformat`. Preserves
-    timezone awareness when present (unlike :func:`parse_iso_datetime`, which returns
-    naive UTC).
-    """
-    if not raw or not str(raw).strip():
-        return None
-    s = str(raw).strip().replace("Z", "+00:00")
-    try:
-        return datetime.fromisoformat(s)
-    except ValueError as e:
-        logger.debug("Failed to parse datetime %r: %s", s, e)
-        return None
 
 
 def format_instant_iso_z(raw: str | None) -> str:

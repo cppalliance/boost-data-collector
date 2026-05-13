@@ -23,14 +23,12 @@ from django.core.management.base import CommandError
 
 from core.collectors.base import CollectorBase
 from core.collectors.command_base import BaseCollectorCommand
-from core.utils.datetime_parsing import parse_iso_datetime, parse_iso_datetime_lenient
+from core.utils.datetime_parsing import parse_iso_datetime
 from discord_activity_tracker.models import DiscordServer
 from discord_activity_tracker.pinecone_runner import task_discord_pinecone_sync
 from discord_activity_tracker.services import (
     get_or_create_discord_channel,
     get_or_create_discord_server,
-    update_channel_last_activity,
-    update_channel_last_synced,
 )
 from discord_activity_tracker.staging_schema import (
     validate_envelope,
@@ -360,20 +358,6 @@ class DiscordActivityCollector(CollectorBase):
         for idx, cmsg in enumerate(converted):
             validate_normalized_message(cmsg, source=f"message[{idx}]")
         count = await _process_messages_in_batches(channel, converted)
-
-        def finalize_exporter_channel_sync() -> None:
-            if converted:
-                parsed_times = [
-                    t
-                    for m in converted
-                    if (t := parse_iso_datetime_lenient(m.get("created_at")))
-                    is not None
-                ]
-                if parsed_times:
-                    update_channel_last_activity(channel, max(parsed_times))
-            update_channel_last_synced(channel)
-
-        await sync_to_async(finalize_exporter_channel_sync)()
         return count
 
 

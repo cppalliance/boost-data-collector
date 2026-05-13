@@ -36,8 +36,6 @@ class DiscordChannel(models.Model):
     category_name = models.CharField(max_length=255, blank=True)
     topic = models.TextField(blank=True)
     position = models.IntegerField(default=0)
-    last_synced_at = models.DateTimeField(null=True, blank=True, db_index=True)
-    last_activity_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -45,7 +43,6 @@ class DiscordChannel(models.Model):
         ordering = ["server", "position", "channel_name"]
         indexes = [
             models.Index(fields=["server", "channel_name"]),
-            models.Index(fields=["last_activity_at"]),
         ]
 
     def __str__(self):

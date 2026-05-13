@@ -7,7 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from django.utils import timezone as django_timezone
 
+from cppa_user_tracker.models import DiscordProfile
 from discord_activity_tracker.models import DiscordChannel, DiscordServer
+from discord_activity_tracker.services import create_or_update_discord_message
 from discord_activity_tracker.sync import messages as messages_mod
 from discord_activity_tracker.sync.messages import (
     _sync_all_channels_async,
@@ -68,8 +70,8 @@ def test_sync_channel_messages_async_since_date_branch():
     asyncio.run(main())
 
 
-@pytest.mark.django_db
-def test_sync_channel_messages_async_last_synced_branch():
+@pytest.mark.django_db(transaction=True)
+def test_sync_channel_messages_async_uses_latest_stored_message_for_after():
     gid = _uniq()
     cid = _uniq()
     server = DiscordServer.objects.create(server_id=gid, server_name="S", icon_url="")
@@ -78,13 +80,27 @@ def test_sync_channel_messages_async_last_synced_branch():
         channel_id=cid,
         channel_name="c",
         channel_type="text",
-        last_synced_at=django_timezone.now() - timedelta(hours=3),
+    )
+    author = DiscordProfile.objects.create(
+        discord_user_id=_uniq(),
+        username="u",
+        display_name="",
+        avatar_url="",
+        is_bot=False,
+    )
+    stored_ts = django_timezone.now() - timedelta(hours=3)
+    create_or_update_discord_message(
+        _uniq(), channel, author, "x", message_created_at=stored_ts
     )
 
     async def main():
         client = MagicMock()
-        client.get_channel = AsyncMock(return_value=None)
+        dch = MagicMock()
+        client.get_channel = AsyncMock(return_value=dch)
+        client.fetch_messages_since = AsyncMock(return_value=[])
         await sync_channel_messages_async(client, channel, gid)
+        client.fetch_messages_since.assert_awaited_once()
+        assert client.fetch_messages_since.await_args.kwargs["after"] == stored_ts
 
     asyncio.run(main())
 
@@ -102,13 +118,18 @@ def test_sync_channel_messages_async_default_window(monkeypatch):
         channel_id=cid,
         channel_name="c",
         channel_type="text",
-        last_synced_at=None,
     )
 
     async def main():
         client = MagicMock()
-        client.get_channel = AsyncMock(return_value=None)
+        dch = MagicMock()
+        client.get_channel = AsyncMock(return_value=dch)
+        client.fetch_messages_since = AsyncMock(return_value=[])
         await sync_channel_messages_async(client, channel, gid)
+        client.fetch_messages_since.assert_awaited_once()
+        assert client.fetch_messages_since.await_args.kwargs[
+            "after"
+        ] == fixed_now - timedelta(days=30)
 
     asyncio.run(main())
 

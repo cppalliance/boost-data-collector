@@ -9,6 +9,7 @@ import pytest
 from django.utils import timezone as django_timezone
 
 from cppa_user_tracker.services import get_or_create_discord_profile
+from cppa_user_tracker.models import DiscordProfile
 from discord_activity_tracker.models import DiscordChannel, DiscordServer
 from discord_activity_tracker.services import (
     add_or_update_reaction,
@@ -383,30 +384,6 @@ def test_process_message_data_swallows_inner_errors():
     asyncio.run(main())
 
 
-def _sync_to_async_updates_only():
-    def router(fn):
-        if fn.__name__ == "update_channel_last_synced":
-
-            async def inner(ch):
-                ch.last_synced_at = django_timezone.now()
-                return ch
-
-            return inner
-        if fn.__name__ == "update_channel_last_activity":
-
-            async def inner(_ch, _ts):
-                return None
-
-            return inner
-
-        return asgiref_sync_to_async(fn, thread_sensitive=True)
-
-    return patch(
-        "discord_activity_tracker.sync.messages.sync_to_async",
-        side_effect=router,
-    )
-
-
 @pytest.mark.django_db
 def test_sync_channel_messages_async_full_sync():
     gid = _uniq_id()
@@ -420,6 +397,8 @@ def test_sync_channel_messages_async_full_sync():
         channel_type="text",
     )
 
+    holder = {}
+
     async def main():
         client = MagicMock()
         dch = MagicMock()
@@ -429,20 +408,18 @@ def test_sync_channel_messages_async_full_sync():
         msg = _sample_api_message(mid=_uniq_id(), uid=author_uid)
         client.fetch_messages_since = AsyncMock(return_value=[msg])
 
-        with (
-            patch.object(
-                messages_mod,
-                "_process_messages_in_batches",
-                new_callable=AsyncMock,
-                return_value=1,
-            ),
-            _sync_to_async_updates_only(),
+        with patch.object(
+            messages_mod,
+            "_process_messages_in_batches",
+            new_callable=AsyncMock,
+            return_value=1,
         ):
             await sync_channel_messages_async(client, channel, gid, full_sync=True)
+        holder["client"] = client
 
     asyncio.run(main())
 
-    assert channel.last_synced_at is not None
+    assert holder["client"].fetch_messages_since.await_args.kwargs["after"] is None
 
 
 @pytest.mark.django_db
@@ -457,15 +434,17 @@ def test_sync_channel_messages_async_no_discord_channel():
         channel_type="text",
     )
 
+    holder = {}
+
     async def main():
         client = MagicMock()
         client.get_channel = AsyncMock(return_value=None)
+        holder["client"] = client
         await sync_channel_messages_async(client, channel, gid)
 
     asyncio.run(main())
 
-    channel.refresh_from_db()
-    assert channel.last_synced_at is None
+    assert not holder["client"].fetch_messages_since.called
 
 
 @pytest.mark.django_db
@@ -599,19 +578,38 @@ def test_sync_all_channels_respects_active_filter():
     cid_active = _uniq_id()
     cid_stale = _uniq_id()
     server = DiscordServer.objects.create(server_id=gid, server_name="S", icon_url="")
+    author = DiscordProfile.objects.create(
+        discord_user_id=_uniq_id(),
+        username="u",
+        display_name="",
+        avatar_url="",
+        is_bot=False,
+    )
     active_ch = DiscordChannel.objects.create(
         server=server,
         channel_id=cid_active,
         channel_name="active",
         channel_type="text",
-        last_activity_at=now,
     )
-    DiscordChannel.objects.create(
+    stale_ch = DiscordChannel.objects.create(
         server=server,
         channel_id=cid_stale,
         channel_name="stale",
         channel_type="text",
-        last_activity_at=now - timedelta(days=90),
+    )
+    create_or_update_discord_message(
+        _uniq_id(),
+        active_ch,
+        author,
+        "recent",
+        message_created_at=now,
+    )
+    create_or_update_discord_message(
+        _uniq_id(),
+        stale_ch,
+        author,
+        "old",
+        message_created_at=now - timedelta(days=90),
     )
 
     channels_snapshot = list(DiscordChannel.objects.filter(server=server))
@@ -672,7 +670,6 @@ def test_sync_all_channels_full_sync_no_active_filter():
         channel_id=cid,
         channel_name="c",
         channel_type="text",
-        last_activity_at=None,
     )
 
     channels_snapshot = list(DiscordChannel.objects.filter(server=server))
