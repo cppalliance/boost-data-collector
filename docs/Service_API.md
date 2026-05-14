@@ -42,6 +42,8 @@ Some service functions validate arguments and raise before writing:
   - `get_or_create_boost_library(repo, name)`, `get_or_create_boost_version(version)`, `get_or_create_boost_library_category(name)` – Raise **`ValueError`** if name/version is empty or whitespace-only.
 - **boost_library_docs_tracker.services**
   - `get_or_create_doc_content(url, ...)` – Raises **`ValueError`** if `url` is empty or whitespace-only.
+- **discord_activity_tracker.services**
+  - No intentional **`ValueError`** on invalid inputs; bulk helpers may **skip** rows and log warnings (see [discord_activity_tracker.md](service_api/discord_activity_tracker.md#raises-and-edge-behavior)). **`CollectorFailureCategory`** is not set in this module; see [discord_activity_tracker.md](service_api/discord_activity_tracker.md#collectorfailurecategory).
 
 See each app’s doc in [service_api/](service_api/) for parameter types, return types, and any **Raises** section.
 

@@ -140,7 +140,8 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
 
     ``requests.HTTPError`` with ``response.status_code`` 429 maps to
     :attr:`CollectorFailureCategory.RATE_LIMIT`; 401 and 403 map to
-    :attr:`CollectorFailureCategory.AUTH`. Other cases stay conservative.
+    :attr:`CollectorFailureCategory.AUTH`. ``discord.errors.HTTPException``
+    with ``status`` is classified similarly when discord.py is in use.
     """
     # Django / app
     try:
@@ -190,6 +191,24 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
             return CollectorFailureCategory.TIMEOUT
         if "HTTPStatus" in exc_name or "Transport" in exc_name or "Connect" in exc_name:
             return CollectorFailureCategory.NETWORK
+
+    # discord.py (optional dependency): HTTPException and subclasses expose ``status``.
+    if exc_mod.startswith("discord"):
+        status = getattr(exc, "status", None)
+        if isinstance(status, int):
+            if status == 429:
+                return CollectorFailureCategory.RATE_LIMIT
+            if status in (401, 403):
+                return CollectorFailureCategory.AUTH
+            if 500 <= status < 600:
+                return CollectorFailureCategory.NETWORK
+            if 400 <= status < 500:
+                return CollectorFailureCategory.UNKNOWN
+            return CollectorFailureCategory.NETWORK
+        if exc_name == "HTTPException":
+            return CollectorFailureCategory.NETWORK
+        if exc_name in ("LoginFailure", "PrivilegedIntentsRequired", "ClientException"):
+            return CollectorFailureCategory.AUTH
 
     if isinstance(exc, OSError):
         return _classify_os_error(exc)

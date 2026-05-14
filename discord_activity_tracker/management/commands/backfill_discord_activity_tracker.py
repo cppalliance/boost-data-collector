@@ -1,10 +1,26 @@
-"""Import pre-exported Discord JSON from disk → DB → optional Pinecone sync.
+"""Django management command ``backfill_discord_activity_tracker``.
 
-Reads DiscordChatExporter JSON files under
-``workspace/discord_activity_tracker/Discussion - c-cpp-discussion/``
-(recursively, including nested subfolders),
-persists messages to the database, then deletes each file after a successful import
-so it is not processed again.
+Imports **pre-exported** DiscordChatExporter JSON from the workspace drop folder
+(``workspace/discord_activity_tracker/Discussion - c-cpp-discussion/``,
+recursively), validates envelope and normalized messages, upserts into the database
+via the service layer, then **deletes** each file after a successful import so it is
+not processed again.
+
+This command does **not** invoke DiscordChatExporter; place JSON exports in the drop
+folder manually or from another host.
+
+Optional arguments: ``--dry-run`` (list files only), ``--skip-pinecone`` /
+``--ignore-pinecone`` (skip ``task_discord_pinecone_sync`` after import). See
+``Command.add_arguments`` and ``docs/service_api/discord_activity_tracker.md``.
+
+Side effects: DB writes to ``DiscordServer``, ``DiscordChannel``, ``DiscordMessage``,
+``DiscordReaction``, and ``DiscordProfile`` (via services); filesystem deletes on
+success; Pinecone sync when enabled.
+
+Raises:
+    Per-file parse/validation failures are caught inside ``DiscordBackfillCollector.run``
+    (logged and reported on stdout); they do not abort the whole command. Uncaught
+    exceptions from ``sync_pinecone`` or the base command layer may still propagate.
 """
 
 from __future__ import annotations
@@ -48,7 +64,18 @@ def _json_display_path(import_dir: Path, json_path: Path) -> str:
 
 
 class DiscordBackfillCollector(CollectorBase):
-    """Import DiscordChatExporter JSON files from the c-cpp-discussion drop folder."""
+    """Backfill collector: scan drop folder, import each JSON, delete on success.
+
+    ``run()`` lists JSON under ``get_cpp_discussion_import_dir()``, optionally
+    dry-run prints paths, else for each file parses, validates staging schema,
+    upserts messages in batches, unlinks the file on success, or logs failure and
+    keeps the file.
+
+    ``sync_pinecone()`` runs after a successful collector run (unless dry-run or
+    ``skip_pinecone``).
+
+    Side effects: Same as module docstring (DB, deletes, optional Pinecone).
+    """
 
     def __init__(self, *, stdout, style, **opts: Any) -> None:
         self.stdout = stdout
@@ -152,6 +179,28 @@ class DiscordBackfillCollector(CollectorBase):
 
 
 class Command(BaseCollectorCommand):
+    """``manage.py backfill_discord_activity_tracker`` — import JSON from the drop folder.
+
+    Uses ``DiscordBackfillCollector``. Required layout: JSON files under
+    ``{WORKSPACE_DIR}/discord_activity_tracker/Discussion - c-cpp-discussion/``.
+
+    Optional arguments: ``--dry-run``, ``--skip-pinecone`` / ``--ignore-pinecone``.
+
+    Examples:
+        ``python manage.py backfill_discord_activity_tracker``
+
+        ``python manage.py backfill_discord_activity_tracker --dry-run``
+
+        ``python manage.py backfill_discord_activity_tracker --skip-pinecone``
+
+    Raises:
+        Per-file errors are swallowed in the collector loop; see class docstring.
+        Base command / Pinecone task may raise if misconfigured.
+
+    See Also:
+        ``docs/service_api/discord_activity_tracker.md``
+    """
+
     help = (
         "Import DiscordChatExporter JSON from "
         "workspace/discord_activity_tracker/Discussion - c-cpp-discussion/ "
