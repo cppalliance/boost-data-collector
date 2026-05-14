@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -98,10 +99,33 @@ def test_pyright_positive_protocol_assignment_file() -> None:
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
-def test_pyright_negative_protocol_assignment_file() -> None:
-    path = _TYPING_DIR / "protocol_assignment_negative.py"
+def test_pyright_negative_protocol_assignment_file(tmp_path: Path) -> None:
+    """Run Pyright in an isolated project so root ``pyrightconfig`` excludes do not skip the file."""
+    src = _TYPING_DIR / "protocol_assignment_negative.py"
+    dest = tmp_path / "protocol_assignment_negative.py"
+    dest.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+    cfg_path = tmp_path / "pyrightconfig.json"
+    cfg_path.write_text(
+        json.dumps(
+            {
+                "include": ["protocol_assignment_negative.py"],
+                "exclude": [],
+                "pythonVersion": "3.11",
+                "typeCheckingMode": "basic",
+                "reportMissingImports": True,
+                "stubPath": "",
+                "executionEnvironments": [
+                    {
+                        "root": str(tmp_path.resolve()),
+                        "extraPaths": [str(_REPO_ROOT.resolve())],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     proc = subprocess.run(
-        [sys.executable, "-m", "pyright", str(path)],
+        [sys.executable, "-m", "pyright", "--project", str(tmp_path)],
         cwd=_REPO_ROOT,
         capture_output=True,
         text=True,

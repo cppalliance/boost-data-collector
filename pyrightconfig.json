@@ -5,6 +5,7 @@
     "**/migrations/**",
     "**/__pycache__/**",
     "**/tests/**",
+    "core/pyright_samples/**",
     "**/._*",
     "**/.___*"
   ],

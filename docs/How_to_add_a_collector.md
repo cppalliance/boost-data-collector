@@ -285,7 +285,7 @@ def test_run_my_skeleton_tracker_command_integration():
 ## 6. Tests
 
 - Add tests under `<app>/tests/`; keep exit codes and boundaries mockable.
-- Run `python -m pytest` locally; CI runs with `DATABASE_URL` pointing at Postgres (see [README.md](../README.md#running-tests) for local Postgres parity).
+- Run `python -m pytest` locally; CI runs **lint** (pre-commit), **Pyright**, and **test** (pytest with Postgres and coverage); see [README.md](../README.md#running-tests) for local Postgres parity and `uv run pyright` for typing.
 
 ## 7. Docs
 

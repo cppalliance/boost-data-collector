@@ -34,7 +34,7 @@ Structural contracts for **data** that crosses tracker layers (sync outcomes, ac
 
 Implementations are frozen dataclasses in each tracker app (for example `github_activity_tracker.protocol_impl`, `discord_activity_tracker.protocol_impl`). Prefer dataclasses over plain `dict` for reliable `isinstance` checks with `@runtime_checkable`.
 
-**Local static check:** with dev dependencies installed (`requirements-dev.lock`), from the repo root run `python -m pyright` (optionally scoped to `core/pyright_samples/` snippet files). Pyright is not required in CI for this repository.
+**Local static check:** with dev dependencies installed (`requirements-dev.lock`), from the repo root run **`uv run pyright`** (same as the **`pyright`** job in [`.github/workflows/actions.yml`](../.github/workflows/actions.yml)). Root **`pyrightconfig.json`** scopes analysis to `core`, `github_activity_tracker`, and `discord_activity_tracker` and excludes **`core/pyright_samples/**`** from that run; **`core/tests/test_protocols.py`** still exercises positive/negative protocol assignment snippets via subprocess.
 
 ## Reducing coupling
 

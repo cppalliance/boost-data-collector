@@ -453,7 +453,7 @@ def _export_guild_sequential(
     before_date: Optional[datetime],
     include_threads: str,
     channel_ids: Optional[Sequence[int]],
-) -> List[Path]:
+) -> None:
     logger.info(
         "DiscordChatExporter sequential mode (DISCORD_CHAT_EXPORTER_SEQUENTIAL_EXPORT)"
     )
