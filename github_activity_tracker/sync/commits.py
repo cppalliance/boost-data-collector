@@ -117,10 +117,10 @@ def _process_commit_data(repo: GitHubRepository, commit_data: dict) -> None:
         account, _ = get_or_create_unknown_github_account(name=name, email=email)
 
     commit_hash_raw = commit_data.get("sha")
-    if not isinstance(commit_hash_raw, str) or not commit_hash_raw:
+    if not isinstance(commit_hash_raw, str) or not commit_hash_raw.strip():
         logger.warning("Commit payload missing sha; skipping")
         return
-    commit_hash = commit_hash_raw
+    commit_hash = commit_hash_raw.strip()
     comment = commit_data.get("commit", {}).get("message", "")
     commit_date_str = commit_data.get("commit", {}).get("author", {}).get(
         "date"
@@ -171,9 +171,10 @@ def _process_big_commit_worker(owner: str, repo_name: str, commit_data: dict) ->
     """
     try:
         sha = commit_data.get("sha")
-        if not isinstance(sha, str) or not sha:
+        if not isinstance(sha, str) or not sha.strip():
             logger.warning("Big commit payload missing sha; skipping worker")
             return
+        sha = sha.strip()
         logger.info(
             "Processing big commit %s/%s:%s in background",
             owner,
@@ -229,9 +230,10 @@ def _process_big_commit_worker(owner: str, repo_name: str, commit_data: dict) ->
         # Write original commit data (with 300 files) so we don't lose the commit
         try:
             sha_fallback = commit_data.get("sha")
-            if not isinstance(sha_fallback, str) or not sha_fallback:
+            if not isinstance(sha_fallback, str) or not sha_fallback.strip():
                 logger.error("Cannot write fallback JSON: missing sha")
                 return
+            sha_fallback = sha_fallback.strip()
             json_path = get_commit_json_path(owner, repo_name, sha_fallback)
             json_path.parent.mkdir(parents=True, exist_ok=True)
             json_path.write_text(
@@ -304,8 +306,9 @@ def sync_commits(
                 client, owner, repo_name, start_date, end_date, etag_cache=etag_cache
             ):
                 sha = commit_data.get("sha")
-                if not sha:
+                if not isinstance(sha, str) or not sha.strip():
                     continue
+                sha = sha.strip()
 
                 # Check if commit is truncated (300 files = possible truncation)
                 is_truncated = big_commit.is_commit_truncated(commit_data)

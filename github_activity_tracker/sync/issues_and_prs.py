@@ -74,8 +74,16 @@ def _process_issue_data(repo: GitHubRepository, issue_data: dict) -> None:
             issue_id_raw,
         )
         return
-    issue_number = int(issue_number_raw)
-    issue_id = int(issue_id_raw)
+    try:
+        issue_number = int(issue_number_raw)
+        issue_id = int(issue_id_raw)
+    except (TypeError, ValueError):
+        logger.warning(
+            "Issue number/id not numeric; skipping (got number=%r id=%r)",
+            issue_number_raw,
+            issue_id_raw,
+        )
+        return
 
     issue_obj, _ = services.create_or_update_issue(
         repo=repo,
@@ -196,8 +204,16 @@ def _process_pr_data(repo: GitHubRepository, pr_data: dict) -> None:
             pr_id_raw,
         )
         return
-    pr_number = int(pr_number_raw)
-    pr_id = int(pr_id_raw)
+    try:
+        pr_number = int(pr_number_raw)
+        pr_id = int(pr_id_raw)
+    except (TypeError, ValueError):
+        logger.warning(
+            "PR number/id not numeric; skipping (got number=%r id=%r)",
+            pr_number_raw,
+            pr_id_raw,
+        )
+        return
 
     pr_obj, _ = services.create_or_update_pull_request(
         repo=repo,

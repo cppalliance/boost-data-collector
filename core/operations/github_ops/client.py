@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import math
 import re
 import time
 from email.utils import parsedate_to_datetime
@@ -134,7 +135,7 @@ class GitHubAPIClient:
                         dt = dt.replace(tzinfo=timezone.utc)
                     wait = (dt - datetime.now(timezone.utc)).total_seconds()
                     if wait > 0:
-                        return int(wait)
+                        return math.ceil(wait)
                 except (ValueError, TypeError):
                     pass
         # Retry-After missing or did not yield a positive delay; try X-RateLimit-*.
