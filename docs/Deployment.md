@@ -39,7 +39,7 @@ In each environment (**production** and **staging**), add the following **Enviro
 | Secret | Description |
 |--------|-------------|
 | `SSH_HOST` | IP address or hostname of the server |
-| `SSH_USER` | SSH username (e.g. `gcp-cppdigest`) |
+| `SSH_USER` | SSH username (e.g. `gcp-cppalliance`) |
 | `SSH_PRIVATE_KEY` | SSH private key (full content, including header/footer) |
 | `SSH_PORT` | SSH port (optional, defaults to `22`) |
 | `SSH_KEY_PASSPHRASE` | Passphrase for the SSH private key (optional; only if the key is passphrase-protected) |
@@ -69,6 +69,26 @@ Docker and Docker Compose are also required. Refer to the [official Docker docs]
 
 ---
 
+## Server SSH key for GitHub
+
+The account that runs `git pull` on the server (same as `SSH_USER` in GitHub Actions) needs a key **on the server** that GitHub accepts for `git@github.com:cppalliance/boost-data-collector.git`. This is separate from the **`SSH_PRIVATE_KEY`** GitHub stores to log *into* the server.
+
+1. Install the private key under a dedicated name (example: `~/.ssh/id_ed25519_github`) and the matching `.pub` next to it. You can copy it from your workstation with `scp` (path to the key on your machine → `user@server:~/.ssh/...`).
+2. `~/.ssh/config`:
+
+```sshconfig
+Host github.com
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519_github
+    IdentitiesOnly yes
+```
+
+3. Restrict permissions: `chmod 700 ~/.ssh`, `chmod 600 ~/.ssh/id_ed25519_github ~/.ssh/config`, `chmod 644 ~/.ssh/id_ed25519_github.pub`.
+4. Verify: `ssh -T git@github.com` (expect a GitHub success / username message).
+
+---
+
 ## One-Time Server Setup
 
 ### 1. Create the `.env` file (two-step process)
@@ -81,16 +101,30 @@ Push to `main` or `develop` (or re-run the Deploy workflow). The script will clo
 
 **Step 2 — Add `.env` on the server**
 
-SSH into the server as the same user GitHub Actions uses (e.g. `gcp-cppdigest`) and create the file inside the cloned directory. Use `.env.example` as a reference.
+SSH into the server as the same user GitHub Actions uses (e.g. `gcp-cppalliance`) and create the file inside the cloned directory:
+
+```bash
+cp .env.example .env
+# edit .env
+```
+
+Also copy and edit the Celery beat schedule template:
+
+```bash
+cp config/boost_collector_schedule.yaml.example config/boost_collector_schedule.yaml
+# edit config/boost_collector_schedule.yaml
+```
+
+Use `.env.example` and the YAML example as references for required variables and schedule entries.
 
 If you create or edit `.env` with `sudo` (e.g. `sudo nano`), the file is often owned by **root** with mode `600`. **Docker Compose reads `.env` as the user running `make build` / `make up`** (your deploy user), which causes `permission denied`. Fix ownership after saving:
 
 ```bash
-sudo chown gcp-cppdigest:gcp-cppdigest /opt/boost-data-collector/.env
+sudo chown gcp-cppalliance:gcp-cppalliance /opt/boost-data-collector/.env
 sudo chmod 600 /opt/boost-data-collector/.env
 ```
 
-(Replace `gcp-cppdigest` with your actual `SSH_USER` if different.)
+(Replace `gcp-cppalliance` with your actual `SSH_USER` if different.)
 
 **Step 3 — Run deploy again**
 
@@ -146,12 +180,23 @@ gcloud storage rsync /opt/boost-data-collector/workspace gs://bdc-backups/worksp
 
 ### Repository checkout and permissions
 
-The deploy user (e.g. `gcp-cppdigest`) should own the app tree under `/opt/boost-data-collector` so `git`, `make`, and Docker Compose can run without sudo.
+The deploy user (e.g. `gcp-cppalliance`) should own the app tree under `/opt/boost-data-collector` so `git`, `make`, and Docker Compose can run without sudo.
+
+If you are **not** relying on the first CI deploy to create the directory, prepare the tree manually (after [Server SSH key for GitHub](#server-ssh-key-for-github) is working), for example:
+
+```bash
+sudo mkdir -p /opt/boost-data-collector
+sudo chown -R "$USER:$USER" /opt/boost-data-collector
+cd /opt/boost-data-collector
+git clone -b develop git@github.com:cppalliance/boost-data-collector.git .
+```
+
+(`develop` matches the staging branch described above; use `main` for a production-only checkout if you prefer.)
 
 If the tree was created as root, normalize ownership:
 
 ```bash
-sudo chown -R gcp-cppdigest:gcp-cppdigest /opt/boost-data-collector
+sudo chown -R gcp-cppalliance:gcp-cppalliance /opt/boost-data-collector
 ```
 
 Docker bind mounts for `staticfiles` (and optionally a host `workspace` directory if you use one) must be readable/writable by the **UID used inside the image** for the app process (commonly `1000`). Example:
@@ -174,10 +219,11 @@ Create the application role and database **once** (use a strong password; the ex
 sudo -u postgres psql
 ```
 
-In the `psql` session:
+In the `psql` session (as superuser, e.g. `postgres`):
 
 ```sql
 CREATE ROLE bdc WITH LOGIN PASSWORD 'REPLACE_WITH_STRONG_PASSWORD';
+-- equivalent: CREATE USER bdc WITH PASSWORD 'REPLACE_WITH_STRONG_PASSWORD';
 DROP DATABASE IF EXISTS boost_dashboard;
 CREATE DATABASE boost_dashboard OWNER bdc;
 GRANT ALL PRIVILEGES ON DATABASE boost_dashboard TO bdc;
@@ -187,7 +233,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO bdc;
 CREATE ROLE app_readonly NOLOGIN;
 ```
 
-Run these statements as a superuser (e.g. `postgres`). The app role does not need `CREATEDB`; the database is created explicitly above. If you need a separate migration-only user with broader rights, create that role separately.
+The app role does not need `CREATEDB`; the database is created explicitly above. If you need a separate migration-only user with broader rights, create that role separately.
 
 If your dump replays `GRANT … TO app_readonly`, the `app_readonly` role must exist before restore (as above).
 
@@ -221,7 +267,7 @@ Backups produced with `pg_dump -Fc` are **not** plain SQL. Restore with **`pg_re
 
 **Where to put the dump file**
 
-- The **`postgres`** OS user must be able to read the file. Placing it under **`/tmp/`** with world-readable permissions (e.g. `644`) during restore is typical.
+- Whoever runs `pg_restore` must be able to read the file: the **`postgres`** OS user when using `sudo -u postgres …`, or your normal login when using the **`bdc`** / `127.0.0.1` example below. Placing the dump under **`/tmp/`** with world-readable permissions (e.g. `644`) during restore is typical.
 
 **Prefer Unix socket for superuser restore**
 
@@ -234,7 +280,17 @@ sudo -u postgres pg_restore -h /var/run/postgresql -p 5432 -U postgres \
   /tmp/boost-data-collector-db-2026-03-25.dump
 ```
 
-**After restore — privileges for the app user:** Restore as `postgres` leaves **`public` tables owned by `postgres`**; DB owner `bdc` still has **no table rights** until you `GRANT` (empty `role_table_grants` for `bdc` is expected). Grants to other roles in the dump (e.g. `app_readonly`) do not apply to `bdc`.
+**Alternative: restore as `bdc` over TCP (`127.0.0.1`)**
+
+If `pg_hba.conf` allows `bdc` from **`127.0.0.1/32`** (password / `scram-sha-256`), you can run `pg_restore` as a normal user instead of `sudo -u postgres`:
+
+```bash
+pg_restore -h 127.0.0.1 -U bdc -d boost_dashboard --verbose /tmp/bdc-20260514.dump
+```
+
+Adjust the dump path as needed. You are prompted for `bdc`'s password unless you use **`PGPASSWORD`** or **`~/.pgpass`**. Add **`--clean --if-exists`** if you want the restore to drop existing objects first (match your dump and risk tolerance).
+
+**After restore — privileges for the app user:** If you restored **as `postgres`** (or another superuser), **`public` tables may remain owned by `postgres`**; DB owner `bdc` still has **no table rights** until you `GRANT` (empty `role_table_grants` for `bdc` is expected). Grants to other roles in the dump (e.g. `app_readonly`) do not apply to `bdc`. If you restored **as `bdc`** and objects are already owned by `bdc`, you may not need the grants—verify if the app reports permission errors.
 
 1. As superuser: `\c boost_dashboard`, then run (adjust role name if not `bdc`):
 
@@ -274,7 +330,7 @@ make up
 make health  # optional smoke checks (see Makefile)
 ```
 
-The deploy script runs `make down`, `make build`, `make up`, then polls `make health`.
+CI uses the same targets in a fixed order (`make down` first); see [Deploy Script Behavior](#deploy-script-behavior).
 
 ### nginx reverse proxy
 
@@ -362,7 +418,7 @@ Reload nginx after testing config (`sudo nginx -t && sudo systemctl reload nginx
 **Selenium (port 4444)** is bound to **`127.0.0.1:4444`** in Compose so it is not exposed on the public interface. Access from your laptop via **SSH port forwarding** if you need the hub from outside the VM:
 
 ```bash
-ssh -L 4444:127.0.0.1:4444 gcp-cppdigest@YOUR_VM_IP
+ssh -L 4444:127.0.0.1:4444 gcp-cppalliance@YOUR_VM_IP
 ```
 
 ---
@@ -394,12 +450,7 @@ When secrets or config values change, SSH into the server and edit the file dire
 nano /opt/boost-data-collector/.env
 ```
 
-Ensure the deploy user still owns the file if you used `sudo` to edit:
-
-```bash
-sudo chown gcp-cppdigest:gcp-cppdigest /opt/boost-data-collector/.env
-sudo chmod 600 /opt/boost-data-collector/.env
-```
+If you saved with `sudo`, fix ownership and mode for the deploy user as in [Step 2 — Add `.env` on the server](#1-create-the-env-file-two-step-process).
 
 Then restart the containers to pick up the new values:
 
