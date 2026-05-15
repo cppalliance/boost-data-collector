@@ -104,13 +104,9 @@ Push to `main` or `develop` (or re-run the Deploy workflow). The script will clo
 SSH into the server as the same user GitHub Actions uses (e.g. `gcp-cppalliance`) and create the file inside the cloned directory:
 
 ```bash
+cd /opt/boost-data-collector
 cp .env.example .env
 # edit .env
-```
-
-Also copy and edit the Celery beat schedule template:
-
-```bash
 cp config/boost_collector_schedule.yaml.example config/boost_collector_schedule.yaml
 # edit config/boost_collector_schedule.yaml
 ```
@@ -267,7 +263,8 @@ Backups produced with `pg_dump -Fc` are **not** plain SQL. Restore with **`pg_re
 
 **Where to put the dump file**
 
-- Whoever runs `pg_restore` must be able to read the file: the **`postgres`** OS user when using `sudo -u postgres …`, or your normal login when using the **`bdc`** / `127.0.0.1` example below. Placing the dump under **`/tmp/`** with world-readable permissions (e.g. `644`) during restore is typical.
+- Whoever runs **`pg_restore`** must be able to read the dump: the **`postgres`** OS user when using `sudo -u postgres …`, or the account you use when restoring as **`bdc`** over **`127.0.0.1`** below. **Do not** make backups world-readable (e.g. **`644`** on a shared host): other local users could read sensitive data. Use least privilege instead: **`chmod 600`** (or tighter) and **`chown`** the file to match the restoring account (`postgres` vs your login). Prefer a **private directory** (your `$HOME`, a root-only path such as `/root/…`, or **`/var/lib/postgresql/…`** when only `postgres` should read it) over **`/tmp/`** unless you keep **`600`** and tight ownership there too.
+- To avoid **`postgres`** needing filesystem access to the path, you can stream from an account that already owns a **`600`** dump: **`cat /path/to/dump | sudo -u postgres pg_restore -h /var/run/postgresql -p 5432 -U postgres --verbose --clean --if-exists -d boost_dashboard -`**. Use the same idea without **`sudo`** when you run **`pg_restore`** as **`bdc`**.
 
 **Prefer Unix socket for superuser restore**
 
@@ -277,7 +274,7 @@ Backups produced with `pg_dump -Fc` are **not** plain SQL. Restore with **`pg_re
 sudo -u postgres pg_restore -h /var/run/postgresql -p 5432 -U postgres \
   --verbose --clean --if-exists \
   -d boost_dashboard \
-  /tmp/boost-data-collector-db-2026-03-25.dump
+  /var/lib/postgresql/boost-data-collector-db-2026-03-25.dump
 ```
 
 **Alternative: restore as `bdc` over TCP (`127.0.0.1`)**
@@ -285,10 +282,10 @@ sudo -u postgres pg_restore -h /var/run/postgresql -p 5432 -U postgres \
 If `pg_hba.conf` allows `bdc` from **`127.0.0.1/32`** (password / `scram-sha-256`), you can run `pg_restore` as a normal user instead of `sudo -u postgres`:
 
 ```bash
-pg_restore -h 127.0.0.1 -U bdc -d boost_dashboard --verbose /tmp/bdc-20260514.dump
+pg_restore -h 127.0.0.1 -U bdc -d boost_dashboard --verbose ~/bdc-20260514.dump
 ```
 
-Adjust the dump path as needed. You are prompted for `bdc`'s password unless you use **`PGPASSWORD`** or **`~/.pgpass`**. Add **`--clean --if-exists`** if you want the restore to drop existing objects first (match your dump and risk tolerance).
+Adjust the dump path as needed; set ownership and **`chmod 600`** on the file to match whoever runs **`pg_restore`**. You are prompted for `bdc`'s password unless you use **`PGPASSWORD`** or **`~/.pgpass`**. Add **`--clean --if-exists`** if you want the restore to drop existing objects first (match your dump and risk tolerance).
 
 **After restore — privileges for the app user:** If you restored **as `postgres`** (or another superuser), **`public` tables may remain owned by `postgres`**; DB owner `bdc` still has **no table rights** until you `GRANT` (empty `role_table_grants` for `bdc` is expected). Grants to other roles in the dump (e.g. `app_readonly`) do not apply to `bdc`. If you restored **as `bdc`** and objects are already owned by `bdc`, you may not need the grants—verify if the app reports permission errors.
 
