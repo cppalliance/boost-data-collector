@@ -24,6 +24,7 @@ from typing import Optional
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
+from django.core.management.base import CommandError
 
 from core.collectors import AbstractCollector, BaseCollectorCommand
 from django.utils.dateparse import parse_datetime
@@ -419,7 +420,46 @@ class CppaYoutubeScriptTrackerCollector(AbstractCollector):
         return "cppa_youtube_script_tracker"
 
     def validate_config(self) -> None:
-        return None
+        o = self.options
+        start_time_arg = (o.get("start_time") or "").strip()
+        end_time_arg = (o.get("end_time") or "").strip()
+
+        start_dt: Optional[datetime] = None
+        if start_time_arg:
+            parsed = parse_datetime(start_time_arg)
+            if not parsed:
+                raise CommandError(
+                    "--start-time must be a valid ISO 8601 datetime "
+                    "(for example 2024-01-01T12:00:00Z)."
+                )
+            start_dt = (
+                parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+            )
+
+        end_dt: Optional[datetime] = None
+        if end_time_arg:
+            parsed = parse_datetime(end_time_arg)
+            if not parsed:
+                raise CommandError(
+                    "--end-time must be a valid ISO 8601 datetime "
+                    "(for example 2024-01-01T12:00:00Z)."
+                )
+            end_dt = (
+                parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+            )
+
+        if start_dt is not None and end_dt is not None and start_dt > end_dt:
+            raise CommandError(
+                "--start-time must be earlier than or equal to --end-time."
+            )
+
+        if start_dt is not None and end_dt is None:
+            effective_end = datetime.now(tz=timezone.utc)
+            if start_dt > effective_end:
+                raise CommandError(
+                    "--start-time must not be later than the effective end time "
+                    "(when --end-time is omitted, the end is the current UTC time)."
+                )
 
     def collect(self) -> None:
         o = self.options

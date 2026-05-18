@@ -9,7 +9,10 @@ from django.conf import settings
 from django.core.management.base import CommandError
 
 from core.collectors import AbstractCollector
-from wg21_paper_tracker.pipeline import run_tracker_pipeline
+from wg21_paper_tracker.pipeline import (
+    _normalize_mailing_date_label,
+    run_tracker_pipeline,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +71,41 @@ class Wg21PaperTrackerCollector(AbstractCollector):
         return "wg21_paper_tracker"
 
     def validate_config(self) -> None:
-        return None
+        def _validated_bound(
+            value: str, *, field_for_normalize: str, cli_flag: str
+        ) -> str:
+            try:
+                normalized = _normalize_mailing_date_label(
+                    value, field_name=field_for_normalize
+                )
+            except ValueError as e:
+                raise CommandError(str(e)) from e
+            month = int(normalized[5:7])
+            if month < 1 or month > 12:
+                raise CommandError(
+                    f"Invalid --{cli_flag} {value!r}; month must be 01-12 (YYYY-MM)."
+                )
+            return normalized
+
+        from_norm: str | None = None
+        if self.from_date:
+            from_norm = _validated_bound(
+                self.from_date,
+                field_for_normalize="from_mailing_date",
+                cli_flag="from-date",
+            )
+        to_norm: str | None = None
+        if self.to_date:
+            to_norm = _validated_bound(
+                self.to_date,
+                field_for_normalize="to_mailing_date",
+                cli_flag="to-date",
+            )
+        if from_norm is not None and to_norm is not None and from_norm > to_norm:
+            raise CommandError(
+                f"--from-date {self.from_date!r} must be earlier than or equal to "
+                f"--to-date {self.to_date!r}."
+            )
 
     def collect(self) -> None:
         if self.dry_run:

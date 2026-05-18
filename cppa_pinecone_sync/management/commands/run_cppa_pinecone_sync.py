@@ -65,7 +65,7 @@ class CppaPineconeSyncCollector(AbstractCollector):
     def validate_config(self) -> None:
         try:
             self._preprocess_fn = _resolve_preprocessor(self.preprocessor_path)
-        except ValueError as e:
+        except (ValueError, ImportError) as e:
             raise CommandError(str(e)) from e
 
     def collect(self) -> None:
