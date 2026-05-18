@@ -30,6 +30,9 @@ DOCS_SERVICE_API = REPO_ROOT / "docs" / "service_api"
 MARKER_START = "<!-- SERVICE_API:GENERATED:START -->"
 MARKER_END = "<!-- SERVICE_API:GENERATED:END -->"
 
+RETURN_TYPE_FALLBACK = "None"
+SUMMARY_FALLBACK = "—"
+
 SKIP_TOPLEVEL_DIRS = frozenset(
     {
         ".git",
@@ -59,7 +62,17 @@ def _cell(text: str) -> str:
     return t
 
 
-def _first_paragraph_docstring(node: ast.AST) -> str:
+def _display_return_type(annotation: str) -> str:
+    return annotation.strip() or RETURN_TYPE_FALLBACK
+
+
+def _display_summary(summary: str) -> str:
+    return summary.strip() or SUMMARY_FALLBACK
+
+
+def _first_paragraph_docstring(
+    node: ast.AsyncFunctionDef | ast.FunctionDef | ast.ClassDef,
+) -> str:
     raw = ast.get_docstring(node, clean=True)
     if not raw:
         return ""
@@ -90,6 +103,8 @@ def _format_args(func: ast.AsyncFunctionDef | ast.FunctionDef, source: str) -> s
 
     for a in args.posonlyargs:
         parts.append(arg_str(a, None))
+    if args.posonlyargs:
+        parts.append("/")
     for i, a in enumerate(args.args):
         default: ast.expr | None = None
         if i >= first_default:
@@ -99,7 +114,9 @@ def _format_args(func: ast.AsyncFunctionDef | ast.FunctionDef, source: str) -> s
         va = args.vararg
         ann = _unparse(va.annotation, source) if va.annotation else ""
         parts.append(f"*{va.arg}" + (f": {ann}" if ann else ""))
-    for a, d in zip(args.kwonlyargs, args.kw_defaults):
+    elif args.kwonlyargs:
+        parts.append("*")
+    for a, d in zip(args.kwonlyargs, args.kw_defaults, strict=True):
         default = d
         ann = _unparse(a.annotation, source) if a.annotation else ""
         base = f"{a.arg}: {ann}" if ann else a.arg
@@ -157,7 +174,15 @@ def _render_service_table(
         fn = f"`{r.name}`"
         lines.append(
             "| "
-            + " | ".join(_cell(x) for x in (fn, r.parameters, r.return_type, r.summary))
+            + " | ".join(
+                _cell(x)
+                for x in (
+                    fn,
+                    r.parameters,
+                    _display_return_type(r.return_type),
+                    _display_summary(r.summary),
+                )
+            )
             + " |"
         )
     return "\n".join(lines) + "\n"
