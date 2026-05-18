@@ -6,21 +6,21 @@
 **Type notation:** Model types refer to `cppa_youtube_script_tracker.models` unless noted. `YoutubeSpeaker` refers to `cppa_user_tracker.models.YoutubeSpeaker`.
 
 ---
+<!-- SERVICE_API:GENERATED:START -->
 
-## YouTubeChannel
+## Public API (generated)
 
-| Function                | Parameter types                                  | Return type      | Description                                                                     |
-| ----------------------- | ------------------------------------------------ | ---------------- | ------------------------------------------------------------------------------- |
-| `get_or_create_channel` | `channel_id: str`, `channel_title: str = ""`   | `YouTubeChannel` | Get or create channel by `channel_id`; updates `channel_title` if it has changed. |
+| Function | Parameters | Return type | Summary |
+| --- | --- | --- | --- |
+| `get_or_create_channel` | channel_id: str, channel_title: str = '' | YouTubeChannel | Get or create a YouTubeChannel by channel_id (PK). |
+| `get_or_create_tag` | tag_name: str | CppaTags | Get or create a CppaTags entry by tag_name. |
+| `get_or_create_video` | video_id: str, channel: Optional[YouTubeChannel], metadata_dict: dict[str, Any] | tuple[YouTubeVideo, bool] | Get or create a YouTubeVideo by video_id (PK). Returns (video, created). |
+| `link_speaker_to_video` | video: YouTubeVideo, speaker: Any | YouTubeVideoSpeaker | Link a YoutubeSpeaker to a YouTubeVideo (get-or-create). Returns YouTubeVideoSpeaker. |
+| `link_tag_to_video` | video: YouTubeVideo, tag: CppaTags | YouTubeVideoTags | Link a CppaTags entry to a YouTubeVideo (get-or-create). Returns YouTubeVideoTags. |
+| `remove_speaker_links_by_name` | video: YouTubeVideo, speaker_name: str | int | Remove all speaker links for a video where speaker.display_name matches speaker_name. |
+| `update_video_transcript` | video: YouTubeVideo, transcript_path: str | YouTubeVideo | Mark video as having a transcript and store its path. Returns the updated video. |
 
----
-
-## YouTubeVideo
-
-| Function               | Parameter types                                                                    | Return type              | Description                                                                                     |
-| ---------------------- | ---------------------------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------- |
-| `get_or_create_video`  | `video_id: str`, `channel: YouTubeChannel \| None`, `metadata_dict: dict`         | `tuple[YouTubeVideo, bool]` | Get or create video by `video_id`. Raises `ValueError` if `video_id` is empty.                |
-| `update_video_transcript` | `video: YouTubeVideo`, `transcript_path: str`                                   | `YouTubeVideo`           | Set `has_transcript=True` and `transcript_path` on the video; saves `update_fields`.           |
+<!-- SERVICE_API:GENERATED:END -->
 
 `metadata_dict` accepted keys:
 
@@ -37,14 +37,6 @@
 | `scraped_at`       | datetime or str   | ISO string is parsed via `parse_datetime`          |
 
 Tags are not part of `metadata_dict`; use `get_or_create_tag` and `link_tag_to_video` (in this module) to associate tags with a video after creating or fetching it.
-
----
-
-## YouTubeVideoSpeaker
-
-| Function              | Parameter types                               | Return type          | Description                                              |
-| --------------------- | --------------------------------------------- | -------------------- | -------------------------------------------------------- |
-| `link_speaker_to_video` | `video: YouTubeVideo`, `speaker: YoutubeSpeaker` | `YouTubeVideoSpeaker` | Get-or-create M2M link between a video and a speaker.  |
 
 ---
 

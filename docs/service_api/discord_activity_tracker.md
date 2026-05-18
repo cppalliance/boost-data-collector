@@ -6,6 +6,26 @@
 **Type notation:** Model types refer to `discord_activity_tracker.models` unless noted. `DiscordProfile` refers to `cppa_user_tracker.models.DiscordProfile`.
 
 ---
+<!-- SERVICE_API:GENERATED:START -->
+
+## Public API (generated)
+
+| Function | Parameters | Return type | Summary |
+| --- | --- | --- | --- |
+| `add_or_update_reaction` | message: DiscordMessage, emoji: str, count: int | Tuple[DiscordReaction, bool] | Upsert one reaction row per (message, emoji) with the given reaction count. |
+| `bulk_process_message_batch` | message_data_list: List[Dict[str, Any]], channel: DiscordChannel | int | Run user upsert, message upsert, and reaction upsert inside one DB transaction. |
+| `bulk_upsert_discord_messages` | message_data_list: List[Dict[str, Any]], channel: DiscordChannel, user_map: Dict[int, DiscordProfile] | Dict[int, DiscordMessage] | Bulk upsert messages for one channel using ``bulk_create(update_conflicts=True)``. |
+| `bulk_upsert_discord_reactions` | reaction_data_list: List[Dict[str, Any]], message_map: Dict[int, DiscordMessage] | None | Bulk upsert reactions using ``bulk_create(update_conflicts=True)``. |
+| `bulk_upsert_discord_users` | user_data_list: List[Dict[str, Any]] | Dict[int, DiscordProfile] | Upsert author profiles for a batch of messages. |
+| `create_or_update_discord_message` | message_id: int, channel: DiscordChannel, author: DiscordProfile, content: str, message_created_at: datetime, message_edited_at: Optional[datetime] = None, reply_to_message_id: Optional[int] = None, attachment_urls: Optional[list] = None, message_type: str = 'Default', is_pinned: bool = False | Tuple[DiscordMessage, bool] | Create or update a single message by Discord ``message_id`` (upsert). |
+| `get_active_channels` | server: DiscordServer, days: int = 30, channel_ids: Optional[List[int]] = None | QuerySet[DiscordChannel] | Same as ``queryset_channels_with_recent_messages`` with ``cutoff = now - days``. |
+| `get_channel_latest_message_at` | channel: DiscordChannel | Optional[datetime] | Return the latest ``message_created_at`` among non-deleted messages in a channel. |
+| `get_or_create_discord_channel` | server: DiscordServer, channel_id: int, channel_name: str, channel_type: str, topic: str = '', position: int = 0, category_id: Optional[int] = None, category_name: str = '' | Tuple[DiscordChannel, bool] | Get or create a channel row and refresh fields when the row already exists. |
+| `get_or_create_discord_server` | server_id: int, server_name: str, icon_url: str = '' | Tuple[DiscordServer, bool] | Get or create a Discord guild (server) row and refresh metadata when it already exists. |
+| `mark_message_deleted` | message: DiscordMessage, deleted_at: Optional[datetime] = None | DiscordMessage | Soft-delete a message: set ``is_deleted`` and ``deleted_at``. |
+| `queryset_channels_with_recent_messages` | server: DiscordServer, cutoff: datetime, channel_ids: Optional[List[int]] = None | QuerySet[DiscordChannel] | Channels on ``server`` with at least one non-deleted message at or after ``cutoff``. |
+
+<!-- SERVICE_API:GENERATED:END -->
 
 ## Service contract
 
@@ -33,68 +53,6 @@
 `discord_activity_tracker.services` performs **database I/O only**. It does not call Discord HTTP APIs and does **not** assign [`CollectorFailureCategory`](../../core/errors.py) values.
 
 Collectors, management commands, and sync layers classify failures with [`classify_failure`](../../core/errors.py) when handling exceptions (e.g. DiscordChatExporter subprocess failures wrapped in `CommandError`, discord.py HTTP errors, rate limits). If ORM errors are passed through `classify_failure`, mapping follows **`core/errors.py`** (for example `django.core.exceptions.ValidationError` may map to **`VALIDATION`** in typical paths).
-
----
-
-## DiscordServer
-
-| Function                      | Parameter types                                                    | Return type                  | Description                                                       |
-| ----------------------------- | ------------------------------------------------------------------ | ---------------------------- | ----------------------------------------------------------------- |
-| `get_or_create_discord_server` | `server_id: int`, `server_name: str`, `icon_url: str = ""`        | `tuple[DiscordServer, bool]` | Get or create server; update name/icon if changed.               |
-
----
-
-## DiscordChannel
-
-New fields (migration `0005`): `category_id: BigIntegerField | null`, `category_name: CharField`.
-
-| Function                        | Parameter types                                                                                                                                          | Return type                    | Description                                                               |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
-| `get_or_create_discord_channel` | `server: DiscordServer`, `channel_id: int`, `channel_name: str`, `channel_type: str`, `topic: str = ""`, `position: int = 0`, `category_id: int \| None = None`, `category_name: str = ""` | `tuple[DiscordChannel, bool]`  | Get or create channel; update all fields (incl. category) if changed.    |
-| `get_channel_latest_message_at` | `channel: DiscordChannel`                                                                                                                              | `datetime \| None`             | Max `message_created_at` among non-deleted `DiscordMessage` rows for the channel. |
-| `queryset_channels_with_recent_messages` | `server: DiscordServer`, `cutoff: datetime`, `channel_ids: list[int] \| None = None`                                                            | `QuerySet[DiscordChannel]`     | Channels on the server with at least one non-deleted message at or after `cutoff`; optional Discord `channel_id` allowlist. |
-
----
-
-## DiscordMessage
-
-New fields (migration `0005`): `message_type: CharField` (default `"Default"`), `is_pinned: BooleanField` (default `False`).
-
-| Function                           | Parameter types                                                                                                                                                                                                                           | Return type                    | Description                    |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------ |
-| `create_or_update_discord_message` | `message_id: int`, `channel: DiscordChannel`, `author: DiscordProfile`, `content: str`, `message_created_at: datetime`, `message_edited_at: datetime \| None = None`, `reply_to_message_id: int \| None = None`, `attachment_urls: list \| None = None`, `message_type: str = "Default"`, `is_pinned: bool = False` | `tuple[DiscordMessage, bool]`  | Create or update message.      |
-| `mark_message_deleted`             | `message: DiscordMessage`, `deleted_at: datetime \| None = None`                                                                                                                                                                          | `DiscordMessage`               | Mark message as deleted.       |
-
----
-
-## DiscordReaction
-
-| Function                 | Parameter types                                        | Return type                     | Description              |
-| ------------------------ | ------------------------------------------------------ | ------------------------------- | ------------------------ |
-| `add_or_update_reaction` | `message: DiscordMessage`, `emoji: str`, `count: int`  | `tuple[DiscordReaction, bool]`  | Add or update reaction.  |
-
----
-
-## Bulk operations
-
-Message and reaction upserts use `bulk_create(update_conflicts=True)` on `DiscordMessage` and `DiscordReaction`. **`bulk_upsert_discord_users`** does not: `DiscordProfile` uses multi-table inheritance, so users are deduplicated and updated with targeted queries / `get_or_create_discord_profile` per missing row (see `services.py`).
-
-Inputs are lists of pre-normalised message dicts (from `sync.messages._prepare_message_data` or `sync.chat_exporter.convert_exporter_message_to_dict`).
-
-| Function                      | Parameter types                                                                                         | Return type | Description                                                                                     |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
-| `bulk_upsert_discord_users`   | `user_data_list: list[dict]`                                                                            | `dict[int, DiscordProfile]` | Upsert `DiscordProfile` rows; returns `{discord_user_id: profile}`.                             |
-| `bulk_upsert_discord_messages` | `message_data_list: list[dict]`, `channel: DiscordChannel`, `user_map: dict[int, DiscordProfile]`     | `dict[int, DiscordMessage]` | Upsert `DiscordMessage` rows incl. `message_type` and `is_pinned`; returns `{message_id: msg}`. |
-| `bulk_upsert_discord_reactions` | `reaction_data_list: list[dict]`, `message_map: dict[int, DiscordMessage]`                            | `None`      | Upsert `DiscordReaction` rows.                                                                  |
-| `bulk_process_message_batch`  | `message_data_list: list[dict]`, `channel: DiscordChannel`                                             | `int`       | Runs users → messages → reactions inside one `transaction.atomic()`. Return value is **`len(message_data_list)`** when non-empty (not the count of rows actually upserted); see **Raises and edge behavior** above. |
-
----
-
-## Query helpers
-
-| Function              | Parameter types                                                    | Return type | Description                                         |
-| --------------------- | ------------------------------------------------------------------ | ----------- | --------------------------------------------------- |
-| `get_active_channels` | `server: DiscordServer`, `days: int = 30`, `channel_ids: list[int] \| None = None` | `QuerySet`  | Same as `queryset_channels_with_recent_messages` with `cutoff = now - days`. |
 
 ---
 

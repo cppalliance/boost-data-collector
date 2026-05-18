@@ -15,6 +15,11 @@ All writes to app models must go through the service layer. The API is documente
 | **boost_library_docs_tracker** | `boost_library_docs_tracker.services` | Globally unique doc content (BoostDocContent) and (library-version, page) relation tracking (BoostLibraryDocumentation). |
 | **boost_usage_tracker**    | `boost_usage_tracker.services`    | External repos, Boost usage, missing-header tmp. |
 | **discord_activity_tracker** | `discord_activity_tracker.services` | Discord servers, channels, messages, reactions (authors: `cppa_user_tracker.DiscordProfile`). |
+| **cppa_youtube_script_tracker** | `cppa_youtube_script_tracker.services` | YouTube channels, videos, tags, transcript state; speaker links. |
+| **clang_github_tracker** | `clang_github_tracker.services` | Upsert llvm issue/PR/commit rows; fetch watermarks. |
+| **boost_mailing_list_tracker** | `boost_mailing_list_tracker.services` | Mailing list messages and names. |
+| **cppa_slack_tracker** | `cppa_slack_tracker.services` | Slack teams, channels, messages, membership. |
+| **wg21_paper_tracker** | `wg21_paper_tracker.services` | WG21 papers, authors, mailings. |
 
 ---
 
@@ -28,6 +33,14 @@ All writes to app models must go through the service layer. The API is documente
 - **[service_api/cppa_pinecone_sync.md](service_api/cppa_pinecone_sync.md)** – API for `cppa_pinecone_sync.services`.
 - **[service_api/boost_usage_tracker.md](service_api/boost_usage_tracker.md)** – API for `boost_usage_tracker.services`.
 - **[service_api/discord_activity_tracker.md](service_api/discord_activity_tracker.md)** – API for `discord_activity_tracker.services`; management commands, sync modules, and Pinecone notes.
+- **[service_api/cppa_youtube_script_tracker.md](service_api/cppa_youtube_script_tracker.md)** – API for `cppa_youtube_script_tracker.services`; preprocessor, fetcher, workspace, and transcript helpers.
+- **[service_api/clang_github_tracker.md](service_api/clang_github_tracker.md)** – API for `clang_github_tracker.services`.
+- **[service_api/boost_mailing_list_tracker.md](service_api/boost_mailing_list_tracker.md)** – API for `boost_mailing_list_tracker.services`.
+- **[service_api/cppa_slack_tracker.md](service_api/cppa_slack_tracker.md)** – API for `cppa_slack_tracker.services`.
+- **[service_api/wg21_paper_tracker.md](service_api/wg21_paper_tracker.md)** – API for `wg21_paper_tracker.services`.
+- **[service_api/core_protocols.md](service_api/core_protocols.md)** – `core.protocols` DTO protocols (`TrackerResult`, `ActivityRecord`, `IncrementalState`).
+
+Tables in each file are **generated** from source; see [Contributing.md](Contributing.md#regenerating-service-api-docs).
 
 ---
 
