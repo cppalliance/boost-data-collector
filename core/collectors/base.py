@@ -9,6 +9,7 @@ commands (``run_scheduled_collectors`` / YAML); subclasses may override
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 
 from django.core.management import call_command
@@ -16,6 +17,7 @@ from django.core.management import call_command
 from core.collectors.base_collector import _CollectorLifecycleMixin
 
 
+# TODO(v1.0): remove CollectorBase after migrating callers to AbstractCollector.
 class CollectorBase(_CollectorLifecycleMixin, ABC):
     """
     Legacy abstract base for collectors run via management commands or YAML schedules.
@@ -43,6 +45,17 @@ class CollectorBase(_CollectorLifecycleMixin, ABC):
     by the command layer without calling :meth:`~_CollectorLifecycleMixin.handle_error`.
     """
 
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        if getattr(cls, "_skip_collector_base_deprecation", False):
+            return
+        warnings.warn(
+            "CollectorBase is deprecated; use AbstractCollector instead. "
+            "CollectorBase will be removed in v1.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     @abstractmethod
     def run(self) -> None:
         """
@@ -60,6 +73,9 @@ class CollectorBase(_CollectorLifecycleMixin, ABC):
 
 class DjangoCommandCollector(CollectorBase):
     """Runs a registered Django management command by name."""
+
+    # Library adapter: not an app-defined collector; skip CollectorBase deprecation noise.
+    _skip_collector_base_deprecation = True
 
     __slots__ = ("command_name",)
 

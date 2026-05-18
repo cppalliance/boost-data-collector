@@ -6,7 +6,7 @@ The `core` Django app holds shared infrastructure. Treat the following as the **
 
 | Import | Purpose |
 |--------|---------|
-| `core.collectors.CollectorBase` | Legacy abstract `run()`, optional `sync_pinecone()`, `handle_error()` with structured logging. |
+| `core.collectors.CollectorBase` | **Deprecated** (removed in v1.0): legacy abstract `run()`, optional `sync_pinecone()`, `handle_error()` with structured logging. Subclassing emits `DeprecationWarning` at class definition time. Prefer `AbstractCollector`|
 | `core.collectors.AbstractCollector` | Preferred contract: `name`, `validate_config()`, `collect()`; concrete `run()` runs validate then collect; same lifecycle hooks as `CollectorBase`. |
 | `core.collectors.CollectorRunnable` | `Protocol` for objects returned from `get_collector()` (`run`, `sync_pinecone`, `handle_error`). |
 | `core.collectors.BaseCollectorCommand` | Thin `BaseCommand` adapter: runs `get_collector(**opts).run()` then `sync_pinecone()`. |

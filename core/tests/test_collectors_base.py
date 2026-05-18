@@ -1,5 +1,6 @@
 """Tests for core.collectors base types."""
 
+import warnings
 from io import StringIO
 from unittest.mock import patch
 
@@ -10,6 +11,24 @@ import core.collectors.base_collector as collector_lifecycle
 from core.collectors.base import CollectorBase, DjangoCommandCollector
 from core.collectors.base_collector import AbstractCollector
 from core.collectors.command_base import BaseCollectorCommand
+
+
+def test_collector_base_subclass_emits_deprecation_warning():
+    assert getattr(DjangoCommandCollector, "_skip_collector_base_deprecation") is True
+
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always", DeprecationWarning)
+
+        class _WarnProbeCollector(CollectorBase):
+            def run(self) -> None:
+                return None
+
+    dep = [w for w in recorded if issubclass(w.category, DeprecationWarning)]
+    assert dep, "expected DeprecationWarning when subclassing CollectorBase"
+    msg = str(dep[-1].message)
+    assert "CollectorBase" in msg
+    assert "AbstractCollector" in msg
+    assert "v1.0" in msg
 
 
 @pytest.mark.django_db
