@@ -27,10 +27,6 @@ Runs **monitor_content** (repo/content signals) and/or **monitor_stars** (monthl
 - **Path (from repo root):** `boost_usage_tracker/`
 - **Registration:** Listed under `INSTALLED_APPS` in [`config/settings.py`](../config/settings.py) as `boost_usage_tracker`.
 
-## Title
-
-**Boost Usage Tracker**
-
 ## Management commands
 
 | Command | Description |

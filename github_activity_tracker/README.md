@@ -36,10 +36,6 @@ Finds commits with exactly **300** file-change rows (GitHub API truncation), ref
 - **Path (from repo root):** `github_activity_tracker/`
 - **Registration:** Listed under `INSTALLED_APPS` in [`config/settings.py`](../config/settings.py) as `github_activity_tracker`.
 
-## Title
-
-**GitHub Activity Tracker**
-
 ## Management commands
 
 | Command | Description |

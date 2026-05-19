@@ -30,10 +30,6 @@ End-to-end Boost GitHub pipeline: sync **boostorg/boost** (+ submodules) → exp
 - **Path (from repo root):** `boost_library_tracker/`
 - **Registration:** Listed under `INSTALLED_APPS` in [`config/settings.py`](../config/settings.py) as `boost_library_tracker`.
 
-## Title
-
-**Boost Library Tracker**
-
 ## Management commands
 
 | Command | Description |

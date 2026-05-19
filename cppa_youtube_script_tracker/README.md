@@ -29,10 +29,6 @@ Phases: (1) process queued metadata JSONs, (2) YouTube Data API video fetch for 
 - **Path (from repo root):** `cppa_youtube_script_tracker/`
 - **Registration:** Listed under `INSTALLED_APPS` in [`config/settings.py`](../config/settings.py) as `cppa_youtube_script_tracker`.
 
-## Title
-
-**CPPA YouTube Script Tracker**
-
 ## Management commands
 
 | Command | Description |

@@ -28,10 +28,6 @@ Runs collector tasks from [`config/boost_collector_schedule.yaml`](../config/boo
 - **Path (from repo root):** `boost_collector_runner/`
 - **Registration:** Listed under `INSTALLED_APPS` in [`config/settings.py`](../config/settings.py) as `boost_collector_runner`.
 
-## Title
-
-**Boost Collector Runner**
-
 ## Management commands
 
 | Command | Description |

@@ -26,10 +26,6 @@ Runs `sync_to_pinecone` for **one** preprocessor + namespace. **`--app-type`, `-
 - **Path (from repo root):** `cppa_pinecone_sync/`
 - **Registration:** Listed under `INSTALLED_APPS` in [`config/settings.py`](../config/settings.py) as `cppa_pinecone_sync`.
 
-## Title
-
-**CPPA Pinecone Sync**
-
 ## Management commands
 
 | Command | Description |
