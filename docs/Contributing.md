@@ -28,8 +28,22 @@ Each Django app that has **models** provides a **`services.py`** module. This is
 | `boost_usage_tracker`     | `boost_usage_tracker/services.py`     | External repos, Boost usage, missing-header tmp. |
 | `cppa_pinecone_sync`       | `cppa_pinecone_sync/services.py`       | Pinecone fail list and sync status writes.                  |
 | `discord_activity_tracker` | `discord_activity_tracker/services.py` | Servers, channels, messages, reactions (Discord user profiles in cppa_user_tracker). |
+| `cppa_youtube_script_tracker` | `cppa_youtube_script_tracker/services.py` | YouTube channels, videos, tags, transcript state, speaker links. |
+| `clang_github_tracker` | `clang_github_tracker/services.py` | Clang/llvm GitHub issue, PR, and commit upserts; fetch watermarks. |
+| `boost_mailing_list_tracker` | `boost_mailing_list_tracker/services.py` | Mailing list messages and names. |
+| `cppa_slack_tracker` | `cppa_slack_tracker/services.py` | Slack teams, channels, messages, membership. |
+| `wg21_paper_tracker` | `wg21_paper_tracker/services.py` | WG21 papers, authors, mailings. |
 
-For a full list of functions, parameter/return types, and validation (e.g. empty `name` raises `ValueError`), see **[Service_API.md](Service_API.md)** and the per-app docs in **[service_api/](service_api/)** (index: [service_api/README.md](service_api/README.md)).
+For a full list of functions, parameter/return types, and validation (e.g. empty `name` raises `ValueError`), see **[Service_API.md](Service_API.md)** and the per-app docs in **[service_api/](service_api/)** (index: [service_api/README.md](service_api/README.md)). DTO protocols shared across trackers are documented in **[service_api/core_protocols.md](service_api/core_protocols.md)** (generated from `core/protocols.py`).
+
+### Regenerating service API docs
+
+Reference tables in `docs/service_api/*.md` are produced by **[`scripts/generate_service_docs.py`](../scripts/generate_service_docs.py)** from each app’s `services.py` and from `core/protocols.py`.
+
+- **Markers:** Each file contains `<!-- SERVICE_API:GENERATED:START -->` … `<!-- SERVICE_API:GENERATED:END -->`. The script replaces **only** that region. Put hand-written notes (usage, cross-app warnings, command help) **below** the `END` marker.
+- **Regenerate locally:** `python scripts/generate_service_docs.py` (optional: `--app <django_app_label>` for one module).
+- **Check only:** `python scripts/generate_service_docs.py --check` exits non-zero if committed markdown would change.
+- **CI / pre-commit:** The **lint** job runs pre-commit, which includes this check. Pull requests that change **only** ignored paths (`**.md`, `docs/**` per `.github/workflows/actions.yml`) do not run CI; any PR that touches `**/services.py` or `core/protocols.py` still runs the check—regenerate docs before pushing.
 
 ### How to use
 
@@ -61,7 +75,7 @@ For a full list of functions, parameter/return types, and validation (e.g. empty
 - **Branching:** Create feature branches from `develop`. Open pull requests against `develop`. See [Development_guideline.md](Development_guideline.md).
 - **Code style:** Use Python 3.11+ and follow Django and project conventions. Use the project’s logging (`logging.getLogger(__name__)`). Before pushing, run **`uv run pyright`** (with dev deps) for the paths covered by **`pyrightconfig.json`**, and ensure CI’s **lint** / **pyright** / **test** jobs would pass.
 - **Database:** Use the Django ORM and migrations. Writes only through the service layer as above.
-- **Docs:** Update this doc (and app `services.py` docstrings) when adding new apps or changing the write rules.
+- **Docs:** Update this doc (and app `services.py` docstrings) when adding new apps or changing the write rules. After changing `services.py` or `core/protocols.py`, run `python scripts/generate_service_docs.py` and commit the updated `docs/service_api/` files.
 
 ## Related documentation
 

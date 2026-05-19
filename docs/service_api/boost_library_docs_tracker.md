@@ -8,15 +8,20 @@
 **Pinecone upsert state** is stored on `BoostDocContent.is_upserted`, not on `BoostLibraryDocumentation` (the join table has only the two FKs plus `created_at`).
 
 ---
+<!-- SERVICE_API:GENERATED:START -->
 
-## BoostDocContent
+## Public API (generated)
 
-| Function                         | Parameter types                                                     | Return type                   | Notes                                                                 |
-| -------------------------------- | ------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------- |
-| `get_or_create_doc_content`      | `url: str`, `content_hash: str`, `version_id: int \| None = None`   | `tuple[BoostDocContent, str]` | See return values below. `ValueError` if `url` is empty.              |
-| `set_doc_content_upserted`       | `doc: BoostDocContent`, `value: bool`                               | `BoostDocContent`             | Sets `is_upserted`.                                                   |
-| `set_doc_content_upserted_by_ids`| `ids: list[int]`, `value: bool`                                     | `int`                         | Bulk `UPDATE`; returns number of rows updated.                      |
-| `get_unupserted_doc_contents`    | —                                                                   | `QuerySet[BoostDocContent]`   | `is_upserted=False`; used for Pinecone sync worklists.                |
+| Function | Parameters | Return type | Summary |
+| --- | --- | --- | --- |
+| `get_docs_for_library_version` | library_version_id: int | django_models.QuerySet | Return all BoostLibraryDocumentation rows for this library-version. |
+| `get_or_create_doc_content` | url: str, content_hash: str, version_id: int \| None = None | tuple[BoostDocContent, str] | Get or create a BoostDocContent row for the given content_hash. Page content is NOT stored in the DB; it lives in workspace files. |
+| `get_unupserted_doc_contents` |  | django_models.QuerySet | Return all BoostDocContent rows that have not been upserted to Pinecone. |
+| `link_content_to_library_version` | library_version_id: int, doc_content_id: int | tuple[BoostLibraryDocumentation, bool] | Get or create a BoostLibraryDocumentation row for the (library_version, doc_content) pair. Returns (relation, created). |
+| `set_doc_content_upserted` | doc: BoostDocContent, value: bool | BoostDocContent | Set is_upserted on a BoostDocContent row. |
+| `set_doc_content_upserted_by_ids` | ids: list[int], value: bool | int | Bulk-set is_upserted for BoostDocContent rows with the given PKs. Returns the number of rows updated. |
+
+<!-- SERVICE_API:GENERATED:END -->
 
 ### `get_or_create_doc_content` return values
 
@@ -33,7 +38,4 @@ The second element is a `str` indicating what changed:
 
 Join table: one row per `(boost_library_version, boost_doc_content)` pair. **No** `page_count`, status fields, or `updated_at` on the model.
 
-| Function                          | Parameter types                                      | Return type                              | Notes                                                                 |
-| --------------------------------- | ---------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------- |
-| `link_content_to_library_version` | `library_version_id: int`, `doc_content_id: int`     | `tuple[BoostLibraryDocumentation, bool]` | `get_or_create` on the pair. Second value is `created`.               |
-| `get_docs_for_library_version`    | `library_version_id: int`                            | `QuerySet[BoostLibraryDocumentation]`    | All join rows for that library version.                               |
+See the generated **Public API** table above for `link_content_to_library_version` and `get_docs_for_library_version`.

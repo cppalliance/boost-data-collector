@@ -37,3 +37,11 @@ repos:
         entry: djhtml --tabwidth 2
         files: .*/templates/.*\.html$
         alias: autoformat
+  - repo: local
+    hooks:
+      - id: generate-service-docs
+        name: check service API docs are up to date
+        entry: python scripts/generate_service_docs.py --check
+        language: system
+        pass_filenames: false
+        always_run: true

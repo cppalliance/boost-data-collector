@@ -5,67 +5,21 @@ Module: `cppa_pinecone_sync.services`
 All creates/updates/deletes for `PineconeFailList` and `PineconeSyncStatus` must go through this module. See [Contributing.md](../Contributing.md).
 
 ---
+<!-- SERVICE_API:GENERATED:START -->
 
-## PineconeFailList
+## Public API (generated)
 
-### `get_failed_ids(app_type: str) -> list[str]`
+| Function | Parameters | Return type | Summary |
+| --- | --- | --- | --- |
+| `clear_failed_ids` | app_type: str | int | Delete all PineconeFailList records for the given app_type. Returns count deleted. |
+| `get_failed_ids` | app_type: str | list[str] | Return all failed_id values for the given app_type. |
+| `get_final_sync_at` | app_type: str | Optional[datetime] | Return final_sync_at for the given app_type, or None if no record exists. |
+| `record_failed_ids` | app_type: str, failed_ids: list[str] | list[PineconeFailList] | Bulk-create PineconeFailList entries for each failed_id. Returns created objects. |
+| `update_sync_status` | app_type: str, final_sync_at: Optional[datetime] = None | PineconeSyncStatus | Create or update PineconeSyncStatus for the given app_type. |
 
-Return all `failed_id` values for the given application.
+<!-- SERVICE_API:GENERATED:END -->
 
-| Parameter | Type  | Description                          |
-| --------- | ----- | ------------------------------------ |
-| `app_type`  | `str` | Application type (e.g. `"slack"`). |
+## Related
 
-**Returns:** `list[str]` of failed_id values.
-
----
-
-### `clear_failed_ids(app_type: str) -> int`
-
-Delete all `PineconeFailList` records for the given application.
-
-| Parameter | Type  | Description     |
-| --------- | ----- | --------------- |
-| `app_type`  | `str` | Application type. |
-
-**Returns:** `int` — number of rows deleted.
-
----
-
-### `record_failed_ids(app_type: str, failed_ids: list[str]) -> list[PineconeFailList]`
-
-Bulk-create `PineconeFailList` entries for each failed ID.
-
-| Parameter    | Type        | Description                            |
-| ------------ | ----------- | -------------------------------------- |
-| `app_type`   | `str`       | Application type.                      |
-| `failed_ids` | `list[str]` | List of source record IDs that failed. |
-
-**Returns:** `list[PineconeFailList]` — created objects. Empty list if `failed_ids` is empty.
-
----
-
-## PineconeSyncStatus
-
-### `get_final_sync_at(app_type: str) -> datetime | None`
-
-Return `final_sync_at` for the given application, or `None` if no record exists.
-
-| Parameter | Type  | Description     |
-| --------- | ----- | --------------- |
-| `app_type`  | `str` | Application type. |
-
-**Returns:** `datetime | None`.
-
----
-
-### `update_sync_status(app_type: str, final_sync_at: datetime | None = None) -> PineconeSyncStatus`
-
-Create or update `PineconeSyncStatus` for the given application. Sets `final_sync_at` to the provided value, or `now()` if not given.
-
-| Parameter       | Type               | Description                              |
-| --------------- | ------------------ | ---------------------------------------- |
-| `app_type`      | `str`              | Application type.                        |
-| `final_sync_at` | `datetime \| None` | Timestamp. Defaults to `timezone.now()`. |
-
-**Returns:** `PineconeSyncStatus` instance.
+- [Service API index](README.md)
+- [Contributing](../Contributing.md)
