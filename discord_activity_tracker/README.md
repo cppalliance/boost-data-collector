@@ -1,0 +1,53 @@
+# Discord Activity Tracker
+
+## Overview
+
+Ingests **Discord server activity** (messages, threads, exports) into PostgreSQL and related stores, using workspace paths and optional preprocessors. Uses **DiscordChatExporter** and shared operations documented under [docs/operations/discord_chat_exporter.md](../docs/operations/discord_chat_exporter.md).
+
+## Common tasks
+
+- Run the main tracker: `python manage.py run_discord_activity_tracker --help`.
+- Historical repair: `python manage.py backfill_discord_activity_tracker --help`.
+- App-specific service API: [docs/service_api/discord_activity_tracker.md](../docs/service_api/discord_activity_tracker.md).
+
+## Main command: `run_discord_activity_tracker`
+
+Orchestrates exporter fetch → DB upsert + raw JSON → Markdown export to `DISCORD_CONTEXT_REPO_PATH` → optional Pinecone via `run_cppa_pinecone_sync`. Requires `DISCORD_USER_TOKEN`, `DISCORD_SERVER_ID`; channel scope from `DISCORD_CHANNEL_IDS` unless `--channels` is set.
+
+| Option | Description |
+| --- | --- |
+| `--dry-run` | Log planned steps only; no fetch, export, push, or Pinecone writes. |
+| `--skip-discord-sync` | Skip DiscordChatExporter fetch, DB upserts, and raw JSON archival. |
+| `--skip-markdown-export` | Skip writing Markdown from the DB to `DISCORD_CONTEXT_REPO_PATH`. |
+| `--skip-remote-push` | Skip git commit/push after Markdown export (when auto-commit is enabled). |
+| `--skip-pinecone` / `--ignore-pinecone` | Skip Pinecone upsert for Discord messages (`--ignore-pinecone` is a deprecated alias). |
+| `--since`, `--from-date`, `--start-time` | Exporter lower bound (`--after`): `YYYY-MM-DD` or ISO-8601 UTC. If omitted, resumes from latest DB message for the guild (or full history if empty). |
+| `--until`, `--to-date`, `--end-time` | Exporter upper bound (`--before`); same formats. Omitted = through present. |
+| `--channels` | Comma-separated channel IDs (overrides `DISCORD_CHANNEL_IDS`). |
+| `--task` | **Deprecated.** `sync` \| `export` \| `all` — prefer `--skip-*` flags. |
+
+### `backfill_discord_activity_tracker`
+
+Imports DiscordChatExporter JSON from the fixed workspace subtree (see command `help`), deletes each file after a successful import.
+
+| Option | Description |
+| --- | --- |
+| `--skip-pinecone` / `--ignore-pinecone` | Skip Pinecone after import (`--ignore-pinecone` is a deprecated alias). |
+| `--dry-run` | List JSON files that would be imported without writing or deleting them. |
+
+## Management commands
+
+| Command | Purpose |
+| --- | --- |
+| `run_discord_activity_tracker` | Primary sync / collection command. |
+| `backfill_discord_activity_tracker` | Backfill or repair historical activity data. |
+
+Run `python manage.py COMMAND --help` for options.
+
+## Tests
+
+```bash
+python -m pytest discord_activity_tracker/tests/ -v
+```
+
+(from repo root; see root [README](../README.md#running-tests).)
