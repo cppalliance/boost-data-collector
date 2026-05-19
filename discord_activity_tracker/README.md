@@ -4,6 +4,26 @@
 
 Ingests **Discord server activity** (messages, threads, exports) into PostgreSQL and related stores, using workspace paths and optional preprocessors. Uses **DiscordChatExporter** and shared operations documented under [docs/operations/discord_chat_exporter.md](../docs/operations/discord_chat_exporter.md).
 
+## Data workflow
+
+`run_discord_activity_tracker` chains **exporter fetch → PostgreSQL → Markdown on disk → optional git push → optional Pinecone**. Service API: [docs/service_api/discord_activity_tracker.md](../docs/service_api/discord_activity_tracker.md). Architecture context: [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md).
+
+### Where we fetch data
+
+**Discord** via **DiscordChatExporter** (bot/user token + server/channel configuration) within the `--since`/`--until` window, honoring resume semantics documented in the command help.
+
+### How data is saved to the database
+
+Messages, threads, and related entities are upserted into this app’s models. **Raw JSON** exports and intermediate artifacts are archived under `WORKSPACE_DIR` for replay and backfills (`backfill_discord_activity_tracker` reads the fixed import subtree).
+
+### How content is published to GitHub
+
+Markdown is written under **`DISCORD_CONTEXT_REPO_PATH`**. When auto-commit is enabled and `--skip-remote-push` is **not** set, the collector **commits and pushes** that context repository using local git (see [`sync/export.py`](sync/export.py)). Configure credentials and remotes per your deployment docs.
+
+### How vectors sync to Pinecone
+
+Unless `--skip-pinecone` (or deprecated `--ignore-pinecone`) is set, the run invokes **`run_cppa_pinecone_sync`** with the Discord preprocessor so message text becomes searchable vectors in the configured namespace.
+
 ## Common tasks
 
 - Run the main tracker: `python manage.py run_discord_activity_tracker --help`.

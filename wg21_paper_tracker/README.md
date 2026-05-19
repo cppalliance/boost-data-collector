@@ -4,6 +4,26 @@
 
 Tracks **ISO C++ committee (WG21) mailing** paper metadata: fetch pipeline, DB updates, and optional **GitHub `repository_dispatch`** for downstream automation. Collector logic lives in [`collectors.py`](collectors.py) and the pipeline module.
 
+## Data workflow
+
+`run_wg21_paper_tracker` scrapes or imports committee mailings into PostgreSQL, then can signal automation hosts via **GitHub’s repository_dispatch** API when configured—distinct from publishing Markdown repos.
+
+### Where we fetch data
+
+**WG21 mailing archives / metadata endpoints** (HTTP) for the configured month window (`--from-date` / `--to-date`). CSV imports via `import_wg21_metadata_from_csv` read **local files** instead of the network.
+
+### How data is saved to the database
+
+Papers, revisions, authors, and mailing metadata are upserted into this app’s models. Intermediate HTML or parse artifacts may land under `WORKSPACE_DIR` depending on pipeline settings.
+
+### How content is published to GitHub
+
+When enabled in settings, the tracker posts a **`repository_dispatch`** event to a configured GitHub repository (for downstream workflows). It does **not** bulk-upload Markdown corpora like the Boost GitHub activity pipeline.
+
+### How vectors sync to Pinecone
+
+**Not applicable** in this app today. If committee text should become searchable vectors, add a preprocessor and invoke [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md) following [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md).
+
 ## Common tasks
 
 - Run tracker: `python manage.py run_wg21_paper_tracker --help`

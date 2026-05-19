@@ -4,6 +4,26 @@
 
 Collects **Boost library usage signals** (e.g. repository metadata tied to Boost) and runs periodic **database update** commands. Commands split between the main tracker run and smaller `run_update_*` jobs.
 
+## Data workflow
+
+Commands here focus on **GitHub-derived usage signals** (repository content, stars) and periodic **DB maintenance** helpers. See [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md) for how this fits the wider platform.
+
+### Where we fetch data
+
+**GitHub** search and repository APIs (via `core.operations.github_ops` patterns) for `run_boost_usage_tracker` tasks such as **`monitor_content`** and **`monitor_stars`**, within the date and star thresholds you pass on the CLI.
+
+### How data is saved to the database
+
+Usage signals and discovered repositories are upserted into this app’s models (`run_boost_usage_tracker`, `run_update_created_repos_by_language`). **`run_update_db`** performs targeted refreshes or housekeeping defined in that command’s implementation. Optional CSV or staging paths may use `WORKSPACE_DIR` for exports.
+
+### How content is published to GitHub
+
+**Not applicable.** This app records analytics in PostgreSQL; it does not push Markdown repos or open PRs as part of its collectors.
+
+### How vectors sync to Pinecone
+
+**Not applicable.** There is no Pinecone sync phase in this app.
+
 ## Common tasks
 
 - Full tracker: `python manage.py run_boost_usage_tracker --help`

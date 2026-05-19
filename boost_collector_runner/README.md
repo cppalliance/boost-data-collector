@@ -4,6 +4,26 @@
 
 YAML-driven **orchestration** for collector commands: loads [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml) and runs the right `manage.py` commands on a schedule (typically via **Celery Beat** + worker). This is the glue between “what runs daily/hourly” and individual tracker apps.
 
+## Data workflow
+
+For end-to-end ingest and vector search, see [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md). This app only **orchestrates** other commands; it does not call external APIs or own database tables.
+
+### Where we fetch data
+
+**Not applicable at this layer.** `run_scheduled_collectors` reads [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml) and invokes the listed `manage.py` commands. Each target app performs its own fetches (GitHub, Slack, Discord, mailing lists, YouTube, and so on).
+
+### How data is saved to the database
+
+**Not applicable at this layer.** Persistence happens inside the collector commands this runner starts (PostgreSQL via each app’s models, plus workspace files under `WORKSPACE_DIR` where those collectors write raw or intermediate data).
+
+### How content is published to GitHub
+
+**Not applicable at this layer.** Git commits, uploads, or dashboard publishes are implemented inside the invoked collector apps (for example `run_boost_github_activity_tracker` or `run_boost_library_usage_dashboard`), not in `boost_collector_runner`.
+
+### How vectors sync to Pinecone
+
+**Not applicable at this layer.** When the schedule includes a task that runs Pinecone sync (directly or as a phase of another collector), that logic lives in `cppa_pinecone_sync` or in the specific tracker command.
+
 ## Common tasks
 
 - Run a schedule group once (smoke test): `python manage.py run_scheduled_collectors --schedule daily --group github` (see root [README](../README.md)).

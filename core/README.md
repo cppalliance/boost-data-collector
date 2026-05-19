@@ -18,6 +18,26 @@ Other folders: [`migrations/`](migrations/) (no models today), [`pyright_samples
 
 Long-form operations design: [docs/operations/](../docs/operations/README.md).
 
+## Data workflow
+
+`core` is **shared library code** (collector bases, GitHub/Slack/markdown/file helpers). It is listed in `INSTALLED_APPS` but has **no domain ORM models** and no scheduled “collector” of its own. Cross-app flow is documented in [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md).
+
+### Where we fetch data
+
+**Not applicable as a single pipeline.** Subpackages under [`operations/`](operations/) wrap external systems when **another app** calls them—for example GitHub REST/GraphQL and git operations ([`github_ops`](operations/github_ops/README.md)), Slack web APIs ([`slack_ops`](operations/slack_ops/README.md)), and HTML or issue/PR → Markdown conversion ([`md_ops`](operations/md_ops/README.md)).
+
+### How data is saved to the database
+
+**Not here.** Database writes happen in tracker apps that import `core.collectors` or `core.operations` and persist via their own models.
+
+### How content is published to GitHub
+
+**Not here by default.** Helpers such as [`github_ops.git_ops`](operations/github_ops/README.md) and [`md_ops.github_export`](operations/md_ops/README.md) are used **by tracker apps** to upload files, open PRs, or push clones when those apps’ collectors are configured to publish.
+
+### How vectors sync to Pinecone
+
+**Not here.** Vector upserts are implemented in [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md); preprocessors often live next to the domain app that owns the source rows.
+
 ## Common tasks
 
 - Add or change a collector: [docs/How_to_add_a_collector.md](../docs/How_to_add_a_collector.md); subclass `AbstractCollector` / use `BaseCollectorCommand` from [`collectors/`](collectors/).

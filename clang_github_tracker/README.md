@@ -4,6 +4,26 @@
 
 Collects **LLVM/Clang GitHub** activity (issues, PRs, commits) for configured repositories, similar in shape to `github_activity_tracker` but scoped to the Clang ecosystem. Uses shared `core.operations.github_ops` patterns.
 
+## Data workflow
+
+`run_clang_github_tracker` mirrors the Boost pipeline at a smaller scope: **GitHub → DB + raw JSON → Markdown → optional git push → optional Pinecone**. `backfill_clang_github_tracker` replays **existing raw JSON** into the Clang tables without calling the network.
+
+### Where we fetch data
+
+**GitHub API** activity for **`llvm/llvm-project`** (and related repos configured for this deployment) via the same client stack as other GitHub collectors. Watermarks come from **PostgreSQL**, not a `state.json` file.
+
+### How data is saved to the database
+
+Issues, PRs, commits, and supporting rows are upserted into this app’s models. **Raw JSON** mirrors the `github_activity_tracker` workspace layout under `WORKSPACE_DIR` for compatibility with shared tooling.
+
+### How content is published to GitHub
+
+Markdown is rendered to disk, then [`publisher.py`](publisher.py) can **clone/pull/push** the context repository configured with **`CLANG_GITHUB_CONTEXT_REPO_*`** when `--skip-remote-push` is not set. Requires **`GITHUB_TOKEN_WRITE`** (or configured fallback) for authenticated git operations.
+
+### How vectors sync to Pinecone
+
+Unless `--skip-pinecone` is set, the collector shells out to **`run_cppa_pinecone_sync`** for issues/PRs using the shared GitHub preprocessor path, landing vectors in the configured namespace.
+
 ## Common tasks
 
 - Run the tracker: `python manage.py run_clang_github_tracker --help`.

@@ -4,6 +4,26 @@
 
 Django app that runs a **Slack Socket Mode** listener during **`runserver`** so inbound Slack events can be handled in-process. Production-style deployments typically use a different entrypoint; see module docstrings in [`runner.py`](runner.py) and [`apps.py`](apps.py) for startup behavior.
 
+## Data workflow
+
+This app is **event-driven**, not YAML-scheduled like the batch collectors. It reacts to Slack events (for example huddle canvases), writes lightweight **workspace JSON/HTML**, and can upload generated Markdown to GitHub. It **does not** define ORM models for long-term analytics—that work belongs to [`cppa_slack_tracker`](../cppa_slack_tracker/README.md).
+
+### Where we fetch data
+
+**Slack Web API / Socket Mode** events (bot tokens per configured workspace). Huddle flows download private HTML/transcript payloads Slack exposes for a file/canvas id.
+
+### How data is saved to the database
+
+**No Django ORM persistence here.** Working state, downloaded JSON, and HTML live under the app’s **workspace data directory** (`slack_event_handler` helpers in [`workspace.py`](workspace.py)).
+
+### How content is published to GitHub
+
+[`utils/huddle_processor.py`](utils/huddle_processor.py) renders Markdown, then **`core.operations.github_ops.upload_file`** commits it to **`GITHUB_SLACK_HUDDLE_REPO_OWNER` / `GITHUB_SLACK_HUDDLE_REPO_NAME`** (default branch from `GITHUB_DEFAULT_BRANCH`). Requires a token with contents write access to that repository.
+
+### How vectors sync to Pinecone
+
+**Not applicable.** Huddle transcripts are not upserted by this listener; use batch pipelines + [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md) if Slack text should also live in the vector index.
+
 ## Common tasks
 
 - Local dev with events: `python manage.py runserver` (listener starts in the reloader child only).

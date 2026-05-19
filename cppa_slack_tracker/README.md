@@ -4,6 +4,26 @@
 
 Collects **Slack workspace data** for CPPA workflows: channels, messages, and related metadata, driven by the scheduled collector command. Shares patterns with other “run\_\*\_tracker” apps in this repo.
 
+## Data workflow
+
+`run_cppa_slack_tracker` is the batch entry point: it walks the Slack Web API for the configured **team** and persists normalized rows. Workspace JSON may retain exports for debugging or legacy imports. See [docs/Workspace.md](../docs/Workspace.md) and [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md).
+
+### Where we fetch data
+
+**Slack Web API** (users, channels, memberships, messages) using tokens from Django settings (`SLACK_BOT_TOKEN_*` / related configuration for the team). Optional **`--messages-json`** seeds the DB from previously exported JSON before live API sync.
+
+### How data is saved to the database
+
+Slack **teams, users, channels, memberships, and messages** are upserted into this app’s ORM models. Raw or supplemental JSON may be written under `WORKSPACE_DIR` when the collector is configured to archive payloads.
+
+### How content is published to GitHub
+
+**Not applicable** for the scheduled collector. Markdown or repo uploads for Slack-derived content, if any, are handled elsewhere (for example the long-running [`slack_event_handler`](../slack_event_handler/README.md) for huddle transcripts).
+
+### How vectors sync to Pinecone
+
+After message sync, the command can call **`sync_to_pinecone`** from [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md) with [`preprocessor.py`](preprocessor.py) (`preprocess_slack_for_pinecone`), unless `--ignore-pinecone` is set. Namespace and app-type strings are derived from settings (for example `PINECONE_SLACK_NAMESPACE_PREFIX` plus team name).
+
 ## Common tasks
 
 - Run the tracker: `python manage.py run_cppa_slack_tracker --help`.

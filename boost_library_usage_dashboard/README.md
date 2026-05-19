@@ -4,6 +4,26 @@
 
 Maintains **usage and dashboard-oriented** data for Boost libraries (aggregates and refresh commands consumed by reporting). Command surface is small; most business rules live in services and models.
 
+## Data workflow
+
+`run_boost_library_usage_dashboard` **reads metrics already stored in PostgreSQL**, generates human-readable reports (Markdown/HTML), and can **publish** static assets to a GitHub repository used for dashboards. Schema: [docs/Schema.md](../docs/Schema.md).
+
+### Where we fetch data
+
+**Primarily PostgreSQL** (aggregated usage and library statistics populated by other collectors). The publish phase may **clone/pull** the target GitHub repo using `core.operations.github_ops.git_ops` when publishing is enabled.
+
+### How data is saved to the database
+
+The command **refreshes dashboard-oriented tables** and derived aggregates defined in this app’s models and services so downstream reporting stays current. Local **HTML/Markdown** outputs may be written under `WORKSPACE_DIR` before publish.
+
+### How content is published to GitHub
+
+When `--skip-publish` is **not** set, [`publisher.py`](publisher.py) prepares the repo and **pushes** generated HTML (and related assets) to **`BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_*`** (overridable with `--owner`, `--repo`, `--branch`). A valid **`GITHUB_TOKEN_WRITE`** (or configured fallback) is required for git operations.
+
+### How vectors sync to Pinecone
+
+**Not applicable** for this app today. Search vectors for docs or discussions come from other pipelines ([`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md), docs tracker, Slack, and so on).
+
 ## Common tasks
 
 - Run the tracker: `python manage.py run_boost_library_usage_dashboard --help`.

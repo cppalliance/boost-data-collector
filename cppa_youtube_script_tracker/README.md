@@ -4,6 +4,26 @@
 
 Large surface area: ingests **YouTube / script–related** data for CPPA workflows, with a primary `run_cppa_youtube_script_tracker` command and many options (sources, dry-run, batching). Prefer reading the command module docstring and `--help` before changing defaults.
 
+## Data workflow
+
+The command runs in **phases**: queued metadata JSON → **YouTube Data API** video discovery → **transcript download** (VTT/text) → optional **Pinecone** upsert. See [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md).
+
+### Where we fetch data
+
+**YouTube Data API** for channel/video metadata within the configured time window, plus **transcript providers** for caption text. Local **queue JSON** under the workspace is processed before network phases when present.
+
+### How data is saved to the database
+
+Videos, transcripts, channels, and related linkage rows are persisted in this app’s models. Raw transcript files and metadata snapshots are also stored under **`WORKSPACE_DIR`** for auditing and replays.
+
+### How content is published to GitHub
+
+**Not applicable** for the main collector. There is no Markdown repo publishing step in `run_cppa_youtube_script_tracker`.
+
+### How vectors sync to Pinecone
+
+After successful ingest, the collector can shell out to **`run_cppa_pinecone_sync`** using **`--pinecone-app-id`** and **`--pinecone-namespace`** (defaults from environment—see `--help`). Failures are surfaced in logs; detailed retry state lives in [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md) models.
+
 ## Common tasks
 
 - `python manage.py run_cppa_youtube_script_tracker --help`
