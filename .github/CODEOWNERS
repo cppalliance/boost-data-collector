@@ -1,0 +1,29 @@
+# CODEOWNERS — last matching pattern wins; keep broad paths first, then specifics.
+# GitHub: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Only these handles: @snowfox1003 @jonathanMLDev
+# Per-app primary owners below are placeholders (round-robin); replace when the team agrees.
+
+* @snowfox1003
+
+boost_collector_runner/ @snowfox1003
+cppa_user_tracker/ @snowfox1003
+github_activity_tracker/ @snowfox1003
+boost_library_tracker/ @snowfox1003
+boost_library_docs_tracker/ @jonathanMLDev
+boost_library_usage_dashboard/ @jonathanMLDev
+boost_usage_tracker/ @jonathanMLDev
+boost_mailing_list_tracker/ @jonathanMLDev
+cppa_pinecone_sync/ @jonathanMLDev
+clang_github_tracker/ @snowfox1003
+cppa_slack_tracker/ @snowfox1003
+discord_activity_tracker/ @snowfox1003
+wg21_paper_tracker/ @snowfox1003
+cppa_youtube_script_tracker/ @jonathanMLDev
+slack_event_handler/ @snowfox1003
+
+core/ @snowfox1003 @jonathanMLDev
+
+.github/workflows/ @snowfox1003
+
+docs/ @snowfox1003 @jonathanMLDev
