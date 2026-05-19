@@ -30,4 +30,4 @@ Used by `clang_github_tracker.state_manager.resolve_start_end_dates` (with optio
 
 - [Schema.md](../Schema.md) – Section 2b: Clang GitHub Tracker.
 - [Workspace.md](../Workspace.md) – `workspace/raw/github_activity_tracker/`, `workspace/clang_github_tracker/`.
-- [Contributing.md](../Contributing.md) – Service layer rule.
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) – Service layer rule.

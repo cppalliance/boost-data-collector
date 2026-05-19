@@ -2,7 +2,13 @@
 Root conftest: register app-level fixture modules and optional session/global fixtures.
 """
 
+import os
+
 import pytest
+
+# Exclude benchmarks/ from default test collection (keeps CI and local pytest fast).
+# Run benchmarks with: RUN_BENCHMARKS=1 uv run pytest benchmarks/ -m benchmark ...
+collect_ignore = [] if os.environ.get("RUN_BENCHMARKS") == "1" else ["benchmarks"]
 
 
 def _patch_django_context_copy_py314():

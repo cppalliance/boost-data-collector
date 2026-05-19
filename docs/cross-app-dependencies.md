@@ -1,7 +1,7 @@
 # Cross-App Dependencies
 
 This document maps every cross-app dependency between the tracker Django apps in this
-project.  It exists to make the [Contributing.md](Contributing.md) guideline — "prefer no
+project.  It exists to make the [CONTRIBUTING.md](../CONTRIBUTING.md) guideline — "prefer no
 ForeignKey from one tracker app into another's models" — visible and therefore enforceable.
 For **typed data boundaries** (run results, activity rows, checkpoints) shared across apps,
 prefer :mod:`core.protocols` (see [Core_public_API.md](Core_public_API.md#tracker-protocols-dtos)).
@@ -76,7 +76,7 @@ These are hard database-level dependencies.  They cannot be removed without migr
 
 ## 2. ORM Read Coupling (cross-app `.objects` queries outside `models.py`)
 
-The [Contributing.md](Contributing.md) service layer rules enforce **write isolation** —
+The [CONTRIBUTING.md](../CONTRIBUTING.md) service layer rules enforce **write isolation** —
 all inserts/updates/deletes go through `services.py`.  However, **read isolation is not
 enforced**: any module may call `AnotherApp.Model.objects.filter(...)` directly.
 
@@ -337,7 +337,7 @@ To add it to pre-commit:
 
 ## Related documentation
 
-- [Contributing.md](Contributing.md) — service-layer write rules
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — service-layer write rules
 - [Core_public_API.md](Core_public_API.md) — `core` public surfaces and the coupling reduction goal
 - [Development_guideline.md](Development_guideline.md) — adding new apps
 - [`scripts/list_cross_app_imports.py`](../scripts/list_cross_app_imports.py) — discovery script

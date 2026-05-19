@@ -5,7 +5,7 @@ All creates/updates/deletes for this app's models must go through functions in t
 module. Do not call Model.objects.create(), model.save(), or model.delete() from
 outside this module.
 
-See docs/Contributing.md for the project-wide rule.
+See CONTRIBUTING.md for the project-wide rule.
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 """
 Service layer for boost_library_tracker.
 All creates/updates/deletes for this app's models must go through functions here.
-See docs/Contributing.md.
+See CONTRIBUTING.md.
 """
 
 from __future__ import annotations

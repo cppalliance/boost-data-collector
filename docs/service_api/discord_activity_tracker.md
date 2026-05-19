@@ -145,6 +145,6 @@ Settings:
 
 - [DiscordChatExporter setup](../operations/discord_chat_exporter.md) — download, install, `.env`
 - [Service API index](README.md)
-- [Contributing](../Contributing.md)
+- [CONTRIBUTING](../../CONTRIBUTING.md)
 - [Schema](../Schema.md)
 - [Workspace](../Workspace.md) – raw archives under `{WORKSPACE_DIR}/raw/discord_activity_tracker/<server_id>/<channel_id>/`; app folder `{WORKSPACE_DIR}/discord_activity_tracker/` (CLI `script/`, backfill drop `Discussion - c-cpp-discussion/`)

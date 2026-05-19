@@ -11,7 +11,7 @@ description = "Boost Data Collector Django project"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["*"]
-exclude = ["*.tests", "*.tests.*", "tests", "tests.*"]
+exclude = ["*.tests", "*.tests.*", "tests", "tests.*", "benchmarks", "benchmarks.*"]
 
 [tool.setuptools_scm]
 fallback_version = "0.1.0"

@@ -1,0 +1,132 @@
+{
+    "machine_info": {
+        "node": "Leos-Mac-mini.local",
+        "processor": "arm",
+        "machine": "arm64",
+        "python_compiler": "Clang 21.1.4 ",
+        "python_implementation": "CPython",
+        "python_implementation_version": "3.13.12",
+        "python_version": "3.13.12",
+        "python_build": [
+            "main",
+            "Mar 10 2026 18:26:32"
+        ],
+        "release": "25.4.0",
+        "system": "Darwin",
+        "cpu": {
+            "python_version": "3.13.12.final.0 (64 bit)",
+            "cpuinfo_version": [
+                9,
+                0,
+                0
+            ],
+            "cpuinfo_version_string": "9.0.0",
+            "arch": "ARM_8",
+            "bits": 64,
+            "count": 10,
+            "arch_string_raw": "arm64",
+            "brand_raw": "Apple M4"
+        }
+    },
+    "commit_info": {
+        "id": "7bf1b7ea6657990eef44fdb362b762abb16e41ba",
+        "time": "2026-05-18T20:05:08-04:00",
+        "author_time": "2026-05-18T20:05:08-04:00",
+        "dirty": true,
+        "project": "boost-data-collector",
+        "branch": "develop"
+    },
+    "benchmarks": [
+        {
+            "group": null,
+            "name": "test_process_commit_data_batch",
+            "fullname": "benchmarks/test_github_commits_throughput.py::test_process_commit_data_batch",
+            "params": null,
+            "param": null,
+            "extra_info": {
+                "n": 50
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.13009395799599588,
+                "max": 0.16657558304723352,
+                "mean": 0.14227045823354273,
+                "stddev": 0.01457181655810832,
+                "rounds": 5,
+                "median": 0.13689958304166794,
+                "iqr": 0.01724434396601282,
+                "q1": 0.1326302083034534,
+                "q3": 0.14987455226946622,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.13009395799599588,
+                "hd15iqr": 0.16657558304723352,
+                "ops": 7.0288660936092535,
+                "total": 0.7113522911677137,
+                "data": [
+                    0.16657558304723352,
+                    0.1334756250726059,
+                    0.13009395799599588,
+                    0.13689958304166794,
+                    0.14430754201021045
+                ],
+                "iterations": 1
+            }
+        },
+        {
+            "group": null,
+            "name": "test_service_bulk_commits_and_file_changes",
+            "fullname": "benchmarks/test_service_bulk_insert.py::test_service_bulk_commits_and_file_changes",
+            "params": null,
+            "param": null,
+            "extra_info": {
+                "n": 50
+            },
+            "options": {
+                "disable_gc": false,
+                "timer": "perf_counter",
+                "min_rounds": 5,
+                "max_time": 1.0,
+                "min_time": 5e-06,
+                "warmup": false
+            },
+            "stats": {
+                "min": 0.10591337503865361,
+                "max": 0.1513816670048982,
+                "mean": 0.13538706267718226,
+                "stddev": 0.01819949434483927,
+                "rounds": 6,
+                "median": 0.14058843749808148,
+                "iqr": 0.02617037494201213,
+                "q1": 0.12384004204068333,
+                "q3": 0.15001041698269546,
+                "iqr_outliers": 0,
+                "stddev_outliers": 1,
+                "outliers": "1;0",
+                "ld15iqr": 0.10591337503865361,
+                "hd15iqr": 0.1513816670048982,
+                "ops": 7.386230118489284,
+                "total": 0.8123223760630935,
+                "data": [
+                    0.1513816670048982,
+                    0.15001041698269546,
+                    0.13251695793587714,
+                    0.12384004204068333,
+                    0.1486599170602858,
+                    0.10591337503865361
+                ],
+                "iterations": 1
+            }
+        }
+    ],
+    "datetime": "2026-05-19T18:09:23.360634+00:00",
+    "version": "5.2.3"
+}

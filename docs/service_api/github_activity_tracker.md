@@ -64,5 +64,5 @@ To sync a repo from GitHub (read last updated from DB, fetch from GitHub, save v
 ## Related
 
 - [Service API index](README.md)
-- [Contributing](../Contributing.md)
+- [CONTRIBUTING](../../CONTRIBUTING.md)
 - [Schema](../Schema.md)

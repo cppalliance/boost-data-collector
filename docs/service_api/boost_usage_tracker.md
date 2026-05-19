@@ -30,4 +30,4 @@
 ## Related docs
 
 - [Schema.md](../Schema.md) – Section 4: Boost Usage Tracker.
-- [Contributing.md](../Contributing.md) – Service layer rule.
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) – Service layer rule.
