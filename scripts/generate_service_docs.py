@@ -79,7 +79,7 @@ def _first_paragraph_docstring(
     return raw.split("\n\n", 1)[0].strip()
 
 
-def _unparse(node: ast.AST | None, source: str) -> str:
+def _unparse(node: ast.AST | None) -> str:
     if node is None:
         return ""
     if hasattr(ast, "unparse"):
@@ -87,7 +87,7 @@ def _unparse(node: ast.AST | None, source: str) -> str:
     raise RuntimeError("Python 3.9+ required (ast.unparse)")
 
 
-def _format_args(func: ast.AsyncFunctionDef | ast.FunctionDef, source: str) -> str:
+def _format_args(func: ast.AsyncFunctionDef | ast.FunctionDef) -> str:
     parts: list[str] = []
     args = func.args
     n_args = len(args.args)
@@ -95,10 +95,10 @@ def _format_args(func: ast.AsyncFunctionDef | ast.FunctionDef, source: str) -> s
     first_default = n_args - n_defaults
 
     def arg_str(a: ast.arg, default: ast.expr | None) -> str:
-        ann = _unparse(a.annotation, source) if a.annotation else ""
+        ann = _unparse(a.annotation) if a.annotation else ""
         base = f"{a.arg}: {ann}" if ann else a.arg
         if default is not None:
-            base += f" = {_unparse(default, source)}"
+            base += f" = {_unparse(default)}"
         return base
 
     for a in args.posonlyargs:
@@ -112,20 +112,20 @@ def _format_args(func: ast.AsyncFunctionDef | ast.FunctionDef, source: str) -> s
         parts.append(arg_str(a, default))
     if args.vararg:
         va = args.vararg
-        ann = _unparse(va.annotation, source) if va.annotation else ""
+        ann = _unparse(va.annotation) if va.annotation else ""
         parts.append(f"*{va.arg}" + (f": {ann}" if ann else ""))
     elif args.kwonlyargs:
         parts.append("*")
     for a, d in zip(args.kwonlyargs, args.kw_defaults, strict=True):
         default = d
-        ann = _unparse(a.annotation, source) if a.annotation else ""
+        ann = _unparse(a.annotation) if a.annotation else ""
         base = f"{a.arg}: {ann}" if ann else a.arg
         if default is not None:
-            base += f" = {_unparse(default, source)}"
+            base += f" = {_unparse(default)}"
         parts.append(base)
     if args.kwarg:
         ka = args.kwarg
-        ann = _unparse(ka.annotation, source) if ka.annotation else ""
+        ann = _unparse(ka.annotation) if ka.annotation else ""
         parts.append(f"**{ka.arg}" + (f": {ann}" if ann else ""))
     return ", ".join(parts)
 
@@ -148,11 +148,11 @@ def _extract_public_functions(source: str) -> list[ServiceFuncRow]:
             continue
         ret = ""
         if node.returns:
-            ret = _unparse(node.returns, source)
+            ret = _unparse(node.returns)
         rows.append(
             ServiceFuncRow(
                 name=node.name,
-                parameters=_format_args(node, source),
+                parameters=_format_args(node),
                 return_type=ret,
                 summary=_first_paragraph_docstring(node),
             )
@@ -209,11 +209,11 @@ def _extract_protocols(source: str) -> tuple[list[ProtocolRow], list[ServiceFunc
     for node in tree.body:
         if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
             if not node.name.startswith("_"):
-                ret = _unparse(node.returns, source) if node.returns else ""
+                ret = _unparse(node.returns) if node.returns else ""
                 helpers.append(
                     ServiceFuncRow(
                         name=node.name,
-                        parameters=_format_args(node, source),
+                        parameters=_format_args(node),
                         return_type=ret,
                         summary=_first_paragraph_docstring(node),
                     )
@@ -236,7 +236,7 @@ def _extract_protocols(source: str) -> tuple[list[ProtocolRow], list[ServiceFunc
                     if _is_property_method(item):
                         ann = ""
                         if item.returns:
-                            ann = _unparse(item.returns, source)
+                            ann = _unparse(item.returns)
                         props.append(ProtocolProperty(name=item.name, type_ann=ann))
             protocols.append(
                 ProtocolRow(
@@ -333,10 +333,12 @@ def _splice_generated(existing: str, generated: str) -> str:
         raise ValueError(
             f"missing {MARKER_START!r}; add markers or see docs/Contributing.md"
         )
-    if MARKER_END not in existing:
-        raise ValueError(f"missing {MARKER_END!r}")
     head, mid_and_tail = existing.split(MARKER_START, 1)
-    _mid, tail = mid_and_tail.split(MARKER_END, 1)
+
+    if MARKER_END not in mid_and_tail:
+        raise ValueError(f"missing {MARKER_END!r}")
+
+    _, tail = mid_and_tail.split(MARKER_END, 1)
     gen_block = f"{MARKER_START}\n\n{generated.rstrip()}\n\n{MARKER_END}"
     return f"{head.rstrip()}\n{gen_block}{tail}"
 
