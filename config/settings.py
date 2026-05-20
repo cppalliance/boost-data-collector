@@ -24,6 +24,10 @@ if env_file.exists():
 # Security
 SECRET_KEY = env("SECRET_KEY") or "django-insecure-dev-only-change-in-production"
 DEBUG = env("DEBUG")
+# When True, collector schedule YAML must load (same as production) even if DEBUG is True (e.g. CI).
+BOOST_COLLECTOR_SCHEDULE_STRICT = env.bool(
+    "BOOST_COLLECTOR_SCHEDULE_STRICT", default=False
+)
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
@@ -626,10 +630,15 @@ CELERY_RESULT_SERIALIZER = "json"
 # CELERY_TIMEZONE = "America/Los_Angeles"
 CELERY_ENABLE_UTC = True  # Beat schedule times (default_time from YAML) are UTC
 
-# Schedule from YAML (boost_collector_runner); on load error fall back to empty beat schedule ({})
+# Schedule from YAML (boost_collector_runner). Strict mode (DEBUG=False or BOOST_COLLECTOR_SCHEDULE_STRICT):
+# missing/invalid YAML raises ScheduleConfigurationError at import time. Non-strict: unexpected errors
+# still fall back to an empty beat schedule with a logged exception.
 BOOST_COLLECTOR_SCHEDULE_YAML = BASE_DIR / "config" / "boost_collector_schedule.yaml"
 try:
-    from boost_collector_runner.schedule_config import get_beat_schedule
+    from boost_collector_runner.schedule_config import (
+        ScheduleConfigurationError,
+        get_beat_schedule,
+    )
 
     CELERY_BEAT_SCHEDULE = get_beat_schedule()
 except ImportError:
@@ -639,6 +648,8 @@ except ImportError:
         "Could not import boost_collector_runner schedule (missing dependency?).",
     )
     CELERY_BEAT_SCHEDULE = {}
+except ScheduleConfigurationError:
+    raise
 except Exception:
     import logging
 
