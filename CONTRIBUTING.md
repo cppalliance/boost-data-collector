@@ -87,7 +87,8 @@ export DJANGO_SETTINGS_MODULE=config.test_settings
 export BENCHMARK_COMMIT_N=50
 
 uv run pytest benchmarks/ -m benchmark --benchmark-only \
-  --benchmark-json=bench.json -v
+  --benchmark-json=bench.json -v \
+  --benchmark-disable-gc
 uv run python benchmarks/compare_to_baseline.py bench.json benchmarks/baselines.json
 ```
 

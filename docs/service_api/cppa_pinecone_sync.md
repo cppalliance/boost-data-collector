@@ -22,4 +22,4 @@ All creates/updates/deletes for `PineconeFailList` and `PineconeSyncStatus` must
 ## Related
 
 - [Service API index](README.md)
-- [Contributing](../Contributing.md)
+- [CONTRIBUTING.md](../../CONTRIBUTING.md)

@@ -74,7 +74,7 @@ def main() -> int:
         if median > limit:
             failures.append(
                 f"{fullname}: median {median:.6f}s exceeds limit {limit:.6f}s "
-                f"(baseline {float(ref):.6f}s × {args.regression_ratio})"
+                f"(baseline {float(ref):.6f}s x {args.regression_ratio})"
             )
 
     for line in warnings:

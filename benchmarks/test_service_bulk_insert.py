@@ -25,7 +25,7 @@ def test_service_bulk_commits_and_file_changes(
     repo = github_repository
     account = github_account
     commit_at = datetime(2024, 6, 1, tzinfo=timezone.utc)
-    hashes = [f"svcbulk{i:056d}"[:40] for i in range(n)]
+    hashes = [f"{i:040x}" for i in range(n)]
 
     def run_batch() -> None:
         with transaction.atomic():
