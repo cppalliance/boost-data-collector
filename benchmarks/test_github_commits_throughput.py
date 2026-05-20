@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import pytest
 
-from github_activity_tracker.models import FileChangeStatus
 from github_activity_tracker.sync.commits import _process_commit_data
 
 
