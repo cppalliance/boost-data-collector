@@ -295,7 +295,7 @@ See **[docs/Deployment.md](docs/Deployment.md)** for:
 
 ## Branching strategy
 
-**GitHub’s configured default branch for this repository is `main`.**
+**GitHub’s configured default branch for this repository is `develop`.**
 
 - **main** – Default/production branch (stable, release-ready code).
 - **develop** – Development branch (active integration and feature work).

@@ -4,7 +4,7 @@ Thank you for helping keep Boost Data Collector and its users safe. This documen
 
 ## Supported versions
 
-- **Source of security fixes:** fixes are integrated on **`develop`** (where pull requests land) and promoted to **`main`**, this repository’s **GitHub default** and production branch. Track the latest commit on **`main`** for release-aligned deployments unless maintainers say otherwise for a specific case. We do not commit to backporting fixes to older tags unless maintainers explicitly agree for a specific case.
+- **Source of security fixes:** fixes land on **`develop`**, this repository’s **GitHub default** branch (where pull requests land), and are promoted to **`main`** for stable production releases. Track the latest commit on **`main`** for production-aligned deployments, or **`develop`** for the latest default-branch integration, unless maintainers say otherwise for a specific case. We do not commit to backporting fixes to older tags unless maintainers explicitly agree for a specific case.
 - **Python:** this project targets **[Python 3.11+](https://github.com/python/cpython)** (see `requires-python` in `pyproject.toml`). Reports that only reproduce on **end-of-life** Python runtimes are **out of scope** for this policy.
 - **Dependencies:** we address vulnerabilities in **this repository’s code and shipped configuration** as described below. Third-party package or platform bugs are handled upstream unless this project must apply a mitigation.
 
@@ -94,9 +94,9 @@ Also rotate **Django** `SECRET_KEY` and **database** credentials (`DATABASE_URL`
 
 ## Maintainer checklist (repository settings)
 
-GitHub reads `SECURITY.md` from the repository **default branch** (**`main`** for this project) and surfaces it as the **[Security policy](https://docs.github.com/en/code-security/getting-started/github-security-features)** (for example at `https://github.com/<owner>/<repo>/security/policy`).
+GitHub reads `SECURITY.md` from the repository **default branch** (**`develop`** for this project) and surfaces it as the **[Security policy](https://docs.github.com/en/code-security/getting-started/github-security-features)** (for example at `https://github.com/<owner>/<repo>/security/policy`).
 
-1. Land `SECURITY.md` on **`develop`** via pull request, then merge **`develop`** to **`main`** for releases so the published policy stays current on the default branch.
+1. Land `SECURITY.md` on **`develop`** (the default branch) via pull request so GitHub publishes the policy; merge **`develop`** to **`main`** for production releases as usual.
 2. Enable **[Private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/working-with-repository-security-advisories/configuring-private-vulnerability-reporting-for-a-repository)** if you want reporters to use the GitHub **Security** tab flow.
 3. Confirm the policy page loads and links work.
 4. When you have an org-approved **security email**, add it under [Email (alternative)](#2-email-alternative) and state clearly that email reporting is available (until then, reporters should use private reporting or an existing private maintainer contact).
