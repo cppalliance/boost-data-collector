@@ -6,9 +6,6 @@
 |------|----------------|-----|------|
 | GitHub | `core.operations.github_ops` | [github.md](github.md) | Clone, fetch, PR/issue/comment helpers; tokens. |
 | DiscordChatExporter | External CLI | [discord_chat_exporter.md](discord_chat_exporter.md) | Install, paths, and `.env` for the exporter used by `discord_activity_tracker`. |
-| Discord | *(planned)* | — | Notifications to Discord from multiple apps. |
-
-**Repo runbooks:** [CODEOWNERS & branch protection](CODEOWNERS_and_branch_protection.md) — code owners file and GitHub branch settings.
 
 **Adding a new operation:** Put shared integration code in **`core/operations/`**, document it here, and add a row to the table (use a new Django app only if you need models).
 

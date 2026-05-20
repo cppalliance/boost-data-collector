@@ -1,6 +1,6 @@
 # CODEOWNERS and branch protection
 
-This repo uses [`.github/CODEOWNERS`](../../.github/CODEOWNERS) so GitHub can request reviews from code owners. **CODEOWNERS only affects behavior meaningfully when branch protection requires reviews from code owners** (and owners have write access to the repository).
+This repo uses [`.github/CODEOWNERS`](../.github/CODEOWNERS) so GitHub can request reviews from code owners. **CODEOWNERS only affects behavior meaningfully when branch protection requires reviews from code owners** (and owners have write access to the repository).
 
 ## 1. Enable branch protection (repository admin)
 
@@ -26,4 +26,4 @@ Then close or merge the draft PRs as appropriate.
 
 ## 3. Updating owners
 
-When primary owners change, edit [`.github/CODEOWNERS`](../../.github/CODEOWNERS) only. Optionally align the human ↔ app table in [Onboarding.md](../Onboarding.md) or [cross-app-dependencies.md](../cross-app-dependencies.md) so docs stay in sync.
+When primary owners change, edit [`.github/CODEOWNERS`](../.github/CODEOWNERS) only. Optionally align the human ↔ app table in [Onboarding.md](Onboarding.md) or [cross-app-dependencies.md](cross-app-dependencies.md) so docs stay in sync.
