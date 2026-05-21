@@ -68,6 +68,11 @@ DAY_ABBREV_TO_FULL = {
 }
 DEFAULT_TIME = "04:10"
 
+# Default when django.conf.settings is not ready (e.g. during config.settings import).
+_DEFAULT_SCHEDULE_YAML = (
+    Path(__file__).resolve().parent.parent / "config" / "boost_collector_schedule.yaml"
+)
+
 
 class ScheduleConfigurationError(ImproperlyConfigured):
     """Raised when the collector schedule YAML is missing or invalid in strict mode."""
@@ -159,9 +164,9 @@ def _get_yaml_path():
     from django.conf import settings
 
     path = getattr(settings, "BOOST_COLLECTOR_SCHEDULE_YAML", None)
-    if path is None:
-        path = Path(settings.BASE_DIR) / "config" / "boost_collector_schedule.yaml"
-    return Path(path)
+    if path is not None:
+        return Path(path)
+    return _DEFAULT_SCHEDULE_YAML
 
 
 def _parse_time(s):
@@ -460,7 +465,10 @@ def _collect_distinct_schedules(data=None):
                     yield key
 
 
-def get_beat_schedule(strict: bool | None = None, yaml_path=None):
+def get_beat_schedule(
+    strict: bool | None = None,
+    yaml_path: Path | str | None = None,
+):
     """
     Build CELERY_BEAT_SCHEDULE from the YAML: one entry per group (group batch at default_time)
     and one per interval_minutes. Group batch runs daily + weekly(today) + monthly(today) + on_release(if new) together.
@@ -470,8 +478,8 @@ def get_beat_schedule(strict: bool | None = None, yaml_path=None):
     logs an error and raises ``ScheduleConfigurationError``. In non-strict mode, logs a warning
     and returns ``{}`` (no beat schedule).
 
-    Pass ``strict`` and ``yaml_path`` when calling from ``settings.py`` during module load so
-    schedule loading does not read the Django settings proxy before it is configured.
+    Pass ``strict`` and ``yaml_path`` when calling from ``config.settings`` during import
+    (``django.conf.settings`` may not expose ``BASE_DIR`` / ``BOOST_COLLECTOR_SCHEDULE_YAML`` yet).
     """
     from datetime import timedelta
 
