@@ -640,7 +640,12 @@ try:
         get_beat_schedule,
     )
 
-    CELERY_BEAT_SCHEDULE = get_beat_schedule()
+    # Pass strict and yaml_path explicitly; settings proxy is not ready during this import.
+    _schedule_strict = BOOST_COLLECTOR_SCHEDULE_STRICT or not DEBUG
+    CELERY_BEAT_SCHEDULE = get_beat_schedule(
+        strict=_schedule_strict,
+        yaml_path=BOOST_COLLECTOR_SCHEDULE_YAML,
+    )
 except ImportError:
     import logging
 

@@ -44,7 +44,7 @@ Runs tasks from the schedule file for the selected schedule type. Exits with sta
 | `--day-of-month` | For `monthly`: day 1–31. **Required** when `--schedule monthly`. |
 | `--interval-minutes` | For `interval`: repeat every *N* minutes (1–180). **Required** when `--schedule interval`. |
 | `--group` | Limit to one YAML group. **Required** with `--schedule default`. For other schedule kinds, omit to run every group. |
-| `--stop-on-failure` | Stop after the first failing collector instead of continuing; log WARNING for each skipped collector with reason. |
+| `--stop-on-failure` | Stop after the first failing collector instead of continuing; log WARNING for each skipped collector with the failed predecessor and reason. |
 | `--strict` | Require the schedule YAML to exist and parse before resolving tasks (fails even when `DEBUG` is True). |
 
 Run `python manage.py run_scheduled_collectors --help` for the full CLI.

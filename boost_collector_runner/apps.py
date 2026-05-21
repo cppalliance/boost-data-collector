@@ -56,9 +56,4 @@ class BoostCollectorRunnerConfig(AppConfig):
                 beat_keys,
             )
 
-        if not hasattr(settings, "BOOST_COLLECTOR_SCHEDULE_STARTUP_OK"):
-            setattr(
-                settings,
-                "BOOST_COLLECTOR_SCHEDULE_STARTUP_OK",
-                sc.SCHEDULE_STARTUP_OK,
-            )
+        settings.BOOST_COLLECTOR_SCHEDULE_STARTUP_OK = sc.SCHEDULE_STARTUP_OK

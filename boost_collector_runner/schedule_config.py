@@ -99,12 +99,15 @@ def ensure_schedule_yaml_loaded():
     return _load_schedule_yaml_data(strict=True)
 
 
-def _load_schedule_yaml_data(*, strict: bool):
+def _load_schedule_yaml_data(*, strict: bool, yaml_path=None):
     """
     Return validated schedule dict, or None if missing/invalid and not strict
     (warnings are logged).
+
+    ``yaml_path`` if set is used instead of ``_get_yaml_path()`` (avoids Django
+    settings access during ``settings.py`` import).
     """
-    path = _get_yaml_path()
+    path = Path(yaml_path) if yaml_path is not None else _get_yaml_path()
     if not path.exists():
         msg = "Schedule YAML not found at %s; no beat schedule loaded."
         if strict:
@@ -457,7 +460,7 @@ def _collect_distinct_schedules(data=None):
                     yield key
 
 
-def get_beat_schedule(strict: bool | None = None):
+def get_beat_schedule(strict: bool | None = None, yaml_path=None):
     """
     Build CELERY_BEAT_SCHEDULE from the YAML: one entry per group (group batch at default_time)
     and one per interval_minutes. Group batch runs daily + weekly(today) + monthly(today) + on_release(if new) together.
@@ -466,13 +469,16 @@ def get_beat_schedule(strict: bool | None = None):
     If the YAML file does not exist or is invalid: in strict mode (see ``is_schedule_strict``),
     logs an error and raises ``ScheduleConfigurationError``. In non-strict mode, logs a warning
     and returns ``{}`` (no beat schedule).
+
+    Pass ``strict`` and ``yaml_path`` when calling from ``settings.py`` during module load so
+    schedule loading does not read the Django settings proxy before it is configured.
     """
     from datetime import timedelta
 
     from celery.schedules import crontab, schedule as celery_schedule
 
     st = is_schedule_strict(strict)
-    data = _load_schedule_yaml_data(strict=st)
+    data = _load_schedule_yaml_data(strict=st, yaml_path=yaml_path)
     if data is None:
         return {}
 
