@@ -84,7 +84,10 @@ def _groups_with_daily_schedule() -> set[str]:
 def _check_collector_groups() -> dict[str, Any]:
     stale_hours = float(getattr(settings, "HEALTH_COLLECTOR_STALE_HOURS", 26))
     threshold = timezone.now() - timedelta(hours=stale_hours)
-    statuses = collector_services.list_group_statuses()
+    try:
+        statuses = collector_services.list_group_statuses()
+    except Exception as exc:
+        return {"groups": {}, "any_stale": False, "error": str(exc)}
     daily_groups = _groups_with_daily_schedule()
     groups_out: dict[str, Any] = {}
     any_stale = False
@@ -137,8 +140,16 @@ def run_health_checks() -> tuple[dict[str, Any], int]:
     """Run all checks; return (payload, http_status)."""
     db = _check_database()
     celery = _check_celery_workers()
-    collectors = _check_collector_groups()
-    pinecone = _check_pinecone_sync()
+    if db.get("ok"):
+        collectors = _check_collector_groups()
+        pinecone = _check_pinecone_sync()
+    else:
+        collectors = {
+            "groups": {},
+            "any_stale": False,
+            "skipped": "database check failed",
+        }
+        pinecone = {"skipped": "database check failed"}
 
     enforce_freshness = getattr(settings, "HEALTH_ENFORCE_COLLECTOR_FRESHNESS", True)
     stale_blocks = collectors.get("any_stale") and enforce_freshness

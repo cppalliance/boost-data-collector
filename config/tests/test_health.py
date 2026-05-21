@@ -37,7 +37,10 @@ def test_health_view_healthy_when_db_and_celery_ok(api_client):
     assert data["checks"]["database"]["ok"] is True
 
 
-@override_settings(HEALTH_COLLECTOR_STALE_HOURS=26)
+@override_settings(
+    HEALTH_COLLECTOR_STALE_HOURS=26,
+    HEALTH_ENFORCE_COLLECTOR_FRESHNESS=True,
+)
 def test_health_view_503_when_stale_group(api_client):
     old = timezone.now() - timedelta(hours=48)
     collector_services.record_group_success("github", when=old)
@@ -75,3 +78,20 @@ def test_run_health_checks_celery_failure():
         payload, status = run_health_checks()
     assert status == 503
     assert payload["checks"]["celery_workers"]["ok"] is False
+
+
+def test_run_health_checks_db_failure_returns_json_not_500():
+    with patch("config.health._check_database") as mock_db:
+        mock_db.return_value = {"ok": False, "error": "connection refused"}
+        with patch("config.health._check_celery_workers") as mock_celery:
+            mock_celery.return_value = {
+                "ok": True,
+                "workers": ["celery@host"],
+                "responded": 1,
+                "expected": 1,
+            }
+            payload, status = run_health_checks()
+    assert status == 503
+    assert payload["status"] == "unhealthy"
+    assert payload["checks"]["database"]["ok"] is False
+    assert payload["checks"]["collector_groups"] == {}
