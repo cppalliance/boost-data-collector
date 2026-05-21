@@ -218,11 +218,16 @@ class Command(BaseCommand):
         else:
             logger.warning(summary)
 
-        if group_id:
+        if group_id and results:
             if exit_code == 0:
                 collector_services.record_group_success(group_id)
             else:
                 collector_services.record_group_failure(group_id, exit_code=exit_code)
+        elif group_id:
+            logger.info(
+                "run_scheduled_collectors: no executed tasks for group=%s; skipping status update",
+                group_id,
+            )
 
         if exit_code != 0:
             sys.exit(exit_code)

@@ -8,7 +8,13 @@ from django.test import Client, override_settings
 from django.utils import timezone
 
 from boost_collector_runner import services as collector_services
-from config.health import run_health_checks
+from config.health import (
+    _check_celery_workers,
+    _check_collector_groups,
+    _check_database,
+    _check_pinecone_sync,
+    run_health_checks,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -47,7 +53,7 @@ def test_health_view_503_when_stale_group(api_client):
     with patch("config.health._check_celery_workers") as mock_celery:
         mock_celery.return_value = {
             "ok": True,
-            "workers": [],
+            "workers": ["celery@host"],
             "responded": 1,
             "expected": 1,
         }
@@ -82,7 +88,7 @@ def test_run_health_checks_celery_failure():
 
 def test_run_health_checks_db_failure_returns_json_not_500():
     with patch("config.health._check_database") as mock_db:
-        mock_db.return_value = {"ok": False, "error": "connection refused"}
+        mock_db.return_value = {"ok": False, "error": "database_check_failed"}
         with patch("config.health._check_celery_workers") as mock_celery:
             mock_celery.return_value = {
                 "ok": True,
@@ -95,3 +101,98 @@ def test_run_health_checks_db_failure_returns_json_not_500():
     assert payload["status"] == "unhealthy"
     assert payload["checks"]["database"]["ok"] is False
     assert payload["checks"]["collector_groups"] == {}
+
+
+def test_check_database_exception_returns_stable_error():
+    sensitive = "postgres://secret:password@10.0.0.5:5432/internal"
+    with patch(
+        "config.health.connection.ensure_connection",
+        side_effect=RuntimeError(sensitive),
+    ):
+        result = _check_database()
+    assert result == {"ok": False, "error": "database_check_failed"}
+
+
+def test_check_celery_workers_exception_returns_stable_error():
+    sensitive = "redis://:token@internal.cache:6379/0"
+    with patch(
+        "config.celery.app.control.inspect",
+        side_effect=RuntimeError(sensitive),
+    ):
+        result = _check_celery_workers()
+    assert result["ok"] is False
+    assert result["error"] == "celery_check_failed"
+    assert sensitive not in str(result)
+
+
+def test_check_collector_groups_exception_returns_stable_error():
+    sensitive = "SELECT * FROM secret_table"
+    with patch(
+        "config.health.collector_services.list_group_statuses",
+        side_effect=RuntimeError(sensitive),
+    ):
+        result = _check_collector_groups()
+    assert result == {
+        "groups": {},
+        "any_stale": False,
+        "error": "collector_check_failed",
+    }
+
+
+def test_check_collector_groups_schedule_failure_returns_stable_error():
+    with patch(
+        "config.health.load_config",
+        side_effect=ValueError("invalid yaml at line 99"),
+    ):
+        result = _check_collector_groups()
+    assert result == {
+        "groups": {},
+        "any_stale": False,
+        "error": "collector_schedule_unavailable",
+    }
+    assert "line 99" not in str(result)
+
+
+@override_settings(HEALTH_ENFORCE_COLLECTOR_FRESHNESS=True)
+def test_run_health_checks_503_when_collector_schedule_unavailable():
+    with patch("config.health._check_celery_workers") as mock_celery:
+        mock_celery.return_value = {
+            "ok": True,
+            "workers": ["celery@host"],
+            "responded": 1,
+            "expected": 1,
+        }
+        with patch(
+            "config.health.load_config", side_effect=FileNotFoundError("missing")
+        ):
+            payload, status = run_health_checks()
+    assert status == 503
+    assert payload["status"] == "unhealthy"
+
+
+@override_settings(HEALTH_ENFORCE_COLLECTOR_FRESHNESS=False)
+def test_run_health_checks_healthy_when_collector_check_errors_but_freshness_disabled():
+    with patch("config.health._check_celery_workers") as mock_celery:
+        mock_celery.return_value = {
+            "ok": True,
+            "workers": ["celery@host"],
+            "responded": 1,
+            "expected": 1,
+        }
+        with patch(
+            "config.health.collector_services.list_group_statuses",
+            side_effect=RuntimeError("db down"),
+        ):
+            payload, status = run_health_checks()
+    assert status == 200
+    assert payload["status"] == "healthy"
+
+
+def test_check_pinecone_sync_exception_returns_stable_error():
+    sensitive = "pc-secret-api-key-abcdef"
+    with patch(
+        "cppa_pinecone_sync.models.PineconeSyncStatus.objects.all",
+        side_effect=RuntimeError(sensitive),
+    ):
+        result = _check_pinecone_sync()
+    assert result == {"error": "pinecone_sync_check_failed"}

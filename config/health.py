@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import timedelta
 from typing import Any
@@ -15,6 +16,8 @@ from django.views.decorators.http import require_GET
 from boost_collector_runner import services as collector_services
 from boost_collector_runner.schedule_config import load_config
 
+logger = logging.getLogger(__name__)
+
 
 def _check_database() -> dict[str, Any]:
     started = time.monotonic()
@@ -24,8 +27,9 @@ def _check_database() -> dict[str, Any]:
             cursor.execute("SELECT 1")
         latency_ms = int((time.monotonic() - started) * 1000)
         return {"ok": True, "latency_ms": latency_ms}
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
+    except Exception:
+        logger.exception("health database check failed")
+        return {"ok": False, "error": "database_check_failed"}
 
 
 def _check_celery_workers() -> dict[str, Any]:
@@ -45,13 +49,14 @@ def _check_celery_workers() -> dict[str, Any]:
             "responded": responded,
             "expected": min_workers,
         }
-    except Exception as exc:
+    except Exception:
+        logger.exception("health celery check failed")
         return {
             "ok": False,
             "workers": [],
             "responded": 0,
             "expected": min_workers,
-            "error": str(exc),
+            "error": "celery_check_failed",
         }
 
 
@@ -61,10 +66,7 @@ def _groups_with_daily_schedule() -> set[str]:
         from pathlib import Path
 
         path = Path(settings.BASE_DIR) / "config" / "boost_collector_schedule.yaml"
-    try:
-        data = load_config(path)
-    except Exception:
-        return set()
+    data = load_config(path)
     groups = data.get("groups") or {}
     out: set[str] = set()
     for gid, group_data in groups.items():
@@ -86,9 +88,18 @@ def _check_collector_groups() -> dict[str, Any]:
     threshold = timezone.now() - timedelta(hours=stale_hours)
     try:
         statuses = collector_services.list_group_statuses()
-    except Exception as exc:
-        return {"groups": {}, "any_stale": False, "error": str(exc)}
-    daily_groups = _groups_with_daily_schedule()
+    except Exception:
+        logger.exception("health collector group check failed")
+        return {"groups": {}, "any_stale": False, "error": "collector_check_failed"}
+    try:
+        daily_groups = _groups_with_daily_schedule()
+    except Exception:
+        logger.exception("health collector schedule check failed")
+        return {
+            "groups": {},
+            "any_stale": False,
+            "error": "collector_schedule_unavailable",
+        }
     groups_out: dict[str, Any] = {}
     any_stale = False
 
@@ -132,8 +143,9 @@ def _check_pinecone_sync() -> dict[str, Any]:
             for row in rows
             for app_type in [row.app_type]
         }
-    except Exception as exc:
-        return {"error": str(exc)}
+    except Exception:
+        logger.exception("health pinecone sync check failed")
+        return {"error": "pinecone_sync_check_failed"}
 
 
 def run_health_checks() -> tuple[dict[str, Any], int]:
@@ -152,7 +164,10 @@ def run_health_checks() -> tuple[dict[str, Any], int]:
         pinecone = {"skipped": "database check failed"}
 
     enforce_freshness = getattr(settings, "HEALTH_ENFORCE_COLLECTOR_FRESHNESS", True)
-    stale_blocks = collectors.get("any_stale") and enforce_freshness
+    collector_error = bool(collectors.get("error"))
+    stale_blocks = enforce_freshness and (
+        bool(collectors.get("any_stale")) or collector_error
+    )
     critical_ok = db.get("ok") and celery.get("ok") and not stale_blocks
     status_label = "healthy" if critical_ok else "unhealthy"
     http_status = 200 if critical_ok else 503
@@ -162,7 +177,7 @@ def run_health_checks() -> tuple[dict[str, Any], int]:
         "checks": {
             "database": db,
             "celery_workers": celery,
-            "collector_groups": collectors["groups"],
+            "collector_groups": collectors.get("groups") or {},
             "pinecone_sync": pinecone,
         },
     }

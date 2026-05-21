@@ -471,7 +471,7 @@ See [GCP_Production_Checklist.md](./GCP_Production_Checklist.md) for Cloud SQL, 
 
 `make health` calls **`GET /health/`** inside the `web` container (database, Celery workers, collector group freshness), then checks Redis and that Celery containers are running.
 
-- **Readiness JSON:** `curl http://127.0.0.1:8000/health/` (or via nginx).
+- **Readiness JSON:** `curl http://127.0.0.1:8000/health/` (or via nginx). If `HEALTH_CHECK_TOKEN` is set in `.env`, `make health` sends `Authorization: Bearer …` using the value from the `web` container environment.
 - **Production:** keep `HEALTH_ENFORCE_COLLECTOR_FRESHNESS=true` so stale daily groups return HTTP 503.
 - **CI / first boot:** can set `HEALTH_ENFORCE_COLLECTOR_FRESHNESS=false` until collectors have run once.
 
