@@ -1,0 +1,175 @@
+"""Readiness checks for /health/ (database, Celery workers, collector freshness)."""
+
+from __future__ import annotations
+
+import time
+from datetime import timedelta
+from typing import Any
+
+from django.conf import settings
+from django.db import connection
+from django.http import JsonResponse
+from django.utils import timezone
+from django.views.decorators.http import require_GET
+
+from boost_collector_runner import services as collector_services
+from boost_collector_runner.schedule_config import load_config
+
+
+def _check_database() -> dict[str, Any]:
+    started = time.monotonic()
+    try:
+        connection.ensure_connection()
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        latency_ms = int((time.monotonic() - started) * 1000)
+        return {"ok": True, "latency_ms": latency_ms}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def _check_celery_workers() -> dict[str, Any]:
+    min_workers = int(getattr(settings, "HEALTH_CELERY_MIN_WORKERS", 1))
+    timeout = float(getattr(settings, "HEALTH_CELERY_INSPECT_TIMEOUT", 3.0))
+    try:
+        from config.celery import app as celery_app
+
+        inspect = celery_app.control.inspect(timeout=timeout)
+        ping = inspect.ping() or {}
+        workers = sorted(ping.keys())
+        responded = len(workers)
+        ok = responded >= min_workers
+        return {
+            "ok": ok,
+            "workers": workers,
+            "responded": responded,
+            "expected": min_workers,
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "workers": [],
+            "responded": 0,
+            "expected": min_workers,
+            "error": str(exc),
+        }
+
+
+def _groups_with_daily_schedule() -> set[str]:
+    path = getattr(settings, "BOOST_COLLECTOR_SCHEDULE_YAML", None)
+    if path is None:
+        from pathlib import Path
+
+        path = Path(settings.BASE_DIR) / "config" / "boost_collector_schedule.yaml"
+    try:
+        data = load_config(path)
+    except Exception:
+        return set()
+    groups = data.get("groups") or {}
+    out: set[str] = set()
+    for gid, group_data in groups.items():
+        if not isinstance(group_data, dict):
+            continue
+        for task in group_data.get("tasks") or []:
+            if not isinstance(task, dict):
+                continue
+            if task.get("enabled") is False:
+                continue
+            if task.get("schedule") == "daily":
+                out.add(gid)
+                break
+    return out
+
+
+def _check_collector_groups() -> dict[str, Any]:
+    stale_hours = float(getattr(settings, "HEALTH_COLLECTOR_STALE_HOURS", 26))
+    threshold = timezone.now() - timedelta(hours=stale_hours)
+    statuses = collector_services.list_group_statuses()
+    daily_groups = _groups_with_daily_schedule()
+    groups_out: dict[str, Any] = {}
+    any_stale = False
+
+    for gid in sorted(daily_groups):
+        row = statuses.get(gid)
+        last_success = row.last_success_at if row else None
+        if last_success is None:
+            stale = True
+        else:
+            stale = last_success < threshold
+        if stale:
+            any_stale = True
+        groups_out[gid] = {
+            "last_success_at": last_success.isoformat() if last_success else None,
+            "stale": stale,
+        }
+
+    for gid, row in sorted(statuses.items()):
+        if gid in groups_out:
+            continue
+        last_success = row.last_success_at
+        groups_out[gid] = {
+            "last_success_at": last_success.isoformat() if last_success else None,
+            "stale": None,
+        }
+
+    return {"groups": groups_out, "any_stale": any_stale}
+
+
+def _check_pinecone_sync() -> dict[str, Any]:
+    try:
+        from cppa_pinecone_sync.models import PineconeSyncStatus
+
+        rows = PineconeSyncStatus.objects.all().order_by("app_type")
+        return {
+            app_type: {
+                "final_sync_at": (
+                    row.final_sync_at.isoformat() if row.final_sync_at else None
+                ),
+            }
+            for row in rows
+            for app_type in [row.app_type]
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+def run_health_checks() -> tuple[dict[str, Any], int]:
+    """Run all checks; return (payload, http_status)."""
+    db = _check_database()
+    celery = _check_celery_workers()
+    collectors = _check_collector_groups()
+    pinecone = _check_pinecone_sync()
+
+    enforce_freshness = getattr(settings, "HEALTH_ENFORCE_COLLECTOR_FRESHNESS", True)
+    stale_blocks = collectors.get("any_stale") and enforce_freshness
+    critical_ok = db.get("ok") and celery.get("ok") and not stale_blocks
+    status_label = "healthy" if critical_ok else "unhealthy"
+    http_status = 200 if critical_ok else 503
+
+    payload = {
+        "status": status_label,
+        "checks": {
+            "database": db,
+            "celery_workers": celery,
+            "collector_groups": collectors["groups"],
+            "pinecone_sync": pinecone,
+        },
+    }
+    return payload, http_status
+
+
+@require_GET
+def health_view(request):
+    """GET /health/ — readiness for load balancers and Docker HEALTHCHECK."""
+    token = (getattr(settings, "HEALTH_CHECK_TOKEN", "") or "").strip()
+    if token:
+        auth = request.headers.get("Authorization", "")
+        expected = f"Bearer {token}"
+        if auth != expected:
+            return JsonResponse(
+                {"status": "unauthorized", "detail": "Invalid or missing token"},
+                status=401,
+            )
+
+    payload, http_status = run_health_checks()
+    return JsonResponse(payload, status=http_status)

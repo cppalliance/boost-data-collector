@@ -49,12 +49,14 @@ services:
   web:
     build: .
     restart: unless-stopped
+    user: "0:0"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
       - "127.0.0.1:8000:8000"
     env_file: .env
     environment:
+      ALLOW_ROOT_ENTRYPOINT: "1"
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (e.g. host.docker.internal or db:5432 with db service enabled)}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
@@ -71,10 +73,14 @@ services:
   celery_worker:
     build: .
     restart: unless-stopped
+    user: "0:0"
+    healthcheck:
+      disable: true
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file: .env
     environment:
+      ALLOW_ROOT_ENTRYPOINT: "1"
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (e.g. host.docker.internal or db:5432 with db service enabled)}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
@@ -90,10 +96,14 @@ services:
   celery_beat:
     build: .
     restart: unless-stopped
+    user: "0:0"
+    healthcheck:
+      disable: true
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file: .env
     environment:
+      ALLOW_ROOT_ENTRYPOINT: "1"
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (e.g. host.docker.internal or db:5432 with db service enabled)}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
