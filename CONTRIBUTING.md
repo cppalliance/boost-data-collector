@@ -34,11 +34,11 @@ Each Django app that has **models** provides a **`services.py`** module. This is
 | `cppa_slack_tracker` | `cppa_slack_tracker/services.py` | Slack teams, channels, messages, membership. |
 | `wg21_paper_tracker` | `wg21_paper_tracker/services.py` | WG21 papers, authors, mailings. |
 
-For a full list of functions, parameter/return types, and validation (e.g. empty `name` raises `ValueError`), see **[Service_API.md](Service_API.md)** and the per-app docs in **[service_api/](service_api/)** (index: [service_api/README.md](service_api/README.md)). DTO protocols shared across trackers are documented in **[service_api/core_protocols.md](service_api/core_protocols.md)** (generated from `core/protocols.py`).
+For a full list of functions, parameter/return types, and validation (e.g. empty `name` raises `ValueError`), see **[docs/Service_API.md](docs/Service_API.md)** and the per-app docs in **[docs/service_api/](docs/service_api/)** (index: [docs/service_api/README.md](docs/service_api/README.md)).
 
 ### Regenerating service API docs
 
-Reference tables in `docs/service_api/*.md` are produced by **[`scripts/generate_service_docs.py`](../scripts/generate_service_docs.py)** from each app’s `services.py` and from `core/protocols.py`.
+Reference tables in `docs/service_api/*.md` are produced by **[`scripts/generate_service_docs.py`](scripts/generate_service_docs.py)** from each app’s `services.py` and from `core/protocols.py`.
 
 - **Markers:** Each file contains `<!-- SERVICE_API:GENERATED:START -->` … `<!-- SERVICE_API:GENERATED:END -->`. The script replaces **only** that region. Put hand-written notes (usage, cross-app warnings, command help) **below** the `END` marker.
 - **Regenerate locally:** `python scripts/generate_service_docs.py` (optional: `--app <django_app_label>` for one module).
@@ -65,22 +65,48 @@ Reference tables in `docs/service_api/*.md` are produced by **[`scripts/generate
 
 ### Testing
 
-- **Running tests:** From the project root, install dev deps (`pip install -r requirements-dev.lock` or `uv pip install -r requirements-dev.lock`), start the test database (`docker compose -f docker-compose.test.yml up -d`), set `DATABASE_URL` (and `SECRET_KEY` for the process) as in [README.md](../README.md#running-tests), then run `python -m pytest`. Tests **always use PostgreSQL** (`config.test_settings`); there is no SQLite fallback.
-- See [README.md](../README.md#running-tests) and [Development_guideline.md](Development_guideline.md#testing-workflow) for full commands and options.
+- **Running tests:** From the project root, install dev deps (`pip install -r requirements-dev.lock` or `uv pip install -r requirements-dev.lock`), start the test database (`docker compose -f docker-compose.test.yml up -d`), set `DATABASE_URL` (and `SECRET_KEY` for the process) as in [README.md](README.md#running-tests), then run `python -m pytest`. Tests **always use PostgreSQL** (`config.test_settings`); there is no SQLite fallback.
+- See [README.md](README.md#running-tests) and [docs/Development_guideline.md](docs/Development_guideline.md#testing-workflow) for full commands and options.
 - **Unit tests for `services.py`:** Call the service functions and assert on the database (or mocks) as needed.
 - **Other tests:** Prefer service functions when setting up data. If you must create models directly for tests, keep it in test code (e.g. fixtures or test helpers) and avoid doing the same in production code.
 
+### Performance benchmarks
+
+Throughput checks live under [`benchmarks/`](benchmarks/) and use **`pytest-benchmark`**. They are **not** collected during normal `pytest` runs: set **`RUN_BENCHMARKS=1`** so the root [`conftest.py`](conftest.py) stops ignoring that directory (see `collect_ignore`). Tests are marked with **`@pytest.mark.benchmark`**.
+
+**Prerequisites:** Same as unit tests: PostgreSQL, `DATABASE_URL`, `SECRET_KEY`, `DJANGO_SETTINGS_MODULE=config.test_settings` (see [README.md](README.md#running-tests)).
+
+**Run locally** (from repo root, with Postgres up):
+
+```bash
+export RUN_BENCHMARKS=1
+export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5433/postgres
+export SECRET_KEY=for-local-only
+export DJANGO_SETTINGS_MODULE=config.test_settings
+# Optional: batch size (default 50; match benchmarks/baselines.json "n")
+export BENCHMARK_COMMIT_N=50
+
+uv run pytest benchmarks/ -m benchmark --benchmark-only \
+  --benchmark-json=bench.json -v \
+  --benchmark-disable-gc
+uv run python benchmarks/compare_to_baseline.py bench.json benchmarks/baselines.json
+```
+
+**Baselines:** [`benchmarks/baselines.json`](benchmarks/baselines.json) stores maximum acceptable **median** seconds per scenario (for the configured `n`). The compare script fails if any median exceeds `baseline_median × 1.25` (more than 25% slower than the reference). After a deliberate performance change or a CI image upgrade, update `median_seconds` (and `n` if you change `BENCHMARK_COMMIT_N`) using `stats.median` from the generated JSON.
+
+**CI:** The [`.github/workflows/benchmarks.yml`](.github/workflows/benchmarks.yml) workflow runs on **`workflow_dispatch`** only, uploads `bench.json` as an artifact, and runs the compare step on success.
+
 ## Other guidelines
 
-- **Branching:** Create feature branches from `develop`. Open pull requests against `develop`. See [Development_guideline.md](Development_guideline.md).
+- **Branching:** Create feature branches from `develop`. Open pull requests against `develop`. See [docs/Development_guideline.md](docs/Development_guideline.md).
 - **Code style:** Use Python 3.11+ and follow Django and project conventions. Use the project’s logging (`logging.getLogger(__name__)`). Before pushing, run **`uv run pyright`** (with dev deps) for the paths covered by **`pyrightconfig.json`**, and ensure CI’s **lint** / **pyright** / **test** jobs would pass.
 - **Database:** Use the Django ORM and migrations. Writes only through the service layer as above.
-- **Docs:** Update this doc (and app `services.py` docstrings) when adding new apps or changing the write rules. After changing `services.py` or `core/protocols.py`, run `python scripts/generate_service_docs.py` and commit the updated `docs/service_api/` files.
+- **Docs:** Update this file (and app `services.py` docstrings) when adding new apps or changing the write rules. After changing `services.py` or `core/protocols.py`, run `python scripts/generate_service_docs.py` and commit the updated `docs/service_api/` files.
 
 ## Related documentation
 
-- [Service_API.md](Service_API.md) – API reference for all service layer functions.
-- [Development_guideline.md](Development_guideline.md) – Setup, workflow, adding apps.
-- [Workflow.md](Workflow.md) – Execution order and collectors.
-- [Schema.md](Schema.md) – Database schema.
-- [cross-app-dependencies.md](cross-app-dependencies.md) – Complete map of every cross-app FK, MTI, ORM read, and Python import dependency, plus `import-linter` recommendations.
+- [docs/Service_API.md](docs/Service_API.md) – API reference for all service layer functions.
+- [docs/Development_guideline.md](docs/Development_guideline.md) – Setup, workflow, adding apps.
+- [docs/Workflow.md](docs/Workflow.md) – Execution order and collectors.
+- [docs/Schema.md](docs/Schema.md) – Database schema.
+- [docs/cross-app-dependencies.md](docs/cross-app-dependencies.md) – Complete map of every cross-app FK, MTI, ORM read, and Python import dependency, plus `import-linter` recommendations.

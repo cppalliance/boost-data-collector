@@ -2,7 +2,7 @@
 
 Module: `cppa_pinecone_sync.services`
 
-All creates/updates/deletes for `PineconeFailList` and `PineconeSyncStatus` must go through this module. See [Contributing.md](../Contributing.md).
+All creates/updates/deletes for `PineconeFailList` and `PineconeSyncStatus` must go through this module. See [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ---
 <!-- SERVICE_API:GENERATED:START -->
@@ -22,4 +22,4 @@ All creates/updates/deletes for `PineconeFailList` and `PineconeSyncStatus` must
 ## Related
 
 - [Service API index](README.md)
-- [Contributing](../Contributing.md)
+- [CONTRIBUTING.md](../../CONTRIBUTING.md)

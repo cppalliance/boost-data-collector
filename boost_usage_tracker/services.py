@@ -2,7 +2,7 @@
 Service layer for boost_usage_tracker.
 
 All creates/updates/deletes for this app's models must go through functions here.
-See docs/Contributing.md for the project-wide rule.
+See CONTRIBUTING.md for the project-wide rule.
 
 Includes bulk operations for speed (fewer round-trips):
 - bulk_create_or_update_boost_usage

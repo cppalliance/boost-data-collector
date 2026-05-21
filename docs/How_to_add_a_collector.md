@@ -31,7 +31,7 @@ The detailed contracts (abstract methods, lifecycle hooks, error handling, templ
 
 ## 4. Skeleton collector (minimal copy-paste example)
 
-This section is a **canonical minimal pattern**: the management command is only responsible for parsing options and returning a collector from `get_collector()` (often ~10–15 lines). The **`AbstractCollector` subclass** implements `name`, `validate_config`, and `collect` (orchestration); `BaseCollectorCommand` still calls `run()`, which the base implements as validate-then-collect. The **service layer** (`services.py`) is the main place for DB and API logic—match the project rule that writes go through services (see [Contributing.md](Contributing.md#service-layer-single-place-for-writes)).
+This section is a **canonical minimal pattern**: the management command is only responsible for parsing options and returning a collector from `get_collector()` (often ~10–15 lines). The **`AbstractCollector` subclass** implements `name`, `validate_config`, and `collect` (orchestration); `BaseCollectorCommand` still calls `run()`, which the base implements as validate-then-collect. The **service layer** (`services.py`) is the main place for DB and API logic—match the project rule that writes go through services (see [CONTRIBUTING.md](../CONTRIBUTING.md#service-layer-single-place-for-writes)).
 
 Keep imports and calls inside `collect()` going through `services.py` (for example `import my_skeleton_tracker.services as services` and only call functions from that module) so the write path stays obvious.
 

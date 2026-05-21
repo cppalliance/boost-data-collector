@@ -10,7 +10,7 @@ For setup steps (venv, migrate, tests), start with the root **[README.md](../REA
 
 1. **One Django project, one database** — All installed apps share PostgreSQL (`boost_dashboard`). There is no per-app database isolation.
 2. **Collectors are management commands** — Scheduled work is `python manage.py <command>`. Production batches run **`run_scheduled_collectors`**, which reads **`config/boost_collector_schedule.yaml`** (see **[Workflow.md](Workflow.md)**).
-3. **Writes go through `services.py`** — For apps that define models, creates/updates/deletes belong in that app’s **`services.py`**. Commands, fetchers, and other apps call those functions; they do not write models ad hoc (see **[Contributing.md](Contributing.md)**).
+3. **Writes go through `services.py`** — For apps that define models, creates/updates/deletes belong in that app’s **`services.py`**. Commands, fetchers, and other apps call those functions; they do not write models ad hoc (see **[CONTRIBUTING.md](../CONTRIBUTING.md)**).
 4. **Shared “collector contract” lives in `core`** — Prefer **`AbstractCollector`** (`name`, `validate_config`, `collect`) plus **`BaseCollectorCommand`** for a consistent shape; legacy **`CollectorBase`** (`run()` only) remains supported. See **[Core_public_API.md](Core_public_API.md)** and **[How_to_add_a_collector.md](How_to_add_a_collector.md)**.
 5. **Cross-app coupling is intentionally loose** — Avoid **ForeignKeys** from one tracker app into another’s models when it would create tight coupling or import cycles. Prefer querying by IDs or shared reference tables (e.g. **Language**, **Identity**) as documented in **[Schema.md](Schema.md)** and **[Development_guideline.md](Development_guideline.md)**.
 
@@ -23,7 +23,7 @@ For setup steps (venv, migrate, tests), start with the root **[README.md](../REA
 | 1 | [README.md](../README.md) | Prerequisites, setup, tests. |
 | 2 | [Architecture_data_flow.md](Architecture_data_flow.md) | Sources → collectors → DB / workspace → Pinecone. |
 | 3 | [Workflow.md](Workflow.md) | YAML schedules, Celery Beat, execution order. |
-| 4 | [Contributing.md](Contributing.md) | Service-layer rule for DB writes. |
+| 4 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Service-layer rule for DB writes. |
 | 5 | [Workspace.md](Workspace.md) | Where files land under `WORKSPACE_DIR`. |
 | 6 | [Schema.md](Schema.md) — § Overview + diagrams for your area | Cross-app tables (identity, GitHub, Boost libraries). |
 | 7 | [Service_API.md](Service_API.md) + `service_api/<app>.md` | Callable surface for writes you must use. |

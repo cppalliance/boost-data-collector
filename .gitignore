@@ -21,6 +21,8 @@ media/
 .test_artifacts/
 
 # Testing / coverage
+# pytest-benchmark JSON (machine_info / commit_info; use CI artifact, do not commit)
+bench.json
 .coverage
 coverage.xml
 coverage.json

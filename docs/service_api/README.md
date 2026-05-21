@@ -38,4 +38,4 @@ Index of all app service modules. All writes to app models must go through the s
 - **wg21_paper_tracker** – WG21 paper and author persistence.
 - **core.protocols** – Structural contracts for sync outcomes and activity payloads (see [core_protocols.md](core_protocols.md)).
 
-See [Contributing.md](../Contributing.md) for the rule that all writes go through the service layer, and for **regenerating** these docs from source.
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for the rule that all writes go through the service layer, and for **regenerating** these docs from source.

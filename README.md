@@ -278,7 +278,7 @@ Docs are organized **by topic** (one doc per concern: workflow, workspace, servi
 - [Workspace.md](docs/Workspace.md) – Workspace layout and usage for file processing.
 - [Schema.md](docs/Schema.md) – Database schema and table relationships.
 - [Development_guideline.md](docs/Development_guideline.md) – Development setup, app requirements, and step-by-step workflow.
-- [Contributing.md](docs/Contributing.md) – Service layer (single place for writes), **regenerating service API docs** (`scripts/generate_service_docs.py`), and contributor guidelines.
+- [CONTRIBUTING.md](CONTRIBUTING.md) – Service layer (single place for writes), **regenerating service API docs** (`scripts/generate_service_docs.py`), and contributor guidelines.
 - [Service_API.md](docs/Service_API.md) – API reference and index for all service layer functions.
 - [service_api/](docs/service_api/) – Per-app service API docs (name, description, parameters, return types, validation).
 

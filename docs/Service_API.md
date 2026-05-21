@@ -66,5 +66,5 @@ See each app’s doc in [service_api/](service_api/) for parameter types, return
 
 ## Related docs
 
-- [Contributing.md](Contributing.md) – Rule that all writes go through the service layer.
+- [CONTRIBUTING.md](../CONTRIBUTING.md) – Rule that all writes go through the service layer.
 - [Schema.md](Schema.md) – Database schema and models.
