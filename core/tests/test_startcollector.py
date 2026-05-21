@@ -5,8 +5,10 @@ from __future__ import annotations
 import shutil
 from io import StringIO
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
+from django.apps import apps as django_apps
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
@@ -33,6 +35,21 @@ def test_startcollector_rejects_invalid_label(tmp_path: Path) -> None:
 
 
 def test_startcollector_rejects_installed_app_name(tmp_path: Path) -> None:
+    with pytest.raises(CommandError, match="INSTALLED_APPS"):
+        call_command(
+            "startcollector",
+            "github_activity_tracker",
+            "--path",
+            str(tmp_path),
+        )
+
+
+def test_startcollector_rejects_dotted_installed_app_label(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mock_config = MagicMock()
+    mock_config.label = "github_activity_tracker"
+    monkeypatch.setattr(django_apps, "get_app_configs", lambda: [mock_config])
     with pytest.raises(CommandError, match="INSTALLED_APPS"):
         call_command(
             "startcollector",

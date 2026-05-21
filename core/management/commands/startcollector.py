@@ -10,7 +10,7 @@ import textwrap
 from pathlib import Path
 from typing import Any
 
-from django.conf import settings
+from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
 
 
@@ -372,8 +372,8 @@ class Command(BaseCommand):
             )
         if app_label in _RESERVED:
             raise CommandError(f'"{app_label}" is reserved; choose another app label.')
-        installed = {name for name in settings.INSTALLED_APPS if "." not in name}
-        if app_label in installed:
+        installed_labels = {cfg.label for cfg in apps.get_app_configs()}
+        if app_label in installed_labels:
             raise CommandError(
                 f'App "{app_label}" is already in INSTALLED_APPS. Remove it or pick a new name.'
             )
