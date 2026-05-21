@@ -125,6 +125,47 @@ def test_check_celery_workers_exception_returns_stable_error():
     assert sensitive not in str(result)
 
 
+@override_settings(HEALTH_CELERY_MIN_WORKERS="not-a-number")
+def test_check_celery_workers_invalid_min_workers_returns_stable_error():
+    result = _check_celery_workers()
+    assert result == {
+        "ok": False,
+        "workers": [],
+        "responded": 0,
+        "expected": 1,
+        "error": "celery_settings_invalid",
+    }
+
+
+@override_settings(HEALTH_CELERY_INSPECT_TIMEOUT="bad")
+def test_check_celery_workers_invalid_timeout_returns_stable_error():
+    result = _check_celery_workers()
+    assert result["ok"] is False
+    assert result["error"] == "celery_settings_invalid"
+
+
+@override_settings(HEALTH_COLLECTOR_STALE_HOURS="twenty-six")
+def test_check_collector_groups_invalid_stale_hours_returns_stable_error():
+    result = _check_collector_groups()
+    assert result == {
+        "groups": {},
+        "any_stale": False,
+        "error": "collector_settings_invalid",
+    }
+
+
+@override_settings(
+    HEALTH_CELERY_MIN_WORKERS="nope",
+    HEALTH_ENFORCE_COLLECTOR_FRESHNESS=True,
+)
+def test_health_view_invalid_celery_setting_returns_503_not_500(api_client):
+    response = api_client.get("/health/")
+    assert response.status_code == 503
+    data = response.json()
+    assert data["status"] == "unhealthy"
+    assert data["checks"]["celery_workers"]["error"] == "celery_settings_invalid"
+
+
 def test_check_collector_groups_exception_returns_stable_error():
     sensitive = "SELECT * FROM secret_table"
     with patch(

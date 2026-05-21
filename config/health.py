@@ -33,8 +33,19 @@ def _check_database() -> dict[str, Any]:
 
 
 def _check_celery_workers() -> dict[str, Any]:
-    min_workers = int(getattr(settings, "HEALTH_CELERY_MIN_WORKERS", 1))
-    timeout = float(getattr(settings, "HEALTH_CELERY_INSPECT_TIMEOUT", 3.0))
+    default_min = 1
+    try:
+        min_workers = int(getattr(settings, "HEALTH_CELERY_MIN_WORKERS", default_min))
+        timeout = float(getattr(settings, "HEALTH_CELERY_INSPECT_TIMEOUT", 3.0))
+    except (TypeError, ValueError):
+        logger.warning("health celery settings invalid", exc_info=True)
+        return {
+            "ok": False,
+            "workers": [],
+            "responded": 0,
+            "expected": default_min,
+            "error": "celery_settings_invalid",
+        }
     try:
         from config.celery import app as celery_app
 
@@ -84,7 +95,15 @@ def _groups_with_daily_schedule() -> set[str]:
 
 
 def _check_collector_groups() -> dict[str, Any]:
-    stale_hours = float(getattr(settings, "HEALTH_COLLECTOR_STALE_HOURS", 26))
+    try:
+        stale_hours = float(getattr(settings, "HEALTH_COLLECTOR_STALE_HOURS", 26))
+    except (TypeError, ValueError):
+        logger.warning("health collector stale-hours setting invalid", exc_info=True)
+        return {
+            "groups": {},
+            "any_stale": False,
+            "error": "collector_settings_invalid",
+        }
     threshold = timezone.now() - timedelta(hours=stale_hours)
     try:
         statuses = collector_services.list_group_statuses()

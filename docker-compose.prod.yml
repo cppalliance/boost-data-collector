@@ -17,7 +17,11 @@ services:
           cpus: "1.0"
           memory: 1G
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health/"]
+      test:
+        [
+          "CMD-SHELL",
+          'if [ -n "$${HEALTH_CHECK_TOKEN:-}" ]; then curl -fsS -H "Authorization: Bearer $${HEALTH_CHECK_TOKEN}" http://127.0.0.1:8000/health/; else curl -fsS http://127.0.0.1:8000/health/; fi',
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
